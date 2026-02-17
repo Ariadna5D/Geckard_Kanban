@@ -7,25 +7,27 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
     steps:
-      - name: 1. Descargar código de GitHub
+      - name: 1. Descargar código
         uses: actions/checkout@v4
 
-      - name: 2. Preparar Backend (Nest.js)
+      - name: 2. Debug - ¿Dónde estamos?
+        run: ls -R
+
+      - name: 3. Preparar Backend
         run: |
-          cd TFG_Kanban/backend
+          # Si tu package.json está directamente en backend:
+          cd backend 
           npm install
           npm run build
 
-      - name: 3. Preparar Frontend (React + Vite)
+      - name: 4. Preparar Frontend
         run: |
-          cd TFG_Kanban/frontend
+          cd frontend
           npm install
           npm run build
 
-      - name: 4. Reiniciar servicios con PM2
+      - name: 5. Reiniciar PM2
         run: |
-          pm2 delete TFG_Kanban/backend || true
-          pm2 start TFG_Kanban/backend/dist/main.js --name "backend"
-          
-          # Guardamos la configuración para que sobreviva a reinicios de la RPi
+          pm2 delete backend || true
+          pm2 start backend/dist/main.js --name "backend"
           pm2 save
