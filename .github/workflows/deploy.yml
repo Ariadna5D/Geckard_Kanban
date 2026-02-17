@@ -1,20 +1,31 @@
-name: Despliegue Automático en Raspberry
+name: Despliegue Automático MERN
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: self-hosted
     steps:
-      - name: Descargar código de GitHub
+      - name: 1. Descargar código de GitHub
         uses: actions/checkout@v4
 
-      - name: Instalar dependencias y Construir (Build)
+      - name: 2. Preparar Backend (Nest.js)
         run: |
+          cd backend
           npm install
-          npm run build --if-present
-          
-      - name: Reiniciar la aplicación con PM2
+          npm run build
+
+      - name: 3. Preparar Frontend (React + Vite)
         run: |
-          pm2 restart all || pm2 start dist/main.js --name "mi-web"
+          cd frontend
+          npm install
+          npm run build
+
+      - name: 4. Reiniciar servicios con PM2
+        run: |
+          pm2 delete backend || true
+          pm2 start backend/dist/main.js --name "backend"
+          
+          # Guardamos la configuración para que sobreviva a reinicios de la RPi
+          pm2 save
