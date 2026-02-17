@@ -29,5 +29,5 @@ jobs:
       - name: 5. Reiniciar PM2
         run: |
           pm2 delete backend || true
-          pm2 start backend/dist/main.js --name "backend"
+          pm2 start /home/ari/actions-runner/_work/TFG_Kanban/TFG_Kanban/backend/dist/main.js --name "backend"
           pm2 save

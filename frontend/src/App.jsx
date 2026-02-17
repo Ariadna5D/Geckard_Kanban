@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'; 
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+
+  // 1. Creamos un "estado" para guardar el mensaje que venga del servidor
+  const [message, setMessage] = useState('Cargando datos del servidor...')
+
+  useEffect(() => {
+    fetch('/api')
+      .then((response) => response.text()) 
+      .then((data) => {
+        
+        setMessage(data)
+      })
+      .catch((err) => {
+        console.error("Error al conectar con la API:", err)
+        setMessage('Error al conectar con el backend')
+      })
+  }, [])
 
   return (
     <>
@@ -21,6 +37,7 @@ function App() {
         <button onClick={() => setCount((count) => count + 1)}>
           count is {count}
         </button>
+        <h2 style={{ color: '#646cff' }}>{message}</h2>
         <p>
           Edit <code>src/App.jsx</code> and save to test HMR
         </p>
