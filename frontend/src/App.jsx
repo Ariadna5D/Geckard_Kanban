@@ -10,10 +10,9 @@ function App() {
   const [message, setMessage] = useState('Cargando datos del servidor...')
 
   useEffect(() => {
-    fetch('/api')
+    fetch('/api/')
       .then((response) => response.text()) 
       .then((data) => {
-        
         setMessage(data)
       })
       .catch((err) => {
