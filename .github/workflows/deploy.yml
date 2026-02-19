@@ -1,4 +1,4 @@
-name: Despliegue Automático MERN
+name: Despliegue con Docker MERN
 on:
   push:
     branches: [ main ]
@@ -7,27 +7,9 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
     steps:
-      - name: 1. Descargar código
+      - name: 1. Descargar código nuevo de GitHub
         uses: actions/checkout@v4
 
-      - name: 2. Debug - ¿Dónde estamos?
-        run: ls -R
-
-      - name: 3. Preparar Backend
+      - name: 2. Levantar la infraestructura con Docker
         run: |
-          # Si tu package.json está directamente en backend:
-          cd backend 
-          npm install
-          npm run build
-
-      - name: 4. Preparar Frontend
-        run: |
-          cd frontend
-          npm install
-          npm run build
-
-      - name: 5. Reiniciar PM2
-        run: |
-          pm2 delete backend || true
-          pm2 start /home/ari/actions-runner/_work/TFG_Kanban/TFG_Kanban/backend/dist/main.js --name "backend"
-          pm2 save
+          docker compose up -d --build
