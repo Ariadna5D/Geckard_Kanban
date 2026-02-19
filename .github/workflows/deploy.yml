@@ -1,15 +1,16 @@
-name: Despliegue con Docker MERN
+name: Despliegue con Docker
 on:
   push:
-    branches: [ main ]
+    branches: [ main ] # O el nombre de tu rama principal
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: self-hosted
     steps:
-      - name: 1. Descargar código nuevo de GitHub
+      - name: Descargar código
         uses: actions/checkout@v4
 
-      - name: 2. Levantar la infraestructura con Docker
+      - name: Levantar Docker
         run: |
-          docker compose up -d --build
+          docker compose down 
+          docker compose up -d --build 
