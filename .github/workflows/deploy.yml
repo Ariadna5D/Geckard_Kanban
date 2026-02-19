@@ -1,16 +1,18 @@
-name: Despliegue con Docker
+name: Despliegue con Docker TFG
 on:
   push:
-    branches: [ main ] # O el nombre de tu rama principal
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Descargar código
+      - name: 1. Descargar código
         uses: actions/checkout@v4
 
-      - name: Levantar Docker
-        run:
-          docker compose down 
-          docker compose down && sudo docker compose up -d --build
+      - name: 2. Levantar Docker
+        run: |
+          cd ${{ github.workspace }}
+          
+          sudo docker compose down
+          sudo docker compose up -d --build
