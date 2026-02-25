@@ -24,7 +24,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: DockerfileF
+      dockerfile: Dockerfile.dev
     command: npx vite --host 0.0.0.0 --port 5173
     volumes:
       - ./frontend:/app
