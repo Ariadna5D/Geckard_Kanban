@@ -1,51 +1,48 @@
 import { useEffect, useState } from 'react'; 
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  // 1. Creamos un "estado" para guardar el mensaje que venga del servidor
-  const [message, setMessage] = useState('Cargando datos del servidor...')
+  // 1. Ahora el estado es una lista (array) de tareas
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/')
-      .then((response) => response.text()) 
+    // 2. Llamamos a la ruta GET que el CLI creó por defecto: /api/tasks
+    fetch('/api/tasks')
+      .then((response) => response.json()) // Convertimos la respuesta a JSON
       .then((data) => {
-        setMessage(data)
+        setTasks(data);
+        setLoading(false);
       })
       .catch((err) => {
-        console.error("Error al conectar con la API:", err)
-        setMessage('Error al conectar con el backend')
-      })
-  }, [])
+        console.error("Error:", err);
+        setLoading(false);
+      });
+  }, []);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <h2 style={{ color: '#646cff' }}>{message}</h2>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div className="App">
+      <h1>Mi Kanban TFG</h1>
+      
+      {loading ? (
+        <p>Cargando tareas...</p>
+      ) : (
+        <div className="task-list">
+          {tasks.length === 0 ? (
+            <p>No hay tareas todavía. ¡Crea una desde Postman!</p>
+          ) : (
+            tasks.map((task) => (
+              <div key={task._id} className="task-card">
+                <h3>{task.title}</h3>
+                <p>{task.description}</p>
+                <span className="status-tag">{task.status}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
-export default App
+export default App;
