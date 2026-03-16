@@ -25,7 +25,7 @@ function App() {
       ) : (
         <div className="flex flex-wrap justify-center gap-6 w-full">
           {tasks.length === 0 ? (
-            <p className="text-center text-gray-500 col-span-full">No hay tareas todavía.</p>
+            <p className="text-center text-gray-500 col-span-full">No hay tareas todavía</p>
           ) : (
             tasks.map((task) => (
               <TaskCard key={task._id} task={task} />
