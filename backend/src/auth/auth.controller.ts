@@ -2,29 +2,25 @@ import { Controller, Post, Body, UnauthorizedException, HttpCode, HttpStatus } f
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 
-@Controller('auth') // Ruta base: /auth
+@Controller('auth') 
 export class AuthController {
   constructor(
     private authService: AuthService,
     private usersService: UsersService,
   ) {}
 
-  // 1. Registro de usuario
   @Post('register')
   async register(@Body() signUpDto: any) {
-    // Usamos el método create que preparamos en el UsersService
     return this.usersService.create(
       signUpDto.email, 
       signUpDto.password, 
-      signUpDto.role // Opcional
+      signUpDto.role 
     );
   }
 
-  // 2. Login de usuario
   @Post('login')
-  @HttpCode(HttpStatus.OK) // Por defecto los POST devuelven 201, pero login suele ser 200
+  @HttpCode(HttpStatus.OK) 
   async login(@Body() loginDto: any) {
-    // Validamos credenciales
     const user = await this.authService.validateUser(loginDto.email, loginDto.password);
 
     if (!user) {

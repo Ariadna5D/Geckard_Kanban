@@ -9,26 +9,28 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  // Paso A: Validar al usuario
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
 
-    if (user && (await this.usersService.comparePassword(pass, user.passwordHash))) {
-      // Si todo coincide, extraemos el hash para no incluirlo en el token
-      const { passwordHash, ...result } = user.toObject();
+    if (
+      user &&
+      (await this.usersService.comparePassword(pass, user.passwordHash))
+    ) {
+      const userObject = user.toObject ? user.toObject() : user;
+      const { passwordHash, ...result } = userObject;
       return result;
     }
     return null;
   }
 
-  // Paso B: Generar el token (El "Login" oficial)
+  // Generar el token
   async login(user: any) {
-    const payload = { 
-      email: user.email, 
-      sub: user._id, 
-      role: user.role // Metemos el rol en el token para el sistema de permisos
+    const payload = {
+      email: user.email,
+      sub: user._id.toString(),
+      role: user.role,
     };
-    
+
     return {
       access_token: this.jwtService.sign(payload),
     };

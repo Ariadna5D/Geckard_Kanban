@@ -21,8 +21,6 @@ async create(email: string, password: string, role?: string): Promise<User> {
       });
       return await newUser.save();
     } catch (error) {
-      // AÑADIMOS ESTO PARA VER QUÉ PASA:
-      console.error('ERROR REAL AL CREAR USUARIO:', error); 
       
       if (error.code === 11000) {
         throw new ConflictException('El correo electrónico ya está registrado');
@@ -35,7 +33,6 @@ async create(email: string, password: string, role?: string): Promise<User> {
     return this.userModel.findOne({ email }).exec();
   }
 
-  // Nuevo: Necesario para el Kanban y para validar tokens JWT
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id).exec();
   }
@@ -44,12 +41,11 @@ async create(email: string, password: string, role?: string): Promise<User> {
     return bcrypt.compare(password, hash);
   }
 
-  // Nuevo: Para la gamificación (Sumar puntos)
   async addExperience(userId: string, points: number): Promise<User | null> {
     return this.userModel.findByIdAndUpdate(
       userId,
-      { $inc: { experiencePoints: points } }, // $inc suma el valor al actual
-      { new: true } // Para que devuelva el usuario actualizado
+      { $inc: { experiencePoints: points } }, 
+      { new: true } 
     ).exec();
   }
 }

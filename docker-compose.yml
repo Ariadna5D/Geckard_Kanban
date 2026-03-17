@@ -7,6 +7,8 @@ services:
       - mongo_data:/data/db
     networks:
       - kanban_network
+    ports:
+      - "27017:27017"
 
   backend:
     build: ./backend
