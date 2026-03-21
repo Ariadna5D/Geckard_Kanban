@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+import { UserDocument } from '../users/schemas/user.schema'; // 1. Importamos el tipo real de Mongoose
 
 @Injectable()
 export class AuthService {
@@ -16,8 +17,12 @@ export class AuthService {
       user &&
       (await this.usersService.comparePassword(pass, user.passwordHash))
     ) {
-      const userObject = user.toObject ? user.toObject() : user;
+      // 2. Casteamos el usuario al tipo Documento para que TS no llore
+      const userDoc = user as UserDocument; 
+      
+      const userObject = userDoc.toObject ? userDoc.toObject() : userDoc;
       const { passwordHash, ...result } = userObject;
+      
       return result;
     }
     return null;
@@ -27,7 +32,7 @@ export class AuthService {
   async login(user: any) {
     const payload = {
       email: user.email,
-      sub: user._id.toString(),
+      sub: user._id.toString(), // Mongoose usa _id por defecto
       role: user.role,
     };
 
