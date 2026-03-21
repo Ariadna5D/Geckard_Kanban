@@ -1,25 +1,33 @@
-// src/auth/strategies/jwt.strategy.ts
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      
       ignoreExpiration: false,
-      
-      secretOrKey: 'clave-secreta', 
+      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
-  async validate(payload: any) {
-    return { 
-      userId: payload.sub, 
-      email: payload.email, 
-      role: payload.role 
+  /**
+   * Este método se ejecuta después de que Passport haya verificado el token.
+   * Si llegamos aquí, el token es válido.
+   */
+  validate(payload: JwtPayload) {
+    // Si quisieras bloquear a alguien manualmente, podrías hacerlo aquí
+    if (!payload) {
+      throw new UnauthorizedException();
+    }
+
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      role: payload.role,
     };
   }
 }

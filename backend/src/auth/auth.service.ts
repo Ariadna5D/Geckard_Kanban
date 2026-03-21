@@ -18,11 +18,11 @@ export class AuthService {
       (await this.usersService.comparePassword(pass, user.passwordHash))
     ) {
       // 2. Casteamos el usuario al tipo Documento para que TS no llore
-      const userDoc = user as UserDocument; 
-      
+      const userDoc = user as UserDocument;
+
       const userObject = userDoc.toObject ? userDoc.toObject() : userDoc;
       const { passwordHash, ...result } = userObject;
-      
+
       return result;
     }
     return null;

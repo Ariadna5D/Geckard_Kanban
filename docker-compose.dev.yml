@@ -4,6 +4,9 @@ services:
     container_name: mongodb_kanban
     ports:
       - "27017:27017"
+    environment: 
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     volumes:
       - mongo_data:/data/db
     networks:
@@ -22,6 +25,9 @@ services:
       - /usr/src/app/node_modules      
     environment:
       - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    env_file:
+      - .env 
     depends_on:
       - mongodb
     networks:

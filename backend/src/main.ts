@@ -7,7 +7,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // 1. TUS AJUSTES CLAVE (CORS y Prefijo)
-  app.enableCors(); 
+  app.enableCors();
   app.setGlobalPrefix('api');
 
   // 2. EL GUARDIA DE SEGURIDAD GLOBAL (Mejorado)
@@ -27,7 +27,6 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  
   // OJO AQUÍ: Como tu prefijo es 'api', he movido Swagger a 'api/docs' para que no choquen
   SwaggerModule.setup('api/docs', app, document);
 

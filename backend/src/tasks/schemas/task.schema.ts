@@ -4,7 +4,7 @@ import { HydratedDocument } from 'mongoose';
 export type TaskDocument = HydratedDocument<Task>;
 
 // @Schema() le dice a Mongoose que esto será una colección en tu base de datos
-@Schema({ timestamps: true }) 
+@Schema({ timestamps: true })
 export class Task {
   // El título es obligatorio para que nadie cree una tarea vacía en tu Kanban
   @Prop({ required: true })

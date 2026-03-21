@@ -7,9 +7,7 @@ import { Task, TaskDocument } from './schemas/task.schema';
 
 @Injectable()
 export class TasksService {
-  constructor(
-    @InjectModel(Task.name) private taskModel: Model<TaskDocument>,
-  ) {}
+  constructor(@InjectModel(Task.name) private taskModel: Model<TaskDocument>) {}
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
     const createdTask = new this.taskModel(createTaskDto);
@@ -34,7 +32,9 @@ export class TasksService {
       .exec();
 
     if (!existingTask) {
-      throw new NotFoundException(`Tarea con ID ${id} no encontrada para actualizar`);
+      throw new NotFoundException(
+        `Tarea con ID ${id} no encontrada para actualizar`,
+      );
     }
     return existingTask;
   }
@@ -42,7 +42,9 @@ export class TasksService {
   async remove(id: string): Promise<Task> {
     const deletedTask = await this.taskModel.findByIdAndDelete(id).exec();
     if (!deletedTask) {
-      throw new NotFoundException(`Tarea con ID ${id} no encontrada para borrar`);
+      throw new NotFoundException(
+        `Tarea con ID ${id} no encontrada para borrar`,
+      );
     }
     return deletedTask;
   }
