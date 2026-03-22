@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
-import { UserDocument } from '../users/schemas/user.schema'; // 1. Importamos el tipo real de Mongoose
+import { UserDocument } from '../users/schemas/user.schema';
+import { ValidatedUser } from './interfaces/user';
 
 @Injectable()
 export class AuthService {
@@ -10,29 +11,44 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  /**
+   * Valida las credenciales del usuario.
+   * @param email
+   * @param pass
+   * @returns El usuario validado sin el passwordHash, o null si las credenciales son inválidas.
+   */
+  async validateUser(
+    email: string,
+    pass: string,
+  ): Promise<ValidatedUser | null> {
+    //Buscamos el usuario por su email
     const user = await this.usersService.findByEmail(email);
 
     if (
       user &&
-      (await this.usersService.comparePassword(pass, user.passwordHash))
+      (await this.usersService.comparePassword(pass, user.passwordHash)) // Si la contraseña es correcta, devolvemos el usuario sin el passwordHash
     ) {
-      // 2. Casteamos el usuario al tipo Documento para que TS no llore
       const userDoc = user as UserDocument;
+      const userObject = userDoc.toObject() as ValidatedUser & {
+        passwordHash: string;
+      };
 
-      const userObject = userDoc.toObject ? userDoc.toObject() : userDoc;
       const { passwordHash, ...result } = userObject;
 
-      return result;
+      return result as ValidatedUser;
     }
     return null;
   }
 
-  // Generar el token
-  async login(user: any) {
+  /**
+   * Genera un JWT para el usuario validado.
+   * @param user El usuario validado del cual se extraerá la información para el payload del token.
+   * @returns Un objeto con el access_token.
+   */
+  login(user: ValidatedUser) {
     const payload = {
       email: user.email,
-      sub: user._id.toString(), // Mongoose usa _id por defecto
+      sub: user._id.toString(),
       role: user.role,
     };
 

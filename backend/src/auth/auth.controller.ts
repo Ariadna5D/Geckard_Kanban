@@ -10,7 +10,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { User } from '../users/schemas/user.schema';
+import { ValidatedUser } from './interfaces/user';
 
 @Controller('auth')
 export class AuthController {
@@ -20,7 +20,7 @@ export class AuthController {
   ) {}
 
   /**
-   * Endpoint de Registro público.
+   * Endpoint de Registro.
    */
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
@@ -34,7 +34,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    const user: User | null = await this.authService.validateUser(
+    const user: ValidatedUser | null = await this.authService.validateUser(
       loginDto.email,
       loginDto.password,
     );
@@ -44,7 +44,7 @@ export class AuthController {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Le pasamos el objeto user tipado al método login del servicio
+    // Si el usuario es válido, generamos y devolvemos el token
     return this.authService.login(user);
   }
 }

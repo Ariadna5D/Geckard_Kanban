@@ -22,6 +22,7 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
 
+// Interfaz para definir la estructura del archivo subido, asegurando que tenga un buffer para la carga a Cloudinary
 interface UploadedFileMetadata {
   buffer: Buffer;
 }
@@ -36,17 +37,30 @@ export class UsersController {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  /**
+   * Obtener el perfil del usuario logueado
+   * @param req - La solicitud autenticada que contiene la información del usuario
+   * @returns El perfil del usuario logueado
+   */
   @Get('me')
-  @ApiOperation({ summary: 'Obtener mi perfil' })
+  @ApiOperation({ summary: 'Obtener perfil logueado' })
   async getProfile(@Request() req: ValidatedRequest) {
     return this.usersService.findById(req.user.sub);
   }
 
+  /**
+   * Actualizar el perfil del usuario logueado, incluyendo la posibilidad de subir una nueva imagen de avatar
+   * @param req - La solicitud autenticada que contiene la información del usuario
+   * @param updateUserDto - Los datos para actualizar el perfil del usuario
+   * @param file - El archivo de imagen para el avatar (opcional)
+   * @returns El perfil actualizado del usuario logueado
+   */
   @Patch('me')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Actualizar mi perfil' })
+  @ApiOperation({ summary: 'Actualizar perfil logueado' })
   @ApiBody({
+    required: false,
     schema: {
       type: 'object',
       properties: {

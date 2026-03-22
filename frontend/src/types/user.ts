@@ -1,4 +1,4 @@
-export interface User {
+export interface ValidatedUser {
   id: string;
   email: string;
   username: string;

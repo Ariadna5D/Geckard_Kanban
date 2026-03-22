@@ -7,6 +7,7 @@ import type { JwtPayload } from '../interfaces/jwt-payload.interface';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
+    // Configuramos la estrategia JWT para que extraiga el token del header Authorization como Bearer token
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -19,7 +20,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * Si llegamos aquí, el token es válido.
    */
   validate(payload: JwtPayload) {
-    // Si quisieras bloquear a alguien manualmente, podrías hacerlo aquí
     if (!payload) {
       throw new UnauthorizedException();
     }

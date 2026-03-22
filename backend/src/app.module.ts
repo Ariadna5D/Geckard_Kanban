@@ -13,6 +13,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ConfigModule.forRoot({
       isGlobal: true,
       ignoreEnvFile: true,
+      envFilePath: '.env',
     }),
 
     // Conexión a MongoDB con credenciales desde variables de entorno
