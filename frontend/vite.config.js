@@ -7,17 +7,17 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  server: {
-    host: true, 
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://backend:3000', 
-        changeOrigin: true,
-      },
+  resolve: {
+    alias: {
+      "@": "/src",
     },
-    watch: {
-      usePolling: true, 
-    }
   },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    }
+  }
 })

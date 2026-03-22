@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   createBrowserRouter,
   RouterProvider,
@@ -10,7 +10,8 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuthStore } from "./store/useAuthStore";
-
+import { ProfilePage } from "./pages/ProfilePage";
+import { MainLayout } from './components/layouts/MainLayout';
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -31,7 +32,13 @@ function RootRedirect() {
 }
 
 export const App = () => {
-  const _hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const { _hasHydrated, fetchUser, token } = useAuthStore();
+
+  useEffect(() => {
+    if (_hasHydrated && token) {
+      fetchUser();
+    }
+  }, [_hasHydrated, token]); 
 
   const router = useMemo(() => createBrowserRouter([
 
@@ -43,10 +50,16 @@ export const App = () => {
       path: "/register",
       element: <PublicRoute><RegisterPage /></PublicRoute>,
     },
-    {
-      element: <ProtectedRoute />,
+{
+      element: <ProtectedRoute />, 
       children: [
-        { path: "/dashboard", element: <DashboardPage /> }
+        {
+          element: <MainLayout />, 
+          children: [
+            { path: "/dashboard", element: <DashboardPage /> },
+            { path: "/profile", element: <ProfilePage /> },
+          ],
+        }
       ],
     },
     {

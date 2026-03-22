@@ -7,6 +7,7 @@ import {
   Request,
   UseInterceptors,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -21,6 +22,7 @@ import { UsersService } from './users.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 // Interfaz para definir la estructura del archivo subido, asegurando que tenga un buffer para la carga a Cloudinary
 interface UploadedFileMetadata {
@@ -45,7 +47,7 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Obtener perfil logueado' })
   async getProfile(@Request() req: ValidatedRequest) {
-    return this.usersService.findById(req.user.sub);
+    return this.usersService.findOne(req.user.sub);
   }
 
   /**
