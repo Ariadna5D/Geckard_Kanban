@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -107,5 +108,22 @@ export class UsersService {
     return this.userModel
       .findByIdAndUpdate(userId, updateDto, { returnDocument: 'after' })
       .exec();
+  }
+
+  async findOne(id: string) {
+    const user = await this.userModel.findById(id).exec();
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const userObject = user.toObject();
+
+    const { passwordHash, __v, _id, ...safeUserData } = userObject;
+
+    return {
+      id: _id.toString(),
+      ...safeUserData,
+    };
   }
 }

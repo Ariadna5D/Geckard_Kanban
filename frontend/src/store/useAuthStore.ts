@@ -1,51 +1,65 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '../types/user';
-
+import api from '../api/axios.instance'; // Importante para las peticiones
 
 interface AuthState {
-  //--- Estado ---
-  user: User | null; // Información del usuario autenticado
-  token: string | null; // Token JWT para autenticación
-  isAuthenticated: boolean; // Bandera para saber si el usuario está autenticado
+  // --- Estado ---
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
   
-  // --- Getters ---
-  _hasHydrated: boolean; // Bandera interna para saber si ya se ha cargado el usuario
-  setHasHydrated: (state: boolean) => void; // Función para actualizar la bandera de hidratación
+  // --- Getters/Hydration ---
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
 
   // --- Actions ---
-  login: (user: User, token: string) => void; // Función para iniciar sesión
-  logout: () => void; // Función para cerrar sesión
+  login: (user: User, token: string) => void;
+  logout: () => void;
+  updateUser: (updatedData: Partial<User>) => void;
+  
+  fetchUser: () => Promise<void>;
 }
 
-// Creamos el store de autenticación usando Zustand con persistencia en LocalStorage
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      // --- Estado ---
-      user: null, // Por defecto no hay usuario autenticado
-      token: null, // Por defecto no hay token
-      isAuthenticated: false, // Por defecto no estamos autenticados
-      _hasHydrated: false, // Por defecto la app no ha leído la api aún
+      // --- Estado Inicial ---
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      _hasHydrated: false,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
-      // Al hacer login, guardamos user y token y activamos la bandera de autenticado
       login: (user, token) => set({ 
         user, 
         token, 
         isAuthenticated: true 
       }),
 
-      // Al cerrar sesión, limpiamos todo
       logout: () => {
         set({ user: null, token: null, isAuthenticated: false });
       },
+
+      updateUser: (updatedData) => set((state) => ({
+        user: state.user ? { ...state.user, ...updatedData } : null
+      })),
+
+      fetchUser: async () => {
+        try {
+          const response = await api.get('/users/me');
+          set({ 
+            user: response.data, 
+            isAuthenticated: true 
+          });
+        } catch (error) {
+          set({ user: null, token: null, isAuthenticated: false });
+        }
+      },
     }),
     { 
-      name: 'auth-storage', // Nombre de la clave en LocalStorage
-
-      // es una función que se ejecuta cuando el store se carga desde LocalStorage
+      name: 'auth-storage',
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true);
