@@ -76,22 +76,6 @@ export class UsersService {
   }
 
   /**
-   * Agrega puntos de experiencia a un usuario.
-   * @param userId
-   * @param points
-   * @returns El usuario actualizado con los nuevos puntos de experiencia, o null si no se encontró el usuario.
-   */
-  async addExperience(userId: string, points: number): Promise<User | null> {
-    return this.userModel
-      .findByIdAndUpdate(
-        userId,
-        { $inc: { experiencePoints: points } },
-        { new: true },
-      )
-      .exec();
-  }
-
-  /**
    * Actualiza la información de un usuario. Solo se pueden actualizar email, username y bio.
    * @param userId ID del usuario a actualizar
    * @param updateDto DTO con los campos a actualizar (email, username, bio)
@@ -121,7 +105,7 @@ export class UsersService {
     }
 
     return this.userModel
-      .findByIdAndUpdate(userId, updateDto, { new: true })
+      .findByIdAndUpdate(userId, updateDto, { returnDocument: 'after' })
       .exec();
   }
 }

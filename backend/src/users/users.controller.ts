@@ -79,9 +79,21 @@ export class UsersController {
     const safeFile = file as UploadedFileMetadata | undefined;
 
     if (safeFile?.buffer) {
+      const currentUser = await this.usersService.findById(req.user.sub);
+
+      if (currentUser && currentUser.avatarUrl) {
+        const publicId = this.cloudinaryService.extractPublicId(
+          currentUser.avatarUrl,
+        );
+        if (publicId) {
+          await this.cloudinaryService.deleteFile(publicId);
+        }
+      }
+
       const uploadResult = await this.cloudinaryService.uploadFile({
         buffer: safeFile.buffer,
       });
+
       updateUserDto.avatarUrl = uploadResult.secure_url;
     }
 

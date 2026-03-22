@@ -17,7 +17,12 @@ interface MulterFile {
 export class CloudinaryService {
   constructor(@Inject(CLOUDINARY) private cloudinaryConfig: any) {}
 
-  // Método para subir un archivo a Cloudinary
+  /**
+   * Sube un archivo a Cloudinary
+   * @param file - El archivo a subir
+   * @returns Respuesta de Cloudinary, incluyendo la URL segura del archivo subido.
+   * @throws Error si ocurre un problema durante la carga a Cloudinary.
+   */
   async uploadFile(file: MulterFile): Promise<UploadApiResponse> {
     // Cloudinary no tiene un método directo para subir desde un Buffer, así que usamos un Stream
     return new Promise((resolve, reject) => {
@@ -52,5 +57,62 @@ export class CloudinaryService {
       // Pipeamos el Stream de lectura al uploadStream de Cloudinary
       streamService.createReadStream(bufferToStream).pipe(uploadStream);
     });
+  }
+
+  // ... tu código anterior (uploadFile) ...
+
+  /**
+   * Extrae el public_id de una URL segura de Cloudinary
+   * @returns El public_id en formato "folder/filename" o null si no se puede extraer
+   */
+  extractPublicId(url: string): string | null {
+    if (!url) return null;
+
+    try {
+      const parts = url.split('/upload/');
+      if (parts.length < 2) return null;
+
+      let finalPart = parts[1];
+
+      if (finalPart.match(/^v\d+\//)) {
+        finalPart = finalPart.replace(/^v\d+\//, '');
+      }
+
+      const extensionIndex = finalPart.lastIndexOf('.');
+      const publicId =
+        extensionIndex !== -1
+          ? finalPart.substring(0, extensionIndex)
+          : finalPart;
+
+      return publicId;
+    } catch (error) {
+      console.error('Error extrayendo publicId:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Borra un archivo de Cloudinary usando su public_id
+   * @param publicId - El public_id del archivo a borrar (ej: "avatars/abcd")
+   * @returns La respuesta de Cloudinary sobre la operación de borrado
+   * @throws Error si ocurre un problema durante el borrado en Cloudinary
+   */
+  async deleteFile(publicId: string): Promise<{ result: string }> {
+    try {
+      console.log(`[Cloudinary] Intentando borrar public_id: ${publicId}`);
+
+      const result = (await cloudinary.uploader.destroy(publicId, {
+        invalidate: true,
+      })) as {
+        result: string;
+      };
+
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Cloudinary Delete Error: ${error.message}`);
+      }
+      throw new Error(`Cloudinary Delete Error: ${String(error)}`);
+    }
   }
 }
