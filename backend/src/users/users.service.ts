@@ -67,6 +67,13 @@ export class UsersService {
   }
 
   /**
+   * Obtiene todos los usuarios de la plataforma
+   */
+  async findAll() {
+    return this.userModel.find().select('-passwordHash').exec();
+  }
+
+  /**
    * Compara una contraseña sin hash con su versión hasheada.
    * @param password
    * @param hash
@@ -125,5 +132,20 @@ export class UsersService {
       id: _id.toString(),
       ...safeUserData,
     };
+  }
+
+  /**
+   * Elimina un usuario por su ID de la base de datos.
+   * @param id ID del usuario a eliminar
+   * @returns El usuario eliminado (para poder leer su avatar y borrarlo luego)
+   */
+  async remove(id: string) {
+    const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
+
+    if (!deletedUser) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return deletedUser;
   }
 }
