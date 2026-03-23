@@ -2,21 +2,21 @@ import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'JuanPerez', description: 'Nombre de usuario único' })
+  @ApiProperty({ example: 'Usuario', description: 'Nombre de usuario único' })
   @IsString({ message: 'El nombre debe ser un texto' })
   @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
   @MaxLength(20, { message: 'El nombre no puede tener más de 20 caracteres' })
   username: string;
 
   @ApiProperty({
-    example: 'juan@email.com',
+    example: 'usuario@mail.com',
     description: 'Correo electrónico válido',
   })
   @IsEmail({}, { message: 'El formato del email no es válido' })
   email: string;
 
   @ApiProperty({
-    example: 'Password123!',
+    example: 'usuario',
     description: 'Contraseña del usuario',
   })
   @IsString()

@@ -19,7 +19,7 @@ export class UpdateUserDto {
   bio?: string;
 
   @ApiPropertyOptional({
-    description: 'URL del avatar (gestionado por el cloudinary)',
+    description: 'URL del avatar',
   })
   @IsOptional()
   @IsString()
