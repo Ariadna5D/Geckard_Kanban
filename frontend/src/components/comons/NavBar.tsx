@@ -41,7 +41,7 @@ export const Navbar = () => {
         className="font-bold text-xl cursor-pointer hover:opacity-80 transition-opacity"
       >
         <span className="text-slate-800">Axi</span>
-        <span className="text-accent-600">Up</span>
+        <span className="text-primary-600">Up</span>
       </div>
 
       {/* MENÚ DESPLEGABLE DEL USUARIO */}
