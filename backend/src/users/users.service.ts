@@ -1,0 +1,129 @@
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from './schemas/user.schema';
+import * as bcrypt from 'bcrypt';
+import { RegisterDto } from '../auth/dto/register.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+@Injectable()
+export class UsersService {
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+
+  /**
+   * Crea un nuevo usuario a partir del RegisterDto.
+   * @param registerDto
+   * @returns El usuario creado.
+   * @throws ConflictException si el email o el username ya están en uso.
+   */
+  async create(registerDto: RegisterDto): Promise<User> {
+    // Extraemos los campos del DTO
+    const { email, username, password } = registerDto;
+
+    // Validamos que el email y el username sean únicos
+    const existingEmail = await this.userModel.findOne({ email });
+    if (existingEmail)
+      throw new ConflictException('El email ya está registrado');
+
+    // Validamos que el username sea único
+    const existingUser = await this.userModel.findOne({ username });
+    if (existingUser)
+      throw new ConflictException('El nombre de usuario ya está en uso');
+
+    // Hasheamos la contraseña antes de guardarla
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Creamos el nuevo usuario con el password hasheado
+    const newUser = new this.userModel({
+      email,
+      username,
+      passwordHash: hashedPassword,
+    });
+
+    return newUser.save();
+  }
+
+  /**
+   * Busca un usuario por su email.
+   * @param email
+   * @returns El usuario encontrado o null si no existe.
+   */
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ email }).exec();
+  }
+
+  /**
+   * Busca un usuario por su ID.
+   * @param id
+   * @returns El usuario encontrado o null si no existe.
+   */
+  async findById(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec();
+  }
+
+  /**
+   * Compara una contraseña sin hash con su versión hasheada.
+   * @param password
+   * @param hash
+   * @returns true si la contraseña coincide con el hash, false en caso contrario.
+   */
+  async comparePassword(password: string, hash: string): Promise<boolean> {
+    return bcrypt.compare(password, hash);
+  }
+
+  /**
+   * Actualiza la información de un usuario. Solo se pueden actualizar email, username y bio.
+   * @param userId ID del usuario a actualizar
+   * @param updateDto DTO con los campos a actualizar (email, username, bio)
+   * @returns El usuario actualizado, o null si no se encontró el usuario.
+   * @throws BadRequestException si el usuario no existe.
+   * @throws ConflictException si el nuevo email o username ya están en uso por otro usuario.
+   */
+  async update(userId: string, updateDto: UpdateUserDto) {
+    const user = await this.userModel.findById(userId);
+
+    if (!user) throw new BadRequestException('Usuario no encontrado');
+
+    // Validar email único solo si lo está cambiando
+    if (updateDto.email && updateDto.email !== user.email) {
+      const isTaken = await this.userModel.findOne({ email: updateDto.email });
+      if (isTaken)
+        throw new ConflictException('Este email ya lo usa otra persona');
+    }
+
+    // Validar username único solo si lo está cambiando
+    if (updateDto.username && updateDto.username !== user.username) {
+      const isTaken = await this.userModel.findOne({
+        username: updateDto.username,
+      });
+      if (isTaken)
+        throw new ConflictException('Este nombre de usuario ya está en uso');
+    }
+
+    return this.userModel
+      .findByIdAndUpdate(userId, updateDto, { returnDocument: 'after' })
+      .exec();
+  }
+
+  async findOne(id: string) {
+    const user = await this.userModel.findById(id).exec();
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const userObject = user.toObject();
+
+    const { passwordHash, __v, _id, ...safeUserData } = userObject;
+
+    return {
+      id: _id.toString(),
+      ...safeUserData,
+    };
+  }
+}
