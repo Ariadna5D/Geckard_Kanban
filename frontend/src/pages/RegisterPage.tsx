@@ -2,9 +2,8 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock } from 'lucide-react'; // Iconos estándar
 import { useAuthStore } from '../store/useAuthStore';
-import axios from 'axios';
 import { useState } from 'react';
-
+import api from '../api/axios.instance';
 // 1. Definimos el "contrato" de lo que vamos a enviar
 interface RegisterFormData {
   username: string;
@@ -26,24 +25,23 @@ export const RegisterPage = () => {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Función que se ejecuta al enviar el formulario
-  const onSubmit = async (data: RegisterFormData) => {
+const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setServerError(null);
 
     try {
-      // Hacemos la petición al backend para registrar el usuario
-      const response = await axios.post('http://localhost:3000/api/auth/register', data);
+      await api.post('/auth/register', data);
       
-      // Si el registro es exitoso, guardamos el usuario y token en el estado global
-      loginFn(response.data.user, response.data.access_token);
+      const loginResponse = await api.post('/auth/login', {
+        email: data.email,
+        password: data.password
+      });
       
-      // Y mandamos al usuario al Kanban
+      loginFn(loginResponse.data.user, loginResponse.data.access_token);
+      
       navigate('/dashboard');
     } catch (error: any) {
-      
-      // Si NestJS nos rechaza (ej: email repetido), mostramos su mensaje
-      setServerError(error.response?.data?.message || 'Error al registrar el usuario');
+      setServerError(error.response?.data?.message || 'Error en el proceso');
     } finally {
       setIsLoading(false);
     }

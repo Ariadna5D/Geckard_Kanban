@@ -8,6 +8,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Delete,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -79,19 +80,6 @@ export class UsersController {
   }
 
   /**
-   *  Obtener todos los usuarios registrados en la plataforma (Solo accesible para administradores)
-   * @returns  Una lista de todos los usuarios registrados, excluyendo sus contraseñas hasheadas por razones de seguridad
-   * @throws ForbiddenException si el usuario autenticado no tiene permisos de administrador para acceder a esta información
-   */
-  @Get()
-  @UseGuards(JwtAuthGuard, PoliciesGuard) // 1. Exige estar logueado, 2. Exige pasar el filtro de CASL
-  @CheckPolicies((ability) => ability.can(Action.Manage, User)) // La regla de oro
-  @ApiOperation({ summary: 'Obtener todos los usuarios (Solo Admin)' })
-  async findAllUsers() {
-    return this.usersService.findAll();
-  }
-
-  /**
    * Actualizar el perfil del usuario logueado, incluyendo la posibilidad de subir una nueva imagen de avatar
    * @param req - La solicitud autenticada que contiene la información del usuario
    * @param updateUserDto - Los datos para actualizar el perfil del usuario
@@ -141,5 +129,61 @@ export class UsersController {
     }
 
     return this.usersService.update(req.user.sub, updateUserDto);
+  }
+
+  /**
+   *  Obtener todos los usuarios registrados en el sistema (Solo accesible para administradores)
+   * @returns  Una lista de todos los usuarios registrados en el sistema, incluyendo sus detalles básicos (sin contraseñas)
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @ApiOperation({ summary: 'Obtener todos los usuarios (Solo Admin)' })
+  async findAllUsers() {
+    return this.usersService.findAll();
+  }
+
+  /**
+   * Actualizar cualquier usuario por su ID
+   * @param id - El ID del usuario que el admin quiere editar
+   */
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @ApiOperation({ summary: 'Editar cualquier usuario (Solo Admin)' })
+  async updateUserById(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    // Reutilizamos tu método update del servicio, pero pasándole el ID de la URL
+    return this.usersService.update(id, updateUserDto);
+  }
+
+  /**
+   * Eliminar cualquier usuario por su ID y limpiar su foto
+   * @param id - El ID del usuario a fulminar
+   */
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @ApiOperation({ summary: 'Eliminar cualquier usuario (Solo Admin)' })
+  async deleteUserById(@Param('id') id: string) {
+    const userToDelete = await this.usersService.findById(id);
+
+    // Si el usuario tiene una foto de avatar, eliminamos esa foto de Cloudinary antes de eliminar el usuario
+    if (userToDelete && userToDelete.avatarUrl) {
+      const publicId = this.cloudinaryService.extractPublicId(
+        userToDelete.avatarUrl,
+      );
+      if (publicId) {
+        await this.cloudinaryService.deleteFile(publicId);
+      }
+    }
+
+    // Ahora sí, eliminamos el usuario del sistema
+    await this.usersService.remove(id);
+    return {
+      message: `Usuario con ID ${id} eliminado correctamente del sistema.`,
+    };
   }
 }
