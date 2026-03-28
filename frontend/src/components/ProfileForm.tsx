@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { UploadCloud, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UploadCloud, Loader2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../api/axios.instance';
 
@@ -10,13 +11,27 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+// Importamos las piezas del AlertDialog de shadcn
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 interface ProfileFormData {
   username: string;
   bio: string;
 }
 
 export const ProfileForm = () => {
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, logout } = useAuthStore();
+  const navigate = useNavigate();
   
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormData>({
     defaultValues: { username: '', bio: '' }
@@ -25,6 +40,7 @@ export const ProfileForm = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -104,6 +120,22 @@ export const ProfileForm = () => {
     }
   };
 
+  // Lógica para borrar cuenta limpia, sin el window.confirm nativo
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await api.delete('/users/me');
+      logout();
+      navigate('/login');
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.message || 'Error al eliminar la cuenta' 
+      });
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <Card className="max-w-xl mx-auto mt-8">
       <CardHeader>
@@ -164,12 +196,54 @@ export const ProfileForm = () => {
             </div>
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+          <Button type="submit" disabled={isLoading || isDeleting} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? 'Guardando cambios...' : 'Guardar perfil'}
           </Button>
-
         </form>
+
+        <div className="mt-8 pt-6 border-t border-red-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-surface-600 font-semibold text-sm">Eliminar Cuenta</h3>
+              <p className="text-xs text-slate-500 mt-1">Elimina tu cuenta y todos tus datos permanentemente.</p>
+            </div>
+            
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  disabled={isDeleting || isLoading}
+                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white transition-colors"
+                >
+                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  {isDeleting ? 'Eliminando...' : 'Eliminar cuenta'}
+                </Button>
+              </AlertDialogTrigger>
+              
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Se eliminará tu cuenta, tus puntos de experiencia y todos tus datos de nuestros servidores de forma permanente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDeleteAccount}
+                    className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
+                  >
+                    Sí, eliminar mi cuenta
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+          </div>
+        </div>
+
       </CardContent>
     </Card>
   );

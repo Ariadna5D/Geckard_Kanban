@@ -45,7 +45,7 @@ export const LoginPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6 text-primary-600">Acceder a Kanban</h2>
+        <h2 className="text-2xl font-bold text-center mb-6 text-primary-600">Acceder a AxiUp</h2>
 
         {/* CAJA DE ERROR DEL SERVIDOR */}
         {serverError && (
