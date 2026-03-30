@@ -27,8 +27,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from 'src/casl/policies.guard';
 import { CheckPolicies } from 'src/casl/policies.decorator';
 import { User } from './schemas/user.schema';
-import { Action } from 'src/casl/casl-ability.factory';
-
+import { Action } from 'src/casl/enums/action.enum';
 // Interfaz para definir la estructura del archivo subido, asegurando que tenga un buffer para la carga a Cloudinary
 interface UploadedFileMetadata {
   buffer: Buffer;

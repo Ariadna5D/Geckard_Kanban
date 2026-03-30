@@ -1,5 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-// 1. Cambiamos Document por HydratedDocument
 import { HydratedDocument, Types } from 'mongoose';
 
 export enum BoardRole {
@@ -9,28 +8,36 @@ export enum BoardRole {
   VIEWER = 'viewer',
 }
 
+// 1. SUB-DOCUMENT: Board Member
 @Schema({ _id: false })
 export class BoardMember {
+  // Always specify the exact type and ref for populated fields
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
   @Prop({ type: String, enum: BoardRole, default: BoardRole.VIEWER })
   role: BoardRole;
 }
+// We explicitly create the schema for the subdocument
+export const BoardMemberSchema = SchemaFactory.createForClass(BoardMember);
 
+// 2. SUB-DOCUMENT: Board Column
 @Schema()
 export class BoardColumn {
   @Prop({ required: true, trim: true })
   title: string;
 
+  // Array of ObjectIds pointing to the future Task schema
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Task' }] })
   tasks: Types.ObjectId[];
 }
+// We explicitly create the schema for the column subdocument
+export const BoardColumnSchema = SchemaFactory.createForClass(BoardColumn);
 
+// 3. MAIN DOCUMENT: Board
 export type BoardDocument = HydratedDocument<Board>;
 
 @Schema({ timestamps: true })
-// 3. Quitamos el "extends Document" de la clase
 export class Board {
   @Prop({ required: true, trim: true })
   title: string;
@@ -44,10 +51,10 @@ export class Board {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   owner: Types.ObjectId;
 
-  @Prop({ type: [BoardMember], default: [] })
+  @Prop({ type: [BoardMemberSchema], default: [] })
   members: BoardMember[];
 
-  @Prop({ type: [BoardColumn], default: [] })
+  @Prop({ type: [BoardColumnSchema], default: [] })
   columns: BoardColumn[];
 }
 

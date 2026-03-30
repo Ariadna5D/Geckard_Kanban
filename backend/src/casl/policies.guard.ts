@@ -1,8 +1,10 @@
-// src/casl/policies.guard.ts
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { CaslAbilityFactory, AppAbility } from './casl-ability.factory';
-import { CHECK_POLICIES_KEY, PolicyHandler } from './policies.decorator';
+import { CaslAbilityFactory } from './casl-ability.factory';
+import {
+  CHECK_POLICIES_KEY,
+  PolicyHandlerCallback,
+} from './policies.decorator';
 
 @Injectable()
 export class PoliciesGuard implements CanActivate {
@@ -12,43 +14,20 @@ export class PoliciesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // 1. Reflector extrae las reglas que pusimos en el controlador con @CheckPolicies
+    // Extraemos los handlers (las reglas) que pusimos en el decorador @CheckPolicies
     const policyHandlers =
-      this.reflector.get<PolicyHandler[]>(
+      this.reflector.get<PolicyHandlerCallback[]>(
         CHECK_POLICIES_KEY,
         context.getHandler(),
       ) || [];
 
-    // Si la ruta no tiene el decorador, la dejamos pasar (puede ser pública)
-    if (policyHandlers.length === 0) {
-      return true;
-    }
+    // Obtenemos el usuario que el JwtAuthGuard inyectó en la Request
+    const { user } = context.switchToHttp().getRequest();
 
-    // 2. Extraemos el usuario de la petición.
-    // OJO: Esto asume que tu JwtAuthGuard ya se ejecutó y metió al usuario en req.user
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-
-    if (!user) {
-      return false; // Si no hay usuario en este punto, bloqueamos
-    }
-
-    // 3. Fabricamos los poderes específicos para este usuario
+    // Creamos las habilidades (permisos) para ese usuario concreto
     const ability = this.caslAbilityFactory.createForUser(user);
 
-    // 4. Evaluamos TODAS las políticas que le pusimos a la ruta.
-    // Si falla una sola, se bloquea (devuelve false).
-    return policyHandlers.every((handler) =>
-      this.execPolicyHandler(handler, ability),
-    );
-  }
-
-  // Función auxiliar para ejecutar la regla dependiendo de si la pasamos
-  // como una función flecha o como una clase entera.
-  private execPolicyHandler(handler: PolicyHandler, ability: AppAbility) {
-    if (typeof handler === 'function') {
-      return handler(ability);
-    }
-    return handler.handle(ability);
+    // Ejecutamos cada regla y verificamos si todas devuelven 'true'
+    return policyHandlers.every((handler) => handler(ability));
   }
 }

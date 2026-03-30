@@ -5,9 +5,5 @@ import { Request } from 'express';
 export interface RequestWithUser extends Request {
   user: {
     id: string;
-    // Si tu token guarda más cosas (como el rol o el email), ponlas aquí.
-    // Por ejemplo:
-    // email: string;
-    // role: string;
   };
 }
