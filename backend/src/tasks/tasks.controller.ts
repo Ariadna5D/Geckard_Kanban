@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiBearerAuth,
   ApiResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -42,22 +43,21 @@ export class TasksController {
     // La lógica de asignarle el orden (al final de la columna) la hace el Service
     return this.tasksService.create(createTaskDto);
   }
+  // ... imports
 
-  // IMPORTANTE: La ruta es /tasks/board/:boardId para traer todas las del tablero de golpe.
-  // Es mucho más eficiente que pedir las tareas columna por columna.
   @Get('board/:boardId')
   @CheckPolicies((ability) => ability.can(Action.Read, Task))
   @ApiOperation({ summary: 'Obtener todas las tareas de un tablero' })
+  // LE DECIMOS A SWAGGER QUE VISUALMENTE ES UN STRING
+  @ApiParam({ name: 'boardId', type: 'string', description: 'ID del tablero' })
   findAllByBoard(@Param('boardId', ParseObjectIdPipe) boardId: Types.ObjectId) {
-    // Pasamos el string al service
     return this.tasksService.findAllByBoard(boardId.toString());
   }
 
   @Patch(':id')
   @CheckPolicies((ability) => ability.can(Action.Update, Task))
-  @ApiOperation({
-    summary: 'Actualizar datos básicos de la tarea (título, descripción, etc)',
-  })
+  @ApiOperation({ summary: 'Actualizar datos básicos de la tarea' })
+  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' }) // <-- AQUÍ
   update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() updateTaskDto: UpdateTaskDto,
@@ -65,10 +65,10 @@ export class TasksController {
     return this.tasksService.update(id.toString(), updateTaskDto);
   }
 
-  // EL ENDPOINT ESTRELLA DEL DRAG & DROP
   @Patch(':id/position')
   @CheckPolicies((ability) => ability.can(Action.Update, Task))
   @ApiOperation({ summary: 'Actualizar la posición de la tarea (Drag & Drop)' })
+  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' }) // <-- AQUÍ
   updatePosition(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() positionDto: UpdateTaskPositionDto,
@@ -76,7 +76,7 @@ export class TasksController {
     return this.tasksService.updatePosition(
       id.toString(),
       positionDto.newColumnId,
-      positionDto.prevTaskOrder ?? null, // Usamos ?? para asegurar que undefined se vuelve null
+      positionDto.prevTaskOrder ?? null,
       positionDto.nextTaskOrder ?? null,
     );
   }
@@ -85,6 +85,7 @@ export class TasksController {
   @CheckPolicies((ability) => ability.can(Action.Delete, Task))
   @ApiOperation({ summary: 'Eliminar una tarea' })
   @ApiResponse({ status: 204, description: 'Tarea fulminada.' })
+  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' }) // <-- AQUÍ
   remove(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.tasksService.remove(id.toString());
   }

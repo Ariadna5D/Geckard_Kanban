@@ -24,10 +24,10 @@ import { Board } from './schemas/board.schema';
 import { PoliciesGuard } from '../casl/policies.guard';
 import { CheckPolicies } from '../casl/policies.decorator';
 
-// Importamos ValidatedRequest exactamente igual que en users.controller.ts
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
 import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
+import { CreateColumnDto } from './dto/create-column.dto';
 
 @ApiTags('Boards')
 @ApiBearerAuth()
@@ -44,7 +44,6 @@ export class BoardsController {
     @Body() createBoardDto: CreateBoardDto,
     @Request() req: ValidatedRequest,
   ) {
-    // Extraemos directamente el 'sub' que sabemos que es el ID del JWT
     return this.boardsService.create(createBoardDto, req.user.sub);
   }
 
@@ -86,5 +85,38 @@ export class BoardsController {
     @Request() req: ValidatedRequest,
   ) {
     return this.boardsService.remove(id.toString(), req.user.sub);
+  }
+
+  // --- ENDPOINTS PARA COLUMNAS ---
+
+  @Post(':id/columns')
+  @CheckPolicies((ability) => ability.can(Action.Update, Board))
+  @ApiOperation({ summary: 'Añadir una columna al tablero' })
+  addColumn(
+    @Param('id') boardId: string,
+    @Body() createColumnDto: CreateColumnDto,
+  ) {
+    return this.boardsService.addColumn(boardId, createColumnDto);
+  }
+
+  @Patch(':id/columns/:columnId')
+  @CheckPolicies((ability) => ability.can(Action.Update, Board))
+  @ApiOperation({ summary: 'Editar título de una columna' })
+  updateColumn(
+    @Param('id') boardId: string,
+    @Param('columnId') columnId: string,
+    @Body('title') title: string,
+  ) {
+    return this.boardsService.updateColumn(boardId, columnId, title);
+  }
+
+  @Delete(':id/columns/:columnId')
+  @CheckPolicies((ability) => ability.can(Action.Update, Board))
+  @ApiOperation({ summary: 'Eliminar una columna' })
+  removeColumn(
+    @Param('id') boardId: string,
+    @Param('columnId') columnId: string,
+  ) {
+    return this.boardsService.removeColumn(boardId, columnId);
   }
 }
