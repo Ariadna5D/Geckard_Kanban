@@ -9,7 +9,7 @@ import { CaslModule } from '../casl/casl.module'; // <-- AÑADIR ESTA LÍNEA
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Board.name, schema: BoardSchema }]),
-    CaslModule, // <-- AÑADIR AQUÍ PARA QUE EL GUARD FUNCIONE
+    CaslModule,
   ],
   controllers: [BoardsController],
   providers: [BoardsService],
