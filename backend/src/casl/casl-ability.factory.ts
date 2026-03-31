@@ -7,42 +7,31 @@ import {
   MongoAbility,
 } from '@casl/ability';
 import { User } from '../users/schemas/user.schema';
-
-export enum Action {
-  Manage = 'manage',
-  Create = 'create',
-  Read = 'read',
-  Update = 'update',
-  Delete = 'delete',
-}
-
-type Subjects = InferSubjects<typeof User> | 'all';
+import { Board } from '../boards/schemas/board.schema'; // Importamos el esquema del Tablero
+import { Action } from './enums/action.enum'; // Importamos el enum de acciones
+// Definimos qué clases (Sujetos) pueden ser controladas por CASL
+type Subjects = InferSubjects<typeof User | typeof Board> | 'all';
 export type AppAbility = MongoAbility<[Action, Subjects]>;
-
-// Definimos la estructura exacta del usuario que llega desde tu JWT
-export interface JwtUserPayload {
-  userId: string;
-  email: string;
-  role: string;
-}
 
 @Injectable()
 export class CaslAbilityFactory {
-  // Le decimos que el usuario que recibe es el del JWT
-  createForUser(user: JwtUserPayload) {
+  createForUser(user: any) {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(
       createMongoAbility,
     );
 
     if (user.role === 'admin') {
+      // El administrador puede hacer TODO en TODO
       can(Action.Manage, 'all');
     } else {
-      can(Action.Read, User);
+      // Reglas para usuarios normales sobre TABLEROS
+      can(Action.Read, Board); // Pueden ver tableros
+      can(Action.Create, Board); // Pueden crear tableros
 
-      // 1. Usamos user.userId, que es el ID real que viaja en tu token
-      // 2. Le ponemos "as any" a la regla para que TS no bloquee la build
-      can(Action.Update, User, { _id: user.userId } as any);
-      can(Action.Delete, User, { _id: user.userId } as any);
+      // REGLA DE ORO: Solo el 'owner' puede editar o borrar su tablero
+      // Comparamos el campo 'owner' del documento en Mongo con el 'userId' del JWT
+      can(Action.Update, Board, { owner: user.userId } as any);
+      can(Action.Delete, Board, { owner: user.userId } as any);
     }
 
     return build({
