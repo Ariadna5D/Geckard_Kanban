@@ -1,4 +1,91 @@
-import { Controller } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { TasksService } from './tasks.service';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
+import { UpdateTaskPositionDto } from './dto/update-task-position.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckPolicies } from 'src/casl/policies.decorator';
+import { Action } from 'src/casl/enums/action.enum';
+import { Task } from './schemas/task.schema';
+import { ParseObjectIdPipe } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 
+@ApiTags('Tasks')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PoliciesGuard)
 @Controller('tasks')
-export class TasksController {}
+export class TasksController {
+  constructor(private readonly tasksService: TasksService) {}
+
+  @Post()
+  @CheckPolicies((ability) => ability.can(Action.Create, Task))
+  @ApiOperation({ summary: 'Crear una nueva tarea en una columna' })
+  @ApiResponse({ status: 201, description: 'Tarea creada con éxito.' })
+  create(@Body() createTaskDto: CreateTaskDto) {
+    // La lógica de asignarle el orden (al final de la columna) la hace el Service
+    return this.tasksService.create(createTaskDto);
+  }
+
+  // IMPORTANTE: La ruta es /tasks/board/:boardId para traer todas las del tablero de golpe.
+  // Es mucho más eficiente que pedir las tareas columna por columna.
+  @Get('board/:boardId')
+  @CheckPolicies((ability) => ability.can(Action.Read, Task))
+  @ApiOperation({ summary: 'Obtener todas las tareas de un tablero' })
+  findAllByBoard(@Param('boardId', ParseObjectIdPipe) boardId: Types.ObjectId) {
+    // Pasamos el string al service
+    return this.tasksService.findAllByBoard(boardId.toString());
+  }
+
+  @Patch(':id')
+  @CheckPolicies((ability) => ability.can(Action.Update, Task))
+  @ApiOperation({
+    summary: 'Actualizar datos básicos de la tarea (título, descripción, etc)',
+  })
+  update(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Body() updateTaskDto: UpdateTaskDto,
+  ) {
+    return this.tasksService.update(id.toString(), updateTaskDto);
+  }
+
+  // EL ENDPOINT ESTRELLA DEL DRAG & DROP
+  @Patch(':id/position')
+  @CheckPolicies((ability) => ability.can(Action.Update, Task))
+  @ApiOperation({ summary: 'Actualizar la posición de la tarea (Drag & Drop)' })
+  updatePosition(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Body() positionDto: UpdateTaskPositionDto,
+  ) {
+    return this.tasksService.updatePosition(
+      id.toString(),
+      positionDto.newColumnId,
+      positionDto.prevTaskOrder ?? null, // Usamos ?? para asegurar que undefined se vuelve null
+      positionDto.nextTaskOrder ?? null,
+    );
+  }
+
+  @Delete(':id')
+  @CheckPolicies((ability) => ability.can(Action.Delete, Task))
+  @ApiOperation({ summary: 'Eliminar una tarea' })
+  @ApiResponse({ status: 204, description: 'Tarea fulminada.' })
+  remove(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
+    return this.tasksService.remove(id.toString());
+  }
+}
