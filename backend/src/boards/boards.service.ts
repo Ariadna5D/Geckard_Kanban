@@ -54,15 +54,10 @@ export class BoardsService {
   }
 
   async findAll(userId: string): Promise<BoardDocument[]> {
-    // 1. TRANSFORMACIÓN DE CAPA: Convertimos el ID de la capa HTTP (String)
-    // al tipo nativo de la capa de Infraestructura (ObjectId) de forma explícita.
-    // Esto evita el fallo histórico de Mongoose con el auto-casting en arrays.
     const userObjectId = new Types.ObjectId(userId);
 
     return this.boardModel
       .find({
-        // 2. CONSULTA DEFENSIVA ($or): En sistemas tipo Linear/Trello, garantizamos
-        // la visibilidad si eres el creador explícito O si figuras en la lista de miembros.
         $or: [{ owner: userObjectId }, { 'members.user': userObjectId }],
       })
       .sort({ updatedAt: -1 })
