@@ -7,10 +7,15 @@ import {
   MongoAbility,
 } from '@casl/ability';
 import { User } from '../users/schemas/user.schema';
-import { Board } from '../boards/schemas/board.schema'; // Importamos el esquema del Tablero
-import { Action } from './enums/action.enum'; // Importamos el enum de acciones
-// Definimos qué clases (Sujetos) pueden ser controladas por CASL
-type Subjects = InferSubjects<typeof User | typeof Board> | 'all';
+import { Board } from '../boards/schemas/board.schema';
+import { Action } from './enums/action.enum';
+
+// 1. IMPORTAMOS EL SCHEMA DE TASK
+import { Task } from '../tasks/schemas/task.schema';
+
+// 2. AÑADIMOS typeof Task A LOS SUBJECTS PERMITIDOS
+type Subjects = InferSubjects<typeof User | typeof Board | typeof Task> | 'all';
+
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
 @Injectable()
@@ -21,17 +26,17 @@ export class CaslAbilityFactory {
     );
 
     if (user.role === 'admin') {
-      // El administrador puede hacer TODO en TODO
       can(Action.Manage, 'all');
     } else {
-      // Reglas para usuarios normales sobre TABLEROS
-      can(Action.Read, Board); // Pueden ver tableros
-      can(Action.Create, Board); // Pueden crear tableros
-
-      // REGLA DE ORO: Solo el 'owner' puede editar o borrar su tablero
-      // Comparamos el campo 'owner' del documento en Mongo con el 'userId' del JWT
+      can(Action.Read, Board);
+      can(Action.Create, Board);
       can(Action.Update, Board, { owner: user.userId } as any);
       can(Action.Delete, Board, { owner: user.userId } as any);
+
+      can(Action.Read, Task);
+      can(Action.Create, Task);
+      can(Action.Update, Task);
+      can(Action.Delete, Task);
     }
 
     return build({
