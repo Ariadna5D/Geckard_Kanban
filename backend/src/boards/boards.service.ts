@@ -11,6 +11,7 @@ import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import slugify from 'slugify';
 import { MongoServerError } from 'mongodb';
+import { CreateColumnDto } from './dto/create-column.dto';
 
 @Injectable()
 export class BoardsService {
@@ -108,11 +109,10 @@ export class BoardsService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    // <-- NUEVO: Recibimos userId
     const result = await this.boardModel
       .deleteOne({
         _id: id,
-        owner: userId, // <-- SEGURIDAD: Solo el owner puede fulminar el tablero
+        owner: userId,
       })
       .exec();
 
@@ -121,5 +121,63 @@ export class BoardsService {
         'No se pudo eliminar el tablero. O no existe, o no eres el OWNER.',
       );
     }
+  }
+  // --- GESTIÓN DE COLUMNAS (SUBDOCUMENTOS) ---
+
+  async addColumn(
+    boardId: string,
+    createColumnDto: CreateColumnDto,
+  ): Promise<BoardDocument> {
+    const board = await this.boardModel
+      .findByIdAndUpdate(
+        boardId,
+        {
+          $push: {
+            columns: {
+              _id: new Types.ObjectId(), // Generamos el ID nosotros
+              title: createColumnDto.title,
+              tasks: [],
+            },
+          },
+        },
+        { new: true },
+      )
+      .exec();
+
+    if (!board) throw new NotFoundException('Tablero no encontrado');
+    return board;
+  }
+
+  async updateColumn(
+    boardId: string,
+    columnId: string,
+    title: string,
+  ): Promise<BoardDocument> {
+    const board = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardId, 'columns._id': new Types.ObjectId(columnId) },
+        { $set: { 'columns.$.title': title } },
+        { new: true },
+      )
+      .exec();
+
+    if (!board) throw new NotFoundException('Tablero o Columna no encontrada');
+    return board;
+  }
+
+  async removeColumn(
+    boardId: string,
+    columnId: string,
+  ): Promise<BoardDocument> {
+    const board = await this.boardModel
+      .findByIdAndUpdate(
+        boardId,
+        { $pull: { columns: { _id: new Types.ObjectId(columnId) } } },
+        { new: true },
+      )
+      .exec();
+
+    if (!board) throw new NotFoundException('Tablero no encontrado');
+    return board;
   }
 }
