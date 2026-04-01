@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom"; // Importación correcta al principio
+import { Link } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { useBoardStore } from "../store/useBoardStore";
 import { Button } from "@/components/ui/button";
@@ -14,24 +14,26 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react"; 
 
+/**
+ * Dashboard de usuario. Lista los tableros y permite crear nuevos.
+ */
 export const DashboardPage = () => {
   const { boards, isLoading, fetchBoards, addBoard } = useBoardStore();
+  const { user, isAuthenticated } = useAuthStore();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [newBoardDescription, setNewBoardDescription] = useState("");
 
-const { user, isAuthenticated } = useAuthStore(); // Añade isAuthenticated aquí
-
   useEffect(() => {
-    // Solo pedimos tableros si:
-    // 1. Estamos autenticados (token recuperado)
-    // 2. Aún no tenemos tableros en la lista
     if (isAuthenticated && boards.length === 0) {
       fetchBoards();
     }
-  }, [fetchBoards, boards.length, isAuthenticated]); // Añade isAuthenticated a las dependencias
+  }, [fetchBoards, boards.length, isAuthenticated]);
 
+  /**
+   * Maneja la creación de un nuevo tablero desde el modal
+   */
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault(); 
     try {
@@ -43,7 +45,7 @@ const { user, isAuthenticated } = useAuthStore(); // Añade isAuthenticated aqu�
       setNewBoardDescription("");
       setIsDialogOpen(false);
     } catch (err) {
-      console.error("Error al crear el tablero", err);
+      console.error("Error creating board", err);
     }
   };
 
@@ -54,7 +56,7 @@ const { user, isAuthenticated } = useAuthStore(); // Añade isAuthenticated aqu�
           <h2 className="text-3xl font-bold text-slate-800">
             ¡Hola de nuevo, {user?.username || 'Usuario'}!
           </h2>
-          <p className="text-slate-500 mt-2">Bienvenido a tu sistema de gestión gamificado.</p>
+          <p className="text-slate-500 mt-2">Bienvenido a tu sistema de gestión.</p>
         </div>
 
         <Button 
@@ -74,7 +76,7 @@ const { user, isAuthenticated } = useAuthStore(); // Añade isAuthenticated aqu�
             </DialogHeader>
             <form onSubmit={handleCreateBoard} className="grid gap-4 py-4">
               <Input
-                placeholder="Ej: TFG Desarrollo Web"
+                placeholder="Ej: Proyecto MVP"
                 value={newBoardTitle}
                 onChange={(e) => setNewBoardTitle(e.target.value)}
                 required
@@ -96,9 +98,8 @@ const { user, isAuthenticated } = useAuthStore(); // Añade isAuthenticated aqu�
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {boards.map((board) => (
-          // Usamos Link como contenedor principal de la tarjeta
           <Link to={`/boards/${board.slug}`} key={board._id} className="block group">
-            <article className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg hover:border-blue-400 transition-all cursor-pointer h-full">
+            <article className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg hover:border-blue-400 transition-all h-full">
               <h3 className="font-semibold text-lg text-slate-800 group-hover:text-blue-600 transition-colors mb-2">
                 {board.title}
               </h3>

@@ -22,16 +22,25 @@ export const addColumnRequest = async (boardId: string, title: string): Promise<
   return response.data;
 };
 
+/**
+ * Renombra una columna existente.
+ */
 export const updateColumnRequest = async (
   boardId: string, 
   columnId: string, 
   title: string
 ): Promise<Board> => {
-  const response = await api.patch<Board>(`/boards/${boardId}/columns/${columnId}`, { title });
+  const response = await api.patch(`/boards/${boardId}/columns/${columnId}`, { title });
   return response.data;
 };
 
-export const deleteColumnRequest = async (boardId: string, columnId: string): Promise<Board> => {
-  const response = await api.delete<Board>(`/boards/${boardId}/columns/${columnId}`);
+/**
+ * Borra una columna y desencadena el borrado en cascada de sus tareas en el backend.
+ */
+export const deleteColumnRequest = async (
+  boardId: string, 
+  columnId: string
+): Promise<Board> => {
+  const response = await api.delete(`/boards/${boardId}/columns/${columnId}`);
   return response.data;
 };
