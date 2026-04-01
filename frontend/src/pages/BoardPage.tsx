@@ -1,9 +1,17 @@
 import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { BoardColumn } from '../components/board/BoardColumn';
+import { BoardShareDialog } from '../components/board/BoardShareDialog';
+import { BoardSettingsSheet } from '../components/board/BoardSettingsSheet';
 import { InlineCreateForm } from '../components/shared/InlineCreateForm';
-import { Loader2 } from 'lucide-react';
+import {
+  canEditBoardContent,
+  canInviteToBoard,
+} from '../types/board.types';
+import { Button } from '@/components/ui/button';
+import { Loader2, Settings, UserPlus } from 'lucide-react';
 import { calculateNewOrder } from '../utils/boardMath';
 import { Task, Column } from '../types/board.types';
 
@@ -24,6 +32,7 @@ import { TaskCard } from '../components/board/TaskCard';
 
 export const BoardPage = () => {
   const { slug } = useParams<{ slug: string }>();
+  const user = useAuthStore((s) => s.user);
   const { 
     board, 
     isLoading, 
@@ -36,6 +45,8 @@ export const BoardPage = () => {
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   /**
    * El primer render ocurre ANTES de useLayoutEffect/useEffect. Sin esto, con
@@ -190,7 +201,7 @@ export const BoardPage = () => {
 
   if (!fetchSettled || isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-surface-100 dark:bg-surface-950">
         <Loader2 className="size-8 animate-spin text-surface-400 dark:text-surface-500" />
       </div>
     );
@@ -199,33 +210,96 @@ export const BoardPage = () => {
   if (error) return <Navigate to="/dashboard" replace />;
   if (!board) return <Navigate to="/dashboard" replace />;
 
+  const canEdit = user ? canEditBoardContent(board, user) : false;
+
   return (
-    <div className="flex h-screen flex-col bg-surface-100 dark:bg-surface-950">
-      <header className="relative z-10 flex shrink-0 items-center justify-between border-b border-surface-200 bg-surface-50 px-8 py-4 dark:border-surface-800 dark:bg-surface-900">
-        <h1 className="text-xl font-bold text-surface-900 dark:text-surface-50">{board.title}</h1>
+    <div className="flex min-h-0 flex-1 flex-col bg-surface-100 dark:bg-surface-950">
+      <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-surface-200 bg-surface-50 px-4 py-3 sm:px-6 sm:py-4 lg:px-8 dark:border-surface-800 dark:bg-surface-900">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <h1 className="min-w-0 truncate text-xl font-bold text-surface-900 dark:text-surface-50">
+            {board.title}
+          </h1>
+          {!canEdit && (
+            <span className="hidden shrink-0 rounded-md border border-surface-200 bg-surface-100 px-2 py-0.5 text-xs font-medium text-surface-600 sm:inline dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400">
+              Solo lectura
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {user && slug && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Configuración del tablero"
+              >
+                <Settings className="size-4" />
+              </Button>
+              <BoardSettingsSheet
+                board={board}
+                slug={slug}
+                user={user}
+                open={settingsOpen}
+                onOpenChange={setSettingsOpen}
+              />
+            </>
+          )}
+          {user && canInviteToBoard(board, user) && slug && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+                onClick={() => setShareOpen(true)}
+              >
+                <UserPlus data-icon="inline-start" />
+                Compartir
+              </Button>
+              <BoardShareDialog
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+                slug={slug}
+                boardId={board._id}
+              />
+            </>
+          )}
+        </div>
       </header>
 
-      <main className="flex-1 overflow-x-auto bg-surface-100 p-8 dark:bg-surface-950">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-100 dark:bg-surface-950">
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-6 h-full items-start">
-            <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-              {board.columns.map((column) => (
-                <BoardColumn key={column._id} column={column} boardId={board._id} />
-              ))}
-            </SortableContext>
-            <div className="shrink-0 w-80">
-              <InlineCreateForm actionText="Add column" onSubmit={handleCreateColumn} />
+          <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+            <div className="flex h-full min-h-0 min-w-min items-stretch gap-4 sm:gap-6">
+              <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+                {board.columns.map((column) => (
+                  <BoardColumn
+                    key={column._id}
+                    column={column}
+                    boardId={board._id}
+                    canEdit={canEdit}
+                  />
+                ))}
+              </SortableContext>
+              {canEdit && (
+                <div className="kanban-column-width">
+                  <InlineCreateForm actionText="Add column" onSubmit={handleCreateColumn} />
+                </div>
+              )}
             </div>
           </div>
           <DragOverlay>
             {activeTask && <TaskCard task={activeTask} isOverlay />}
             {activeColumn && (
-               <div className="w-80 rotate-2 rounded-xl border-2 border-primary-500/40 bg-surface-50 p-4 opacity-95 shadow-2xl ring-2 ring-primary-500/20 dark:border-primary-400/35 dark:bg-surface-900 dark:ring-primary-400/15">
+               <div className="kanban-column-width rotate-2 rounded-xl border-2 border-primary-500/40 bg-surface-50 p-4 opacity-95 shadow-2xl ring-2 ring-primary-500/20 dark:border-primary-400/35 dark:bg-surface-900 dark:ring-primary-400/15">
                  <h3 className="font-semibold text-surface-900 dark:text-surface-50">{activeColumn.title}</h3>
                </div>
             )}

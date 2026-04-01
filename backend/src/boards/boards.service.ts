@@ -1,6 +1,8 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
+  BadRequestException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,13 +20,81 @@ import { UpdateBoardDto } from './dto/update-board.dto';
 import slugify from 'slugify';
 import { MongoServerError } from 'mongodb';
 import { CreateColumnDto } from './dto/create-column.dto';
+import { InviteBoardMemberDto } from './dto/invite-board-member.dto';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class BoardsService {
   constructor(
     @InjectModel(Board.name) private readonly boardModel: Model<BoardDocument>,
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
+    private readonly usersService: UsersService,
   ) {}
+
+  private boardRoleRank(r: BoardRole): number {
+    const order: Record<BoardRole, number> = {
+      [BoardRole.VIEWER]: 1,
+      [BoardRole.EDITOR]: 2,
+      [BoardRole.ADMIN]: 3,
+      [BoardRole.OWNER]: 4,
+    };
+    return order[r];
+  }
+
+  async boardExists(boardId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(boardId)) return false;
+    const n = await this.boardModel
+      .countDocuments({ _id: new Types.ObjectId(boardId) })
+      .exec();
+    return n > 0;
+  }
+
+  async getBoardIdBySlug(slug: string): Promise<string | null> {
+    const b = await this.boardModel
+      .findOne({ slug })
+      .select('_id')
+      .lean()
+      .exec();
+    return b?._id?.toString() ?? null;
+  }
+
+  /**
+   * Rol efectivo del usuario en el tablero (owner cuenta como OWNER aunque también esté en members).
+   */
+  async getEffectiveBoardRole(
+    boardId: string,
+    userId: string,
+  ): Promise<BoardRole | null> {
+    if (!Types.ObjectId.isValid(boardId)) return null;
+    const board = await this.boardModel
+      .findById(boardId)
+      .select('owner members')
+      .lean()
+      .exec();
+    if (!board) return null;
+    const ownerId = board.owner.toString();
+    if (ownerId === userId) return BoardRole.OWNER;
+    const m = board.members.find((x) => x.user.toString() === userId);
+    return m?.role ?? null;
+  }
+
+  /**
+   * Requiere al menos el rol indicado (owner > admin > editor > viewer).
+   */
+  async assertMinBoardRole(
+    boardId: string,
+    userId: string,
+    minimum: BoardRole,
+    isAppAdmin = false,
+  ): Promise<void> {
+    if (isAppAdmin) return;
+    const role = await this.getEffectiveBoardRole(boardId, userId);
+    if (!role || this.boardRoleRank(role) < this.boardRoleRank(minimum)) {
+      throw new ForbiddenException(
+        'No tienes permiso suficiente en este tablero.',
+      );
+    }
+  }
 
   /**
    * Filtro Mongo: tablero por id y usuario miembro (owner o members[]) o admin de la app.
@@ -165,7 +235,7 @@ export class BoardsService {
   }
 
   /**
-   * Actualiza el tablero (solo el propietario, salvo administrador de la app).
+   * Actualiza título/descripción (owner o admin del tablero; admin de la app).
    */
   async update(
     id: string,
@@ -173,15 +243,10 @@ export class BoardsService {
     userId: string,
     isAdmin = false,
   ): Promise<BoardDocument> {
-    const filter = isAdmin
-      ? { _id: new Types.ObjectId(id) }
-      : {
-          _id: new Types.ObjectId(id),
-          owner: new Types.ObjectId(userId),
-        };
+    await this.assertMinBoardRole(id, userId, BoardRole.ADMIN, isAdmin);
 
     const updatedBoard = await this.boardModel
-      .findOneAndUpdate(filter, updateBoardDto, {
+      .findOneAndUpdate({ _id: new Types.ObjectId(id) }, updateBoardDto, {
         new: true,
       })
       .exec();
@@ -192,14 +257,14 @@ export class BoardsService {
   }
 
   /**
-   * Borra el tablero y todas sus tareas (solo el propietario, salvo administrador).
+   * Borra el tablero y todas sus tareas (solo owner; admin de la app).
    */
   async remove(id: string, userId: string, isAdmin = false): Promise<void> {
-    const filter = isAdmin
-      ? { _id: new Types.ObjectId(id) }
-      : { _id: new Types.ObjectId(id), owner: new Types.ObjectId(userId) };
+    await this.assertMinBoardRole(id, userId, BoardRole.OWNER, isAdmin);
 
-    const board = await this.boardModel.findOne(filter).exec();
+    const board = await this.boardModel
+      .findOne({ _id: new Types.ObjectId(id) })
+      .exec();
     if (!board) throw new NotFoundException('No se pudo eliminar el tablero.');
 
     await this.taskModel.deleteMany({ boardId: new Types.ObjectId(id) }).exec();
@@ -217,10 +282,15 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    const filter = this.boardAccessFilter(boardId, userId, isAppAdmin);
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
     const board = await this.boardModel
       .findOneAndUpdate(
-        filter as never,
+        { _id: new Types.ObjectId(boardId) },
         {
           $push: {
             columns: {
@@ -236,7 +306,7 @@ export class BoardsService {
       .exec();
 
     if (!board) {
-      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+      throw new NotFoundException('El tablero no existe.');
     }
     return board;
   }
@@ -251,13 +321,18 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    const filter = {
-      ...this.boardAccessFilter(boardId, userId, isAppAdmin),
-      'columns._id': new Types.ObjectId(columnId),
-    };
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
     const board = await this.boardModel
       .findOneAndUpdate(
-        filter as never,
+        {
+          _id: new Types.ObjectId(boardId),
+          'columns._id': new Types.ObjectId(columnId),
+        },
         { $set: { 'columns.$.title': title } },
         { new: true },
       )
@@ -265,7 +340,7 @@ export class BoardsService {
 
     if (!board) {
       throw new NotFoundException(
-        'La columna no existe o no tienes permiso en este tablero.',
+        'La columna no existe o no pertenece a este tablero.',
       );
     }
     return board;
@@ -281,13 +356,18 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    const filter = {
-      ...this.boardAccessFilter(boardId, userId, isAppAdmin),
-      'columns._id': new Types.ObjectId(columnId),
-    };
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
     const board = await this.boardModel
       .findOneAndUpdate(
-        filter as never,
+        {
+          _id: new Types.ObjectId(boardId),
+          'columns._id': new Types.ObjectId(columnId),
+        },
         { $set: { 'columns.$.order': order } },
         { new: true },
       )
@@ -295,7 +375,7 @@ export class BoardsService {
 
     if (!board) {
       throw new NotFoundException(
-        'La columna no existe o no tienes permiso en este tablero.',
+        'La columna no existe o no pertenece a este tablero.',
       );
     }
     return board;
@@ -310,17 +390,22 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    const filter = this.boardAccessFilter(boardId, userId, isAppAdmin);
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
     const board = await this.boardModel
       .findOneAndUpdate(
-        filter as never,
+        { _id: new Types.ObjectId(boardId) },
         { $pull: { columns: { _id: new Types.ObjectId(columnId) } } },
         { new: true },
       )
       .exec();
 
     if (!board) {
-      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+      throw new NotFoundException('El tablero no existe.');
     }
 
     await this.taskModel
@@ -328,5 +413,209 @@ export class BoardsService {
       .exec();
 
     return board;
+  }
+
+  /**
+   * Invita o actualiza el rol de un miembro.
+   * Solo: propietario del tablero, miembro con rol `admin` en el tablero, o admin de la aplicación.
+   * No: `editor` ni `viewer` (assertMinBoardRole(ADMIN) + CASL BoardMembers).
+   */
+  async inviteMember(
+    boardId: string,
+    dto: InviteBoardMemberDto,
+    actorUserId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    const target = await this.usersService.findById(dto.userId);
+    if (!target) {
+      throw new NotFoundException('No existe ese usuario.');
+    }
+
+    await this.assertMinBoardRole(
+      boardId,
+      actorUserId,
+      BoardRole.ADMIN,
+      isAppAdmin,
+    );
+
+    const board = await this.boardModel.findById(boardId).exec();
+
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    const ownerId = board.owner.toString();
+    if (dto.userId === ownerId) {
+      throw new BadRequestException(
+        'El propietario ya tiene acceso al tablero.',
+      );
+    }
+
+    const idx = board.members.findIndex(
+      (m) => m.user.toString() === dto.userId,
+    );
+
+    if (idx >= 0) {
+      if (board.members[idx].role === BoardRole.OWNER) {
+        throw new BadRequestException(
+          'No se puede cambiar el rol del propietario desde aquí.',
+        );
+      }
+      board.members[idx].role = dto.role;
+    } else {
+      board.members.push({
+        user: new Types.ObjectId(dto.userId),
+        role: dto.role,
+      });
+    }
+
+    return board.save();
+  }
+
+  /**
+   * Lista miembros con username/email (cualquier miembro del tablero puede leer).
+   */
+  async listMembers(
+    boardId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<{
+    ownerId: string;
+    members: {
+      userId: string;
+      username: string;
+      email: string;
+      avatarUrl?: string;
+      role: BoardRole;
+    }[];
+  }> {
+    await this.assertUserHasBoardAccess(boardId, userId, isAppAdmin);
+    const board = await this.boardModel
+      .findById(boardId)
+      .populate({
+        path: 'members.user',
+        select: 'username email avatarUrl',
+      })
+      .lean()
+      .exec();
+
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    const ownerId = board.owner.toString();
+    type PopulatedMember = {
+      user:
+        | Types.ObjectId
+        | {
+            _id: Types.ObjectId;
+            username?: string;
+            email?: string;
+            avatarUrl?: string;
+          };
+      role: BoardRole;
+    };
+
+    const rawRows: {
+      userId: string;
+      username: string;
+      email: string;
+      avatarUrl?: string;
+      role: BoardRole;
+    }[] = [];
+
+    for (const m of board.members as unknown as PopulatedMember[]) {
+      const u = m.user;
+      let uid: string;
+      let username: string;
+      let email: string;
+      let avatarUrl: string | undefined;
+      if (u && typeof u === 'object' && '_id' in u) {
+        const doc = u as {
+          _id: Types.ObjectId;
+          username?: string;
+          email?: string;
+          avatarUrl?: string;
+        };
+        uid = doc._id.toString();
+        username = doc.username ?? 'Usuario';
+        email = doc.email ?? '';
+        avatarUrl =
+          doc.avatarUrl && String(doc.avatarUrl).trim() !== ''
+            ? String(doc.avatarUrl)
+            : undefined;
+      } else {
+        uid = (u as Types.ObjectId).toString();
+        username = 'Usuario';
+        email = '';
+        avatarUrl = undefined;
+      }
+      rawRows.push({ userId: uid, username, email, avatarUrl, role: m.role });
+    }
+
+    const byId = new Map<
+      string,
+      {
+        userId: string;
+        username: string;
+        email: string;
+        avatarUrl?: string;
+        role: BoardRole;
+      }
+    >();
+    for (const r of rawRows) {
+      const prev = byId.get(r.userId);
+      if (!prev || this.boardRoleRank(r.role) > this.boardRoleRank(prev.role)) {
+        byId.set(r.userId, r);
+      }
+    }
+
+    const members = [...byId.values()].sort((a, b) => {
+      if (a.userId === ownerId) return -1;
+      if (b.userId === ownerId) return 1;
+      return a.username.localeCompare(b.username, 'es', {
+        sensitivity: 'base',
+      });
+    });
+
+    return { ownerId, members };
+  }
+
+  /**
+   * Expulsa a un miembro (no al propietario). Requiere admin del tablero o admin de la app.
+   */
+  async removeMember(
+    boardId: string,
+    memberUserId: string,
+    actorUserId: string,
+    isAppAdmin = false,
+  ): Promise<void> {
+    await this.assertMinBoardRole(
+      boardId,
+      actorUserId,
+      BoardRole.ADMIN,
+      isAppAdmin,
+    );
+
+    const board = await this.boardModel.findById(boardId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    if (board.owner.toString() === memberUserId) {
+      throw new BadRequestException(
+        'No puedes expulsar al propietario del tablero.',
+      );
+    }
+
+    const before = board.members.length;
+    board.members = board.members.filter(
+      (m) => m.user.toString() !== memberUserId,
+    );
+    if (board.members.length === before) {
+      throw new NotFoundException('Ese usuario no es miembro del tablero.');
+    }
+
+    await board.save();
   }
 }

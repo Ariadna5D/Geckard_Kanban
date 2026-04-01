@@ -1,11 +1,18 @@
 import { create } from 'zustand';
-import { Board, UpdateTaskPositionPayload, Task } from '../types/board.types';
-import { 
-  addColumnRequest, 
-  getBoardBySlugRequest, 
-  updateColumnRequest, 
+import {
+  Board,
+  UpdateTaskPositionPayload,
+  Task,
+  InviteBoardMemberPayload,
+} from '../types/board.types';
+import {
+  addColumnRequest,
+  getBoardBySlugRequest,
+  updateColumnRequest,
   deleteColumnRequest,
-  updateColumnPositionRequest // <-- IMPORTAMOS LA NUEVA PETICIÓN
+  updateColumnPositionRequest,
+  inviteBoardMemberRequest,
+  removeBoardMemberRequest,
 } from '../api/boards.api';
 import {
   updateTaskPosition,
@@ -20,7 +27,17 @@ interface ActiveBoardState {
   isLoading: boolean;
   error: string | null;
 
-  fetchBoard: (slug: string) => Promise<void>;
+  fetchBoard: (slug: string, opts?: { silent?: boolean }) => Promise<void>;
+  inviteMember: (
+    slug: string,
+    boardId: string,
+    payload: InviteBoardMemberPayload,
+  ) => Promise<void>;
+  removeBoardMember: (
+    slug: string,
+    boardId: string,
+    memberUserId: string,
+  ) => Promise<void>;
   moveTaskOptimistic: (
     taskId: string,
     oldColumnId: string,
@@ -49,12 +66,14 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   /**
    * Carga el tablero y ordena tanto las columnas como las tareas por su Fractional Index.
    */
-  fetchBoard: async (slug: string) => {
-    set({ isLoading: true, error: null });
+  fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      set({ isLoading: true, error: null });
+    }
     try {
       const board = await getBoardBySlugRequest(slug);
-      
-      // Ordenamos las columnas y las tareas de cada columna
+
       const sortedColumns = board.columns
         .sort((a, b) => compareOrderKey(a.order, b.order))
         .map((col) => ({
@@ -63,14 +82,32 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
         }));
 
-      set({ board: { ...board, columns: sortedColumns }, isLoading: false });
-    } catch {
       set({
-        error: 'Error al cargar el tablero.',
+        board: { ...board, columns: sortedColumns },
         isLoading: false,
-        board: null,
+        error: null,
       });
+    } catch {
+      if (!silent) {
+        set({
+          error: 'Error al cargar el tablero.',
+          isLoading: false,
+          board: null,
+        });
+      } else {
+        set({ isLoading: false });
+      }
     }
+  },
+
+  inviteMember: async (slug, boardId, payload) => {
+    await inviteBoardMemberRequest(boardId, payload);
+    await get().fetchBoard(slug, { silent: true });
+  },
+
+  removeBoardMember: async (slug, boardId, memberUserId) => {
+    await removeBoardMemberRequest(boardId, memberUserId);
+    await get().fetchBoard(slug, { silent: true });
   },
 
   /**
