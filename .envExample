@@ -1,0 +1,19 @@
+# Copia a `.env` en la raíz del repo. Docker Compose (dev y prod) usa estas claves
+# para backend y, en compose, para inicializar Mongo con el mismo usuario/contraseña.
+COMPOSE_FILE=
+
+# Puerto del servidor
+PORT=
+
+# Credenciales de Base de Datos
+MONGO_USERNAME=
+MONGO_PASSWORD=
+MONGO_DATABASE=
+
+# Configuración de Cloudinary para almacenamiento de imágenes
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+# Clave secreta para firmar los tokens 
+JWT_SECRET=

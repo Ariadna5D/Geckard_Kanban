@@ -1,8 +1,14 @@
+# Variables obligatorias (raíz del proyecto: copia .envExample → .env):
+# MONGO_USERNAME, MONGO_PASSWORD, JWT_SECRET
+# Opcional: CLOUDINARY_* (avatares / imágenes)
 services:
   mongodb:
     image: mongo:latest
     container_name: mongodb_kanban
     restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     volumes:
       - mongo_data:/data/db
     networks:
@@ -16,6 +22,16 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      MONGO_USERNAME: ${MONGO_USERNAME}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     depends_on:
       - mongodb
     networks:
