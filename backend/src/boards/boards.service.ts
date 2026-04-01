@@ -446,7 +446,9 @@ export class BoardsService {
 
     const ownerId = board.owner.toString();
     if (dto.userId === ownerId) {
-      throw new BadRequestException('El propietario ya tiene acceso al tablero.');
+      throw new BadRequestException(
+        'El propietario ya tiene acceso al tablero.',
+      );
     }
 
     const idx = board.members.findIndex(
@@ -455,7 +457,9 @@ export class BoardsService {
 
     if (idx >= 0) {
       if (board.members[idx].role === BoardRole.OWNER) {
-        throw new BadRequestException('No se puede cambiar el rol del propietario desde aquí.');
+        throw new BadRequestException(
+          'No se puede cambiar el rol del propietario desde aquí.',
+        );
       }
       board.members[idx].role = dto.role;
     } else {
