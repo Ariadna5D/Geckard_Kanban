@@ -7,4 +7,8 @@ export class CreateColumnDto {
   @IsNotEmpty()
   @MaxLength(50)
   title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  order: string;
 }

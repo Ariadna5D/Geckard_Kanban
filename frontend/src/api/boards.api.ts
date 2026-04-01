@@ -1,5 +1,5 @@
 // Fíjate que ahora importamos CreateBoardPayload
-import { Board, CreateBoardPayload } from '../types/board.types';
+import { Board, CreateBoardPayload, UpdateBoardPayload } from '../types/board.types';
 import api from './axios.instance';
 
 export const getBoardsRequest = async (): Promise<Board[]> => {
@@ -12,13 +12,31 @@ export const createBoardRequest = async (data: CreateBoardPayload): Promise<Boar
   return response.data;
 };
 
-export const getBoardBySlugRequest = async (slug: string): Promise<Board> => {
-  const response = await api.get(`/boards/${slug}`);
+export const updateBoardRequest = async (
+  id: string,
+  data: UpdateBoardPayload,
+): Promise<Board> => {
+  const response = await api.patch<Board>(`/boards/${id}`, data);
   return response.data;
 };
 
-export const addColumnRequest = async (boardId: string, title: string): Promise<Board> => {
-  const response = await api.post<Board>(`/boards/${boardId}/columns`, { title });
+export const deleteBoardRequest = async (id: string): Promise<void> => {
+  await api.delete(`/boards/${id}`);
+};
+
+export const getBoardBySlugRequest = async (slug: string): Promise<Board> => {
+  const response = await api.get<Board>(
+    `/boards/by-slug/${encodeURIComponent(slug)}`,
+  );
+  return response.data;
+};
+
+export const addColumnRequest = async (
+  boardId: string, 
+  title: string, 
+  order: string 
+): Promise<Board> => {
+  const response = await api.post(`/boards/${boardId}/columns`, { title, order });
   return response.data;
 };
 

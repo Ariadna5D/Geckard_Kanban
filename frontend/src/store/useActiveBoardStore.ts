@@ -7,12 +7,13 @@ import {
   deleteColumnRequest,
   updateColumnPositionRequest // <-- IMPORTAMOS LA NUEVA PETICIÓN
 } from '../api/boards.api';
-import { 
-  updateTaskPosition, 
-  createTaskRequest, 
-  deleteTaskRequest, 
-  updateTaskRequest
+import {
+  updateTaskPosition,
+  createTaskRequest,
+  deleteTaskRequest,
+  updateTaskRequest,
 } from '../api/tasks.api';
+import { compareOrderKey } from '../utils/boardMath';
 
 interface ActiveBoardState {
   board: Board | null;
@@ -29,7 +30,7 @@ interface ActiveBoardState {
   ) => Promise<void>;
   
   // CRUD Columnas
-  addColumn: (boardId: string, title: string) => Promise<void>;
+  addColumn: (boardId: string, title: string, order: string) => Promise<void>;
   editColumn: (boardId: string, columnId: string, title: string) => Promise<void>;
   deleteColumn: (boardId: string, columnId: string) => Promise<void>;
   moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
@@ -55,15 +56,20 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       // Ordenamos las columnas y las tareas de cada columna
       const sortedColumns = board.columns
-        .sort((a, b) => (a.order || '').localeCompare(b.order || ''))
-        .map(col => ({
+        .sort((a, b) => compareOrderKey(a.order, b.order))
+        .map((col) => ({
           ...col,
-          tasks: col.tasks?.sort((a, b) => (a.order || '').localeCompare(b.order || '')) || []
+          tasks:
+            col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
         }));
 
       set({ board: { ...board, columns: sortedColumns }, isLoading: false });
-    } catch (error) {
-      set({ error: 'Error al cargar el tablero.', isLoading: false });
+    } catch {
+      set({
+        error: 'Error al cargar el tablero.',
+        isLoading: false,
+        board: null,
+      });
     }
   },
 
@@ -88,7 +94,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     taskToMove.columnId = newColumnId;
     taskToMove.order = newOrder;
     destCol.tasks!.push(taskToMove);
-    destCol.tasks!.sort((a, b) => a.order.localeCompare(b.order));
+    destCol.tasks!.sort((a, b) => compareOrderKey(a.order, b.order));
 
     set({ board: newBoard });
 
@@ -114,7 +120,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     if (colIndex !== -1) {
       newBoard.columns[colIndex].order = newOrder;
       // Reordenamos las columnas basándonos en el nuevo index
-      newBoard.columns.sort((a, b) => (a.order || '').localeCompare(b.order || ''));
+      newBoard.columns.sort((a, b) => compareOrderKey(a.order, b.order));
     }
 
     set({ board: newBoard });
@@ -131,9 +137,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   /**
    * Añade una nueva columna al tablero manteniendo las tareas locales intactas.
    */
-  addColumn: async (boardId: string, title: string) => {
+  /**
+   * Añade una nueva columna al tablero al final de la lista.
+   */
+  addColumn: async (boardId: string, title: string, order: string) => {
     try {
-      const updatedBoard = await addColumnRequest(boardId, title);
+      // 1. Petición a la API incluyendo el order calculado
+      const updatedBoard = await addColumnRequest(boardId, title, order);
       
       set((state) => {
         if (!state.board) return state;
@@ -142,12 +152,12 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
           return {
             ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
+            tasks: existingFrontendCol?.tasks || []
           };
         });
 
-        // Aseguramos que la nueva columna también respete el orden
-        mergedColumns.sort((a, b) => (a.order || '').localeCompare(b.order || ''));
+        // 2. Ordenamos para que la nueva columna aparezca a la derecha
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -171,7 +181,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
           };
         });
-        mergedColumns.sort((a, b) => (a.order || '').localeCompare(b.order || ''));
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -195,7 +205,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
           };
         });
-        mergedColumns.sort((a, b) => (a.order || '').localeCompare(b.order || ''));
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -218,7 +228,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         
         if (column) {
           column.tasks = [...(column.tasks || []), newTask];
-          column.tasks.sort((a, b) => a.order.localeCompare(b.order));
+          column.tasks.sort((a, b) => compareOrderKey(a.order, b.order));
         }
         
         return { board: newBoard };

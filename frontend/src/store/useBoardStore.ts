@@ -1,15 +1,22 @@
 // src/store/useBoardStore.ts
 import { create } from 'zustand';
-import { Board, CreateBoardPayload } from '../types/board.types';
-import { getBoardsRequest, createBoardRequest } from '../api/boards.api';
+import { Board, CreateBoardPayload, UpdateBoardPayload } from '../types/board.types';
+import {
+  getBoardsRequest,
+  createBoardRequest,
+  updateBoardRequest,
+  deleteBoardRequest,
+} from '../api/boards.api';
+import { useActiveBoardStore } from './useActiveBoardStore';
 
 interface BoardState {
   boards: Board[];
   isLoading: boolean;
   error: string | null;
-  // Acciones
   fetchBoards: () => Promise<void>;
   addBoard: (data: CreateBoardPayload) => Promise<void>;
+  updateBoard: (id: string, data: UpdateBoardPayload) => Promise<void>;
+  removeBoard: (id: string) => Promise<void>;
 }
 
 export const useBoardStore = create<BoardState>((set) => ({
@@ -42,8 +49,51 @@ export const useBoardStore = create<BoardState>((set) => ({
       }));
     } catch (error) {
       set({ error: 'No se pudo crear el tablero.', isLoading: false });
-      // Lanzamos el error hacia arriba por si queremos mostrar un Toast/Alerta en el componente
-      throw error; 
+      throw error;
+    }
+  },
+
+  updateBoard: async (id: string, data: UpdateBoardPayload) => {
+    set({ error: null });
+    try {
+      const updated = await updateBoardRequest(id, data);
+      set((state) => ({
+        boards: state.boards.map((b) => (b._id === id ? { ...b, ...updated } : b)),
+      }));
+      const active = useActiveBoardStore.getState().board;
+      if (active?._id === id) {
+        useActiveBoardStore.setState((s) =>
+          s.board
+            ? {
+                board: {
+                  ...s.board,
+                  title: updated.title,
+                  description: updated.description,
+                },
+              }
+            : {},
+        );
+      }
+    } catch (e) {
+      set({ error: 'No se pudo actualizar el tablero.' });
+      throw e;
+    }
+  },
+
+  removeBoard: async (id: string) => {
+    set({ error: null });
+    try {
+      await deleteBoardRequest(id);
+      set((state) => ({
+        boards: state.boards.filter((b) => b._id !== id),
+      }));
+      const active = useActiveBoardStore.getState().board;
+      if (active?._id === id) {
+        useActiveBoardStore.setState({ board: null, error: null });
+      }
+    } catch (e) {
+      set({ error: 'No se pudo eliminar el tablero.' });
+      throw e;
     }
   },
 }));

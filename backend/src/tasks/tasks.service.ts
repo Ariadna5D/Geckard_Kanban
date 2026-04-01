@@ -27,7 +27,7 @@ export class TasksService {
       });
 
       return newTask;
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException('Error al crear la tarea');
     }
   }

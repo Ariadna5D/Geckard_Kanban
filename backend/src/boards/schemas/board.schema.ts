@@ -11,14 +11,12 @@ export enum BoardRole {
 // 1. SUB-DOCUMENT: Board Member
 @Schema({ _id: false })
 export class BoardMember {
-  // Always specify the exact type and ref for populated fields
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
   @Prop({ type: String, enum: BoardRole, default: BoardRole.VIEWER })
   role: BoardRole;
 }
-// We explicitly create the schema for the subdocument
 export const BoardMemberSchema = SchemaFactory.createForClass(BoardMember);
 
 // 2. SUB-DOCUMENT: Board Column
@@ -27,11 +25,16 @@ export class BoardColumn {
   @Prop({ required: true, trim: true })
   title: string;
 
-  // Array of ObjectIds pointing to the future Task schema
+  /**
+   * Guardamos el Fractional Index para el drag and drop horizontal
+   */
+  /** Primera clave válida según fractional-indexing (generateKeyBetween(null, null) → "a0") */
+  @Prop({ type: String, default: 'a0' })
+  order: string;
+
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Task' }] })
   tasks: Types.ObjectId[];
 }
-// We explicitly create the schema for the column subdocument
 export const BoardColumnSchema = SchemaFactory.createForClass(BoardColumn);
 
 // 3. MAIN DOCUMENT: Board

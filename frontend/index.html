@@ -4,9 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kanban TFG</title>
+    <!-- Tema oscuro/claro según sistema, antes del bundle (evita flash) -->
+    <script>
+      (function () {
+        try {
+          var m = window.matchMedia("(prefers-color-scheme: dark)");
+          function sync() {
+            document.documentElement.classList.toggle("dark", m.matches);
+          }
+          sync();
+          m.addEventListener("change", sync);
+        } catch (_) {}
+      })();
+    </script>
   </head>
-  <body class="bg-sky-50">
-    <div id="root" ></div>
+  <body>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

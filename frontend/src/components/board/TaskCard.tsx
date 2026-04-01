@@ -56,10 +56,10 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
   // --- 1. EL CLON FLOTANTE (Lo que llevas en el ratón) ---
   if (isOverlay) {
     return (
-      <div className="bg-white p-3 rounded-lg shadow-2xl border border-blue-400 text-sm scale-105 rotate-2 cursor-grabbing relative z-50">
-        <p className="text-slate-700 font-medium leading-relaxed pr-6">{task.title}</p>
+      <div className="relative z-50 scale-105 cursor-grabbing rotate-2 rounded-lg border border-primary-500/35 bg-surface-50 p-3 text-sm shadow-2xl ring-2 ring-primary-500/25 dark:border-primary-400/40 dark:bg-surface-800 dark:ring-primary-400/20">
+        <p className="pr-6 font-medium leading-relaxed text-surface-900 dark:text-surface-50">{task.title}</p>
         {task.description && (
-          <div className="mt-2 flex items-center text-slate-400">
+          <div className="mt-2 flex items-center text-surface-500 dark:text-surface-400">
             <AlignLeft size={14} />
           </div>
         )}
@@ -73,7 +73,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
       <div
         ref={setNodeRef}
         style={style}
-        className="bg-slate-100/50 border-2 border-slate-300 border-dashed rounded-lg min-h-[60px] opacity-40"
+        className="min-h-15 rounded-lg border-2 border-dashed border-surface-300 bg-surface-100/60 opacity-40 dark:border-surface-600 dark:bg-surface-800/40"
       />
     );
   }
@@ -87,11 +87,11 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
         {...attributes}
         {...listeners}
         onClick={() => setIsPanelOpen(true)}
-        className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-sm hover:border-blue-400 transition-colors cursor-grab active:cursor-grabbing group select-none relative"
+        className="group relative cursor-grab select-none rounded-lg border border-surface-200 bg-surface-50 p-3 text-sm shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md active:cursor-grabbing dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45"
       >
-        <p className="text-slate-700 font-medium leading-relaxed pr-6">{task.title}</p>
+        <p className="pr-6 font-medium leading-relaxed text-surface-900 dark:text-surface-50">{task.title}</p>
         {task.description && (
-          <div className="mt-2 flex items-center text-slate-400">
+          <div className="mt-2 flex items-center text-surface-500 dark:text-surface-400">
             <AlignLeft size={14} />
           </div>
         )}
@@ -101,7 +101,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
             deleteTask(task._id, task.columnId);
           }}
           onPointerDown={(e) => e.stopPropagation()} 
-          className="absolute top-3 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50"
+          className="absolute top-3 right-2 rounded-md p-1 text-surface-500 opacity-0 transition-opacity hover:bg-danger/10 hover:text-danger group-hover:opacity-100 dark:text-surface-400"
         >
           <Trash2 size={16} />
         </button>
@@ -109,38 +109,38 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
 
       {/* EL PANEL LATERAL (SHEET) */}
       <Sheet open={isPanelOpen} onOpenChange={setIsPanelOpen}>
-        <SheetContent className="bg-white sm:max-w-[500px] w-[90vw] flex flex-col gap-0 p-0 border-l border-slate-200">
+        <SheetContent className="flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900">
           
-          <SheetHeader className="p-6 border-b border-slate-100">
-            <SheetTitle className="text-xl text-slate-800 text-left">Task Details</SheetTitle>
+          <SheetHeader className="border-b border-surface-200 p-6 dark:border-surface-800">
+            <SheetTitle className="text-left text-xl text-surface-900 dark:text-surface-50">Task Details</SheetTitle>
           </SheetHeader>
           
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
+          <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-surface-100 p-6 dark:bg-surface-950">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Title</label>
+              <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">Title</label>
               <Input 
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="bg-white focus-visible:ring-blue-500 font-medium text-base h-10 shadow-sm"
+                className="h-10 bg-surface-50 text-base font-medium shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
             </div>
             
             <div className="space-y-2 flex-1 flex flex-col">
-              <label className="text-sm font-semibold text-slate-700">Description</label>
+              <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">Description</label>
               <Textarea 
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Add a more detailed description..."
-                className="bg-white focus-visible:ring-blue-500 flex-1 min-h-[200px] resize-none shadow-sm"
+                className="min-h-50 flex-1 resize-none bg-surface-50 shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
             </div>
           </div>
 
-          <SheetFooter className="p-6 border-t border-slate-100 bg-white">
+          <SheetFooter className="border-t border-surface-200 bg-surface-50 p-6 dark:border-surface-800 dark:bg-surface-900">
             <Button variant="outline" onClick={() => setIsPanelOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={handleSaveChanges}>
               Save changes
             </Button>
           </SheetFooter>

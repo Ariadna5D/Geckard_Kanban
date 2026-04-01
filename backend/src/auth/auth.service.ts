@@ -34,6 +34,7 @@ export class AuthService {
       };
 
       const { passwordHash, ...result } = userObject;
+      void passwordHash;
 
       return result as ValidatedUser;
     }

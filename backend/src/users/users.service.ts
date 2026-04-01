@@ -118,19 +118,20 @@ export class UsersService {
   }
 
   async findOne(id: string) {
-    const user = await this.userModel.findById(id).exec();
+    const doc = await this.userModel
+      .findById(id)
+      .select('-passwordHash -__v')
+      .lean()
+      .exec();
 
-    if (!user) {
+    if (!doc) {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    const userObject = user.toObject();
-
-    const { passwordHash, __v, _id, ...safeUserData } = userObject;
-
+    const { _id, ...rest } = doc;
     return {
       id: _id.toString(),
-      ...safeUserData,
+      ...rest,
     };
   }
 

@@ -18,20 +18,24 @@ type Subjects = InferSubjects<typeof User | typeof Board | typeof Task> | 'all';
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
+/** `req.user` inyectado por la estrategia JWT */
+export type JwtAuthUser = {
+  userId: string;
+  role: string;
+};
+
 @Injectable()
 export class CaslAbilityFactory {
-  createForUser(user: any) {
-    const { can, cannot, build } = new AbilityBuilder<AppAbility>(
-      createMongoAbility,
-    );
+  createForUser(user: JwtAuthUser) {
+    const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
     if (user.role === 'admin') {
       can(Action.Manage, 'all');
     } else {
       can(Action.Read, Board);
       can(Action.Create, Board);
-      can(Action.Update, Board, { owner: user.userId } as any);
-      can(Action.Delete, Board, { owner: user.userId } as any);
+      can(Action.Update, Board, { owner: user.userId });
+      can(Action.Delete, Board, { owner: user.userId });
 
       can(Action.Read, Task);
       can(Action.Create, Task);
