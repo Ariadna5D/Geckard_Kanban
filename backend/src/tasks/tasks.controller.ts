@@ -67,8 +67,8 @@ export class TasksController {
 
   @Patch(':id/position')
   @CheckPolicies((ability) => ability.can(Action.Update, Task))
-  @ApiOperation({ summary: 'Actualizar la posición de la tarea (Drag & Drop)' })
-  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' }) // <-- AQUÍ
+  @ApiOperation({ summary: 'Update task position (Drag & Drop)' })
+  @ApiParam({ name: 'id', type: 'string', description: 'Task ID' })
   updatePosition(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() positionDto: UpdateTaskPositionDto,
@@ -76,8 +76,7 @@ export class TasksController {
     return this.tasksService.updatePosition(
       id.toString(),
       positionDto.newColumnId,
-      positionDto.prevTaskOrder ?? null,
-      positionDto.nextTaskOrder ?? null,
+      positionDto.newOrder,
     );
   }
 

@@ -1,33 +1,21 @@
-import { IsMongoId, IsNumber, IsOptional } from 'class-validator';
+import { IsMongoId, IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateTaskPositionDto {
   @ApiProperty({
     example: '69cbf0752cde49f774295b7e',
-    description: 'ID de la nueva columna donde cae la tarea',
+    description: 'ID de la nueva columna donde se suelta la tarea',
   })
   @IsMongoId()
+  @IsNotEmpty()
   newColumnId: string;
 
   @ApiProperty({
-    type: Number, // Forzamos a Swagger a ver un número
-    nullable: true, // Le decimos que puede ser null
-    example: 1500,
+    example: 'a0V3x',
     description:
-      'Orden de la tarea que queda por encima (null si es la primera)',
+      'El índice fraccional exacto (string) calculado por el frontend',
   })
-  @IsNumber()
-  @IsOptional()
-  prevTaskOrder: number | null;
-
-  @ApiProperty({
-    type: Number, // Forzamos a Swagger a ver un número
-    nullable: true,
-    example: 2500,
-    description:
-      'Orden de la tarea que queda por debajo (null si es la última)',
-  })
-  @IsNumber()
-  @IsOptional()
-  nextTaskOrder: number | null;
+  @IsString()
+  @IsNotEmpty()
+  newOrder: string;
 }

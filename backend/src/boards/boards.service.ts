@@ -96,7 +96,7 @@ export class BoardsService {
           owner: userId, // <-- SEGURIDAD: Solo si eres el owner original
         },
         updateBoardDto,
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
 
@@ -140,7 +140,7 @@ export class BoardsService {
             },
           },
         },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
 
@@ -157,7 +157,7 @@ export class BoardsService {
       .findOneAndUpdate(
         { _id: boardId, 'columns._id': new Types.ObjectId(columnId) },
         { $set: { 'columns.$.title': title } },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
 
@@ -173,7 +173,7 @@ export class BoardsService {
       .findByIdAndUpdate(
         boardId,
         { $pull: { columns: { _id: new Types.ObjectId(columnId) } } },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
 

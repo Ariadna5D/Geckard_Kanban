@@ -6,7 +6,7 @@ export interface Task {
   description: string;
   boardId: string;
   columnId: string;
-  order: number;
+  order: string;
   priority: TaskPriority;
   storyPoints?: number;
   dueDate?: string;
@@ -48,8 +48,7 @@ export interface CreateTaskPayload {
 
 export interface UpdateTaskPositionPayload {
   newColumnId: string;
-  prevTaskOrder: number | null;
-  nextTaskOrder: number | null;
+  newOrder: string;
 }
 
 export interface CreateBoardPayload {
