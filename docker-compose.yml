@@ -1,6 +1,6 @@
 # Variables obligatorias (raíz del proyecto: copia .envExample → .env):
 # MONGO_USERNAME, MONGO_PASSWORD, JWT_SECRET
-# Opcional: CLOUDINARY_* (avatares / imágenes)
+# Opcional: MONGO_DATABASE (por defecto kanban_db), CLOUDINARY_*
 services:
   mongodb:
     image: mongo:latest
@@ -28,6 +28,7 @@ services:
       NODE_ENV: production
       MONGO_USERNAME: ${MONGO_USERNAME}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_DATABASE: ${MONGO_DATABASE:-kanban_db}
       JWT_SECRET: ${JWT_SECRET}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}

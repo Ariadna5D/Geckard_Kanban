@@ -25,9 +25,10 @@ import { BoardsModule } from './boards/boards.module';
       useFactory: (configService: ConfigService) => {
         const user = configService.get<string>('MONGO_USERNAME');
         const pass = configService.get<string>('MONGO_PASSWORD');
+        const dbName =
+          configService.get<string>('MONGO_DATABASE')?.trim() || 'kanban_db';
 
-        // Construimos la ruta blindada
-        const uri = `mongodb://${user}:${pass}@mongodb:27017/kanban_db?authSource=admin`;
+        const uri = `mongodb://${user}:${pass}@mongodb:27017/${dbName}?authSource=admin`;
         return { uri };
       },
     }),

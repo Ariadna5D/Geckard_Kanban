@@ -8,7 +8,8 @@ PORT=
 # Credenciales de Base de Datos
 MONGO_USERNAME=
 MONGO_PASSWORD=
-MONGO_DATABASE=
+# Nombre de la BD en el URI de Mongoose (por defecto en código: kanban_db)
+MONGO_DATABASE=kanban_db
 
 # Configuración de Cloudinary para almacenamiento de imágenes
 CLOUDINARY_CLOUD_NAME=
