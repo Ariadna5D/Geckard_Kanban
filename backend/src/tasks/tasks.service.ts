@@ -20,7 +20,6 @@ export class TasksService {
    */
   async create(createTaskDto: CreateTaskDto): Promise<TaskDocument> {
     try {
-      // Directo a base de datos. El DTO ya validó que 'order' viene relleno.
       const newTask = await this.taskModel.create({
         ...createTaskDto,
         boardId: new Types.ObjectId(createTaskDto.boardId),
@@ -39,7 +38,7 @@ export class TasksService {
   async findAllByBoard(boardId: string): Promise<TaskDocument[]> {
     return this.taskModel
       .find({ boardId: new Types.ObjectId(boardId) })
-      .sort({ columnId: 1, order: 1 }) // Agrupadas por columna y ordenadas
+      .sort({ columnId: 1, order: 1 })
       .exec();
   }
 
@@ -55,7 +54,6 @@ export class TasksService {
         id,
         {
           ...updateTaskDto,
-          // Si nos mandan IDs, aseguramos el casteo
           ...(updateTaskDto.columnId && {
             columnId: new Types.ObjectId(updateTaskDto.columnId),
           }),
@@ -63,7 +61,7 @@ export class TasksService {
             boardId: new Types.ObjectId(updateTaskDto.boardId),
           }),
         },
-        { new: true },
+        { returnDocument: 'after' }, // <-- CORREGIDO
       )
       .exec();
 
@@ -80,7 +78,7 @@ export class TasksService {
   async updatePosition(
     taskId: string,
     newColumnId: string,
-    newOrder: string, // <-- Ahora es un String
+    newOrder: string,
   ): Promise<TaskDocument> {
     const updatedTask = await this.taskModel
       .findByIdAndUpdate(
@@ -89,7 +87,7 @@ export class TasksService {
           columnId: new Types.ObjectId(newColumnId),
           order: newOrder,
         },
-        { new: true }, // Devuelve el documento actualizado
+        { returnDocument: 'after' }, // <-- CORREGIDO
       )
       .exec();
 

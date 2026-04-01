@@ -18,6 +18,7 @@ export interface Task {
 export interface Column {
   _id: string;
   title: string;
+  order: string;
   tasks?: Task[]; 
 }
 

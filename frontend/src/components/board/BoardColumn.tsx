@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Column } from '../../types/board.types';
 import { TaskCard } from './TaskCard';
 import { InlineCreateForm } from '../shared/InlineCreateForm';
@@ -33,7 +33,6 @@ interface BoardColumnProps {
 export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
   const { addTask, editColumn, deleteColumn } = useActiveBoardStore();
   
-  // Estados para edición y borrado
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(column.title);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
@@ -41,18 +40,30 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const taskIds = column.tasks?.map((t) => t._id) || [];
 
-  const { setNodeRef } = useDroppable({
+  // 1. AHORA LA COLUMNA SE PUEDE ARRASTRAR (useSortable en vez de useDroppable)
+  const { 
+    setNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: column._id,
     data: { type: 'Column', column },
   });
+
+  // 2. ESTILOS DE MOVIMIENTO
+  const style = {
+    transition,
+    transform: CSS.Translate.toString(transform), // Usamos Translate para columnas
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   useEffect(() => {
     if (isEditingTitle && inputRef.current) inputRef.current.focus();
   }, [isEditingTitle]);
 
-  /**
-   * Ejecuta el cambio de nombre de la columna
-   */
   const handleUpdateTitle = async () => {
     if (!titleValue.trim() || titleValue === column.title) {
       setIsEditingTitle(false);
@@ -62,9 +73,6 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
     setIsEditingTitle(false);
   };
 
-  /**
-   * Crea una tarea al final de la lista con Fractional Indexing
-   */
   const handleCreateTask = async (title: string) => {
     const tasks = column.tasks || [];
     const lastTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
@@ -74,10 +82,18 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
 
   return (
     <>
-      <div className="flex-shrink-0 w-80 max-h-full flex flex-col bg-slate-100/50 rounded-xl border border-slate-200">
+      <div 
+        ref={setNodeRef} 
+        style={style}
+        className="flex-shrink-0 w-80 max-h-full flex flex-col bg-slate-100/50 rounded-xl border border-slate-200"
+      >
         
-        {/* Header con Edición Inline y Menú */}
-        <div className="p-4 flex items-center justify-between flex-shrink-0 group/header">
+        {/* HEADER: Aquí metemos el "asa" para arrastrar */}
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="p-4 flex items-center justify-between flex-shrink-0 group/header cursor-grab active:cursor-grabbing"
+        >
           {isEditingTitle ? (
             <Input
               ref={inputRef}
@@ -86,17 +102,22 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
               onBlur={handleUpdateTitle}
               onKeyDown={(e) => e.key === 'Enter' && handleUpdateTitle()}
               className="h-7 text-sm font-semibold bg-white"
+              onPointerDown={(e) => e.stopPropagation()} // Evita arrastrar al hacer clic
             />
           ) : (
             <h3 
-              onClick={() => setIsEditingTitle(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditingTitle(true);
+              }}
               className="font-semibold text-sm text-slate-700 cursor-text flex-1"
+              onPointerDown={(e) => e.stopPropagation()} // Evita arrastrar al hacer clic
             >
               {column.title}
             </h3>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
             <span className="text-xs text-slate-400 font-medium bg-slate-200 px-2 py-0.5 rounded-full">
               {column.tasks?.length || 0}
             </span>
@@ -123,10 +144,7 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
         </div>
 
         {/* Lista de tareas */}
-        <div 
-          ref={setNodeRef} 
-          className="flex-1 overflow-y-auto p-3 pt-0 flex flex-col gap-3 min-h-[150px]"
-        >
+        <div className="flex-1 overflow-y-auto p-3 pt-0 flex flex-col gap-3 min-h-[150px]">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {column.tasks?.map((task) => (
               <TaskCard key={task._id} task={task} />
@@ -134,7 +152,8 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
           </SortableContext>
         </div>
 
-        <div className="p-3 flex-shrink-0">
+        {/* Formulario de nueva tarea */}
+        <div className="p-3 flex-shrink-0" onPointerDown={(e) => e.stopPropagation()}>
           <InlineCreateForm actionText="Add task" onSubmit={handleCreateTask} />
         </div>
       </div>

@@ -44,3 +44,15 @@ export const deleteColumnRequest = async (
   const response = await api.delete(`/boards/${boardId}/columns/${columnId}`);
   return response.data;
 };
+
+/**
+ * Actualiza la posición de una columna enviando su nuevo Fractional Index (order).
+ */
+export const updateColumnPositionRequest = async (
+  boardId: string,
+  columnId: string,
+  order: string
+): Promise<Board> => {
+  const response = await api.patch(`/boards/${boardId}/columns/${columnId}/position`, { order });
+  return response.data;
+};

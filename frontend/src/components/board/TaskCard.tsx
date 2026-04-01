@@ -17,11 +17,13 @@ import { useActiveBoardStore } from '@/store/useActiveBoardStore';
 
 interface TaskCardProps {
   task: Task;
+  isOverlay?: boolean;
 }
 
-export const TaskCard = ({ task }: TaskCardProps) => {
+export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
   const { deleteTask, updateTask } = useActiveBoardStore();
   
+  // AQUÍ ESTÁN LOS ESTADOS QUE FALTABAN
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDescription, setEditDescription] = useState(task.description || '');
@@ -51,19 +53,34 @@ export const TaskCard = ({ task }: TaskCardProps) => {
     setIsPanelOpen(false);
   };
 
+  // --- 1. EL CLON FLOTANTE (Lo que llevas en el ratón) ---
+  if (isOverlay) {
+    return (
+      <div className="bg-white p-3 rounded-lg shadow-2xl border border-blue-400 text-sm scale-105 rotate-2 cursor-grabbing relative z-50">
+        <p className="text-slate-700 font-medium leading-relaxed pr-6">{task.title}</p>
+        {task.description && (
+          <div className="mt-2 flex items-center text-slate-400">
+            <AlignLeft size={14} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- 2. EL HUECO (Lo que se queda en la lista original) ---
   if (isDragging) {
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className="bg-blue-50/50 border-2 border-blue-400 border-dashed rounded-lg min-h-[60px] opacity-50"
+        className="bg-slate-100/50 border-2 border-slate-300 border-dashed rounded-lg min-h-[60px] opacity-40"
       />
     );
   }
 
+  // --- 3. LA TARJETA NORMAL Y EL PANEL LATERAL ---
   return (
     <>
-      {/* LA TARJETA */}
       <div
         ref={setNodeRef}
         style={style}
@@ -73,13 +90,11 @@ export const TaskCard = ({ task }: TaskCardProps) => {
         className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-sm hover:border-blue-400 transition-colors cursor-grab active:cursor-grabbing group select-none relative"
       >
         <p className="text-slate-700 font-medium leading-relaxed pr-6">{task.title}</p>
-        
         {task.description && (
           <div className="mt-2 flex items-center text-slate-400">
             <AlignLeft size={14} />
           </div>
         )}
-        
         <button 
           onClick={(e) => {
             e.stopPropagation();
