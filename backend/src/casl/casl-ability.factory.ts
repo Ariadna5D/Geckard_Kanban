@@ -18,8 +18,7 @@ export const BoardSubject = {
   Columns: 'BoardColumns',
 } as const;
 
-export type BoardFineSubject =
-  (typeof BoardSubject)[keyof typeof BoardSubject];
+export type BoardFineSubject = (typeof BoardSubject)[keyof typeof BoardSubject];
 
 type Subjects =
   | InferSubjects<typeof User | typeof Board | typeof Task>
@@ -121,7 +120,7 @@ export class CaslAbilityFactory {
       (item as { constructor: unknown }).constructor
     ) {
       return (item as { constructor: ExtractSubjectType<Subjects> })
-        .constructor as ExtractSubjectType<Subjects>;
+        .constructor;
     }
     return 'all' as ExtractSubjectType<Subjects>;
   }
