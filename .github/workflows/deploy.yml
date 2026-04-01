@@ -10,9 +10,24 @@ jobs:
       - name: 1. Descargar código
         uses: actions/checkout@v4
 
-      - name: 2. Levantar Docker
+      # Secrets en: Repo → Settings → Secrets and variables → Actions
+      # Obligatorios: MONGO_USERNAME, MONGO_PASSWORD, JWT_SECRET
+      # Opcionales: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+      - name: 2. Generar .env desde secretos
         run: |
           cd ${{ github.workspace }}
-          
+          {
+            echo "MONGO_USERNAME=${{ secrets.MONGO_USERNAME }}"
+            echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+            echo "CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}"
+            echo "CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}"
+            echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}"
+          } > .env
+
+      - name: 3. Levantar Docker
+        run: |
+          cd ${{ github.workspace }}
+
           docker compose down
           docker compose up -d --build
