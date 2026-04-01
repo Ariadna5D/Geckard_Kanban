@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User } from './schemas/user.schema';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from '../auth/dto/register.dto';
@@ -71,6 +71,41 @@ export class UsersService {
    */
   async findAll() {
     return this.userModel.find().select('-passwordHash').exec();
+  }
+
+  /**
+   * Búsqueda acotada para invitar a tableros (username o email, sin datos sensibles).
+   */
+  async searchForInvite(
+    q: string,
+    excludeUserId: string,
+    limit = 15,
+  ): Promise<{ id: string; username: string; email: string }[]> {
+    const trimmed = q?.trim() ?? '';
+    if (trimmed.length < 2) return [];
+
+    const esc = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(esc, 'i');
+
+    const filter: Record<string, unknown> = {
+      $or: [{ username: regex }, { email: regex }],
+    };
+    if (Types.ObjectId.isValid(excludeUserId)) {
+      filter._id = { $ne: new Types.ObjectId(excludeUserId) };
+    }
+
+    const docs = await this.userModel
+      .find(filter)
+      .select('username email')
+      .limit(Math.min(Math.max(limit, 1), 30))
+      .lean()
+      .exec();
+
+    return docs.map((d) => ({
+      id: d._id.toString(),
+      username: d.username,
+      email: d.email,
+    }));
   }
 
   /**

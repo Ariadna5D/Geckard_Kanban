@@ -9,6 +9,7 @@ import { Task, TaskDocument } from './schemas/task.schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { BoardsService } from '../boards/boards.service';
+import { BoardRole } from '../boards/schemas/board.schema';
 
 @Injectable()
 export class TasksService {
@@ -28,6 +29,12 @@ export class TasksService {
     await this.boardsService.assertUserHasBoardAccess(
       createTaskDto.boardId,
       userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertMinBoardRole(
+      createTaskDto.boardId,
+      userId,
+      BoardRole.EDITOR,
       isAppAdmin,
     );
     await this.boardsService.assertColumnBelongsToBoard(
@@ -88,6 +95,12 @@ export class TasksService {
       userId,
       isAppAdmin,
     );
+    await this.boardsService.assertMinBoardRole(
+      task.boardId.toString(),
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
 
     const { boardId: _b, columnId: _c, ...safe } = updateTaskDto;
     void _b;
@@ -130,6 +143,12 @@ export class TasksService {
       userId,
       isAppAdmin,
     );
+    await this.boardsService.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
     await this.boardsService.assertColumnBelongsToBoard(
       boardId,
       newColumnId,
@@ -164,6 +183,12 @@ export class TasksService {
     await this.boardsService.assertUserHasBoardAccess(
       task.boardId.toString(),
       userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertMinBoardRole(
+      task.boardId.toString(),
+      userId,
+      BoardRole.EDITOR,
       isAppAdmin,
     );
 
