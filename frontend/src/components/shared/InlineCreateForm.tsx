@@ -16,8 +16,8 @@ export const InlineCreateForm = ({
   actionText, 
   placeholder = "Title...", 
   onSubmit,
-  triggerClassName = "w-full text-left text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 p-2 rounded-md transition-colors flex items-center gap-1",
-  formClassName = "p-2 bg-slate-100/50 rounded-lg border border-slate-200 shadow-sm"
+  triggerClassName = "flex w-full items-center gap-1 rounded-md p-2 text-left text-sm text-surface-600 transition-colors hover:bg-primary-500/10 hover:text-primary-700 dark:text-surface-400 dark:hover:bg-primary-500/15 dark:hover:text-primary-300",
+  formClassName = "rounded-lg border border-surface-200 bg-surface-100 p-2 shadow-sm dark:border-surface-800 dark:bg-surface-950"
 }: InlineCreateFormProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState('');
@@ -55,10 +55,10 @@ export const InlineCreateForm = ({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
-        className="mb-2 bg-white text-sm h-9"
+        className="mb-2 h-9 bg-surface-50 text-sm dark:bg-surface-900"
       />
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs">
+        <Button type="submit" size="sm" className="h-8 text-xs">
           Save
         </Button>
         <Button 
@@ -69,7 +69,7 @@ export const InlineCreateForm = ({
             setIsEditing(false); 
             setValue(''); 
           }} 
-          className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800"
+          className="size-8 p-0 text-surface-500 hover:bg-surface-200 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-50"
         >
           <X size={16} />
         </Button>

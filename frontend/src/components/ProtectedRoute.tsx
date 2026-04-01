@@ -7,8 +7,8 @@ export const ProtectedRoute = () => {
 
   if (!hasHydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
+        <div className="size-8 animate-spin rounded-full border-2 border-surface-200 border-t-primary-600 dark:border-surface-800 dark:border-t-primary-500" />
       </div>
     );
   }

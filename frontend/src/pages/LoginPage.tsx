@@ -43,13 +43,13 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-50">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6 text-primary-600">Acceder a AxiUp</h2>
+    <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
+      <div className="w-full max-w-md rounded-xl border border-surface-200 bg-surface-50 p-8 text-surface-900 shadow-md dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
+        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Acceder a AxiUp</h2>
 
         {/* CAJA DE ERROR DEL SERVIDOR */}
         {serverError && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+          <div className="mb-4 rounded border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {serverError}
           </div>
         )}
@@ -58,53 +58,53 @@ export const LoginPage = () => {
           
           {/* CAMPO EMAIL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Correo electrónico</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Mail className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
               <input 
                 {...register('email', { 
                   required: 'El email es obligatorio',
                   pattern: { value: /\S+@\S+\.\S+/, message: 'Email no válido' }
                 })}
                 type="email" 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition"
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 outline-none transition focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="correo@ejemplo.com"
               />
             </div>
-            {errors.email && <span className="text-red-500 text-xs mt-1 block">{errors.email.message}</span>}
+            {errors.email && <span className="mt-1 block text-xs text-danger">{errors.email.message}</span>}
           </div>
 
           {/* CAMPO PASSWORD */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Contraseña</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Lock className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
               <input 
                 {...register('password', { 
                   required: 'La contraseña es obligatoria' 
                 })}
                 type="password" 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition"
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 outline-none transition focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="••••••••"
               />
             </div>
-            {errors.password && <span className="text-red-500 text-xs mt-1 block">{errors.password.message}</span>}
+            {errors.password && <span className="mt-1 block text-xs text-danger">{errors.password.message}</span>}
           </div>
 
           {/* BOTÓN SUBMIT */}
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition disabled:opacity-50"
+            className="w-full rounded-lg bg-primary-600 py-2 px-4 font-bold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500 dark:hover:bg-primary-400"
           >
             {isLoading ? 'Entrando...' : 'Entrar al Sistema'}
           </button>
         </form>
 
         {/* ENLACE PARA IR AL REGISTRO */}
-        <p className="text-center mt-6 text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-surface-600 dark:text-surface-400">
           ¿No tienes cuenta?{' '}
-          <Link to="/register" className="text-blue-600 hover:text-blue-800 font-semibold hover:underline">
+          <Link to="/register" className="font-semibold text-primary-600 hover:text-primary-700 hover:underline dark:text-primary-400 dark:hover:text-primary-300">
             Regístrate aquí
           </Link>
         </p>

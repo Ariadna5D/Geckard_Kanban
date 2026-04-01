@@ -137,7 +137,7 @@ export const ProfileForm = () => {
   };
 
   return (
-    <Card className="max-w-xl mx-auto mt-8">
+    <Card className="mx-auto mt-8 max-w-xl border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
       <CardHeader>
         <CardTitle>Tu Perfil</CardTitle>
         <CardDescription>Actualiza tu foto y tus datos públicos.</CardDescription>
@@ -151,22 +151,22 @@ export const ProfileForm = () => {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl cursor-pointer transition-colors
-              ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-slate-300 hover:bg-slate-50'}`}
+            className={`group/avatar-zone relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors
+              ${isDragging ? 'border-primary-500 bg-primary-500/10 dark:border-primary-400 dark:bg-primary-500/15' : 'border-surface-300 hover:border-primary-500/45 hover:bg-primary-500/10 dark:border-surface-600 dark:hover:border-primary-400/40 dark:hover:bg-primary-500/10'}`}
           >
-            <Avatar className="w-32 h-32 border-4 border-white shadow-sm mb-4">
+            <Avatar className="size-32 border-4 border-background shadow-sm mb-4">
               <AvatarImage src={previewUrl || ''} alt="Avatar" className="object-cover" />
               {/* MEJORA: Usamos la función de iniciales y le damos un toque formal (gris/azulado) */}
-              <AvatarFallback className="text-4xl font-semibold bg-slate-800 text-white tracking-wider">
+              <AvatarFallback className="bg-surface-600 text-4xl font-semibold tracking-wider text-white dark:bg-surface-700">
                 {getInitials(user?.username || '')}
               </AvatarFallback>
             </Avatar>
             
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <UploadCloud size={18} className="text-primary-600" />
+            <div className="flex items-center gap-2 text-sm font-medium text-surface-800 transition-colors group-hover/avatar-zone:text-primary-700 dark:text-surface-200 dark:group-hover/avatar-zone:text-primary-300">
+              <UploadCloud size={18} className="text-surface-500 transition-colors group-hover/avatar-zone:text-primary-600 dark:text-surface-400 dark:group-hover/avatar-zone:text-primary-400" />
               <span>Haz clic o arrastra tu foto aquí</span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">JPG, PNG o WEBP. Máximo 5MB.</p>
+            <p className="mt-1 text-xs text-warning dark:text-warning">JPG, PNG o WEBP. Máximo 5MB.</p>
 
             <input 
               type="file" 
@@ -178,7 +178,7 @@ export const ProfileForm = () => {
           </div>
 
           {message && (
-            <div className={`p-3 rounded text-sm ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            <div className={`rounded p-3 text-sm ${message.type === 'success' ? 'bg-success/15 text-success' : 'bg-danger/10 text-danger'}`}>
               {message.text}
             </div>
           )}
@@ -187,7 +187,7 @@ export const ProfileForm = () => {
             <div className="space-y-2">
               <Label htmlFor="username">Nombre de usuario</Label>
               <Input id="username" {...register('username', { required: 'El nombre es obligatorio' })} />
-              {errors.username && <span className="text-red-500 text-xs">{errors.username.message}</span>}
+              {errors.username && <span className="text-xs text-danger">{errors.username.message}</span>}
             </div>
 
             <div className="space-y-2">
@@ -196,17 +196,17 @@ export const ProfileForm = () => {
             </div>
           </div>
 
-          <Button type="submit" disabled={isLoading || isDeleting} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" disabled={isLoading || isDeleting} className="w-full">
+            {isLoading && <Loader2 className="mr-2 size-4 animate-spin" />}
             {isLoading ? 'Guardando cambios...' : 'Guardar perfil'}
           </Button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-red-100">
+        <div className="mt-8 border-t border-danger/25 pt-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-surface-600 font-semibold text-sm">Eliminar Cuenta</h3>
-              <p className="text-xs text-slate-500 mt-1">Elimina tu cuenta y todos tus datos permanentemente.</p>
+              <h3 className="text-sm font-semibold text-danger">Eliminar Cuenta</h3>
+              <p className="mt-1 text-xs text-surface-600 dark:text-surface-400">Elimina tu cuenta y todos tus datos permanentemente.</p>
             </div>
             
             <AlertDialog>
@@ -215,9 +215,9 @@ export const ProfileForm = () => {
                   type="button" 
                   variant="destructive" 
                   disabled={isDeleting || isLoading}
-                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white transition-colors"
+                  className="w-full sm:w-auto"
                 >
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  {isDeleting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
                   {isDeleting ? 'Eliminando...' : 'Eliminar cuenta'}
                 </Button>
               </AlertDialogTrigger>
@@ -233,7 +233,7 @@ export const ProfileForm = () => {
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction 
                     onClick={handleDeleteAccount}
-                    className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
+                    className="bg-danger text-white hover:bg-danger/90 focus-visible:ring-2 focus-visible:ring-danger/50"
                   >
                     Sí, eliminar mi cuenta
                   </AlertDialogAction>

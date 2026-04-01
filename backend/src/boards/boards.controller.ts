@@ -60,17 +60,8 @@ export class BoardsController {
   }
 
   /**
-   * Retrieves a specific board using its unique slug.
-   */
-  @Get(':slug')
-  @CheckPolicies((ability) => ability.can(Action.Read, Board))
-  @ApiOperation({ summary: 'Get a specific board by slug' })
-  findOne(@Param('slug') slug: string, @Request() req: ValidatedRequest) {
-    return this.boardsService.findOneBySlug(slug, req.user.sub);
-  }
-
-  /**
-   * Updates basic information of a board.
+   * Updates basic information of a board (ObjectId en la URL).
+   * Debe ir antes de GET by-slug para no competir con rutas dinámicas genéricas.
    */
   @Patch(':id')
   @CheckPolicies((ability) => ability.can(Action.Update, Board))
@@ -83,11 +74,12 @@ export class BoardsController {
       id.toString(),
       updateBoardDto,
       req.user.sub,
+      req.user.role === 'admin',
     );
   }
 
   /**
-   * Deletes a board permanently.
+   * Deletes a board permanently (ObjectId en la URL).
    */
   @Delete(':id')
   @CheckPolicies((ability) => ability.can(Action.Delete, Board))
@@ -95,7 +87,11 @@ export class BoardsController {
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.remove(id.toString(), req.user.sub);
+    return this.boardsService.remove(
+      id.toString(),
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   // --- ENDPOINTS PARA COLUMNAS ---
@@ -109,8 +105,14 @@ export class BoardsController {
   addColumn(
     @Param('id') boardId: string,
     @Body() createColumnDto: CreateColumnDto,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.addColumn(boardId, createColumnDto);
+    return this.boardsService.addColumn(
+      boardId,
+      createColumnDto,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**
@@ -123,8 +125,15 @@ export class BoardsController {
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
     @Body('title') title: string,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.updateColumn(boardId, columnId, title);
+    return this.boardsService.updateColumn(
+      boardId,
+      columnId,
+      title,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**
@@ -136,7 +145,44 @@ export class BoardsController {
   removeColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.removeColumn(boardId, columnId);
+    return this.boardsService.removeColumn(
+      boardId,
+      columnId,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Actualiza la posición de una columna (arrastrar y soltar)
+   */
+  @Patch(':id/columns/:columnId/position')
+  @CheckPolicies((ability) => ability.can(Action.Update, Board))
+  @ApiOperation({ summary: 'Actualizar orden de la columna' })
+  updateColumnPosition(
+    @Param('id') boardId: string,
+    @Param('columnId') columnId: string,
+    @Body('order') order: string,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.boardsService.updateColumnPosition(
+      boardId,
+      columnId,
+      order,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Tablero por slug (ruta explícita; evita colisión con PATCH/DELETE /boards/:id).
+   */
+  @Get('by-slug/:slug')
+  @CheckPolicies((ability) => ability.can(Action.Read, Board))
+  @ApiOperation({ summary: 'Get a specific board by slug' })
+  findOneBySlug(@Param('slug') slug: string, @Request() req: ValidatedRequest) {
+    return this.boardsService.findOneBySlug(slug, req.user.sub);
   }
 }

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { CaslAbilityFactory } from './casl-ability.factory';
+import { CaslAbilityFactory, JwtAuthUser } from './casl-ability.factory';
 import {
   CHECK_POLICIES_KEY,
   PolicyHandlerCallback,
@@ -13,7 +13,7 @@ export class PoliciesGuard implements CanActivate {
     private caslAbilityFactory: CaslAbilityFactory,
   ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     // Extraemos los handlers (las reglas) que pusimos en el decorador @CheckPolicies
     const policyHandlers =
       this.reflector.get<PolicyHandlerCallback[]>(
@@ -22,7 +22,7 @@ export class PoliciesGuard implements CanActivate {
       ) || [];
 
     // Obtenemos el usuario que el JwtAuthGuard inyectó en la Request
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context.switchToHttp().getRequest<{ user: JwtAuthUser }>();
 
     // Creamos las habilidades (permisos) para ese usuario concreto
     const ability = this.caslAbilityFactory.createForUser(user);

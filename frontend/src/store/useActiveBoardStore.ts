@@ -1,17 +1,19 @@
 import { create } from 'zustand';
-import { Board, UpdateTaskPositionPayload } from '../types/board.types';
+import { Board, UpdateTaskPositionPayload, Task } from '../types/board.types';
 import { 
   addColumnRequest, 
   getBoardBySlugRequest, 
   updateColumnRequest, 
-  deleteColumnRequest 
+  deleteColumnRequest,
+  updateColumnPositionRequest // <-- IMPORTAMOS LA NUEVA PETICIÓN
 } from '../api/boards.api';
-import { 
-  updateTaskPosition, 
-  createTaskRequest, 
-  deleteTaskRequest, 
-  updateTaskRequest
+import {
+  updateTaskPosition,
+  createTaskRequest,
+  deleteTaskRequest,
+  updateTaskRequest,
 } from '../api/tasks.api';
+import { compareOrderKey } from '../utils/boardMath';
 
 interface ActiveBoardState {
   board: Board | null;
@@ -28,9 +30,10 @@ interface ActiveBoardState {
   ) => Promise<void>;
   
   // CRUD Columnas
-  addColumn: (boardId: string, title: string) => Promise<void>;
+  addColumn: (boardId: string, title: string, order: string) => Promise<void>;
   editColumn: (boardId: string, columnId: string, title: string) => Promise<void>;
   deleteColumn: (boardId: string, columnId: string) => Promise<void>;
+  moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
   
   // CRUD Tareas
   addTask: (boardId: string, columnId: string, title: string, order: string) => Promise<void>;
@@ -44,21 +47,29 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   error: null,
 
   /**
-   * Carga el tablero y ordena las tareas alfabéticamente por su Fractional Index.
+   * Carga el tablero y ordena tanto las columnas como las tareas por su Fractional Index.
    */
   fetchBoard: async (slug: string) => {
     set({ isLoading: true, error: null });
     try {
       const board = await getBoardBySlugRequest(slug);
       
-      const sortedColumns = board.columns.map(col => ({
-        ...col,
-        tasks: col.tasks?.sort((a, b) => a.order.localeCompare(b.order)) || []
-      }));
+      // Ordenamos las columnas y las tareas de cada columna
+      const sortedColumns = board.columns
+        .sort((a, b) => compareOrderKey(a.order, b.order))
+        .map((col) => ({
+          ...col,
+          tasks:
+            col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
+        }));
 
       set({ board: { ...board, columns: sortedColumns }, isLoading: false });
-    } catch (error) {
-      set({ error: 'Error al cargar el tablero.', isLoading: false });
+    } catch {
+      set({
+        error: 'Error al cargar el tablero.',
+        isLoading: false,
+        board: null,
+      });
     }
   },
 
@@ -83,7 +94,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     taskToMove.columnId = newColumnId;
     taskToMove.order = newOrder;
     destCol.tasks!.push(taskToMove);
-    destCol.tasks!.sort((a, b) => a.order.localeCompare(b.order));
+    destCol.tasks!.sort((a, b) => compareOrderKey(a.order, b.order));
 
     set({ board: newBoard });
 
@@ -96,11 +107,43 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Añade una nueva columna al tablero.
+   * Reordena las columnas visualmente al instante y sincroniza con el servidor.
    */
-  addColumn: async (boardId: string, title: string) => {
+  moveColumnOptimistic: async (boardId, columnId, newOrder) => {
+    const previousBoard = get().board;
+    if (!previousBoard) return;
+
+    // 1. Clonamos el estado anterior para UI optimista
+    const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
+    const colIndex = newBoard.columns.findIndex(c => c._id === columnId);
+    
+    if (colIndex !== -1) {
+      newBoard.columns[colIndex].order = newOrder;
+      // Reordenamos las columnas basándonos en el nuevo index
+      newBoard.columns.sort((a, b) => compareOrderKey(a.order, b.order));
+    }
+
+    set({ board: newBoard });
+
     try {
-      const updatedBoard = await addColumnRequest(boardId, title);
+      // 2. Mandamos el cambio al backend
+      await updateColumnPositionRequest(boardId, columnId, newOrder);
+    } catch (error) {
+      console.error("Error al mover la columna, revirtiendo...", error);
+      set({ board: previousBoard }); // 3. Rollback si falla
+    }
+  },
+
+  /**
+   * Añade una nueva columna al tablero manteniendo las tareas locales intactas.
+   */
+  /**
+   * Añade una nueva columna al tablero al final de la lista.
+   */
+  addColumn: async (boardId: string, title: string, order: string) => {
+    try {
+      // 1. Petición a la API incluyendo el order calculado
+      const updatedBoard = await addColumnRequest(boardId, title, order);
       
       set((state) => {
         if (!state.board) return state;
@@ -109,10 +152,12 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
           return {
             ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
+            tasks: existingFrontendCol?.tasks || []
           };
         });
 
+        // 2. Ordenamos para que la nueva columna aparezca a la derecha
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -136,6 +181,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
           };
         });
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -159,6 +205,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
           };
         });
+        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -167,7 +214,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Crea una tarea sin UI optimista por la dependencia de dnd-kit al _id real.
+   * Crea una tarea esperando la respuesta del servidor para obtener su _id.
    */
   addTask: async (boardId, columnId, title, order) => {
     try {
@@ -181,7 +228,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         
         if (column) {
           column.tasks = [...(column.tasks || []), newTask];
-          column.tasks.sort((a, b) => a.order.localeCompare(b.order));
+          column.tasks.sort((a, b) => compareOrderKey(a.order, b.order));
         }
         
         return { board: newBoard };
@@ -199,7 +246,6 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     if (!previousBoard) return;
 
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
-    // Quitando el tipado 'any' explícito, inferido de la interfaz Board
     const column = newBoard.columns.find(c => c._id === columnId);
     
     if (column && column.tasks) {
@@ -221,10 +267,8 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
    */
   updateTask: async (taskId, columnId, data) => {
     try {
-      // 1. Petición al backend usando la función que ya teníamos en tasks.api.ts
       const updatedTask = await updateTaskRequest(taskId, data);
       
-      // 2. Actualizamos el estado de Zustand
       set((state) => {
         if (!state.board) return state;
         
@@ -234,7 +278,6 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         if (column && column.tasks) {
           const taskIndex = column.tasks.findIndex(t => t._id === taskId);
           if (taskIndex !== -1) {
-            // Fusionamos los datos antiguos con los nuevos
             column.tasks[taskIndex] = { ...column.tasks[taskIndex], ...updatedTask };
           }
         }
