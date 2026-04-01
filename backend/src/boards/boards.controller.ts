@@ -105,8 +105,14 @@ export class BoardsController {
   addColumn(
     @Param('id') boardId: string,
     @Body() createColumnDto: CreateColumnDto,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.addColumn(boardId, createColumnDto);
+    return this.boardsService.addColumn(
+      boardId,
+      createColumnDto,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**
@@ -119,8 +125,15 @@ export class BoardsController {
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
     @Body('title') title: string,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.updateColumn(boardId, columnId, title);
+    return this.boardsService.updateColumn(
+      boardId,
+      columnId,
+      title,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**
@@ -132,8 +145,14 @@ export class BoardsController {
   removeColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.removeColumn(boardId, columnId);
+    return this.boardsService.removeColumn(
+      boardId,
+      columnId,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**
@@ -146,8 +165,15 @@ export class BoardsController {
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
     @Body('order') order: string,
+    @Request() req: ValidatedRequest,
   ) {
-    return this.boardsService.updateColumnPosition(boardId, columnId, order);
+    return this.boardsService.updateColumnPosition(
+      boardId,
+      columnId,
+      order,
+      req.user.sub,
+      req.user.role === 'admin',
+    );
   }
 
   /**

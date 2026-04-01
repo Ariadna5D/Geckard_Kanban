@@ -27,6 +27,60 @@ export class BoardsService {
   ) {}
 
   /**
+   * Filtro Mongo: tablero por id y usuario miembro (owner o members[]) o admin de la app.
+   */
+  private boardAccessFilter(
+    boardId: string,
+    userId: string,
+    isAppAdmin: boolean,
+  ): object {
+    const bid = new Types.ObjectId(boardId);
+    if (isAppAdmin) return { _id: bid };
+    const uid = new Types.ObjectId(userId);
+    return {
+      _id: bid,
+      $or: [{ owner: uid }, { 'members.user': uid }],
+    };
+  }
+
+  /**
+   * Comprueba que el usuario pertenezca al tablero (o sea admin global).
+   * Mismo mensaje que findOneBySlug para no filtrar si el tablero existe.
+   */
+  async assertUserHasBoardAccess(
+    boardId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<void> {
+    const filter = this.boardAccessFilter(boardId, userId, isAppAdmin);
+    const n = await this.boardModel.countDocuments(filter as never).exec();
+    if (n === 0) {
+      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+    }
+  }
+
+  /**
+   * Comprueba que la columna pertenezca al tablero y el usuario tenga acceso al tablero.
+   */
+  async assertColumnBelongsToBoard(
+    boardId: string,
+    columnId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<void> {
+    const filter = {
+      ...this.boardAccessFilter(boardId, userId, isAppAdmin),
+      'columns._id': new Types.ObjectId(columnId),
+    };
+    const n = await this.boardModel.countDocuments(filter as never).exec();
+    if (n === 0) {
+      throw new NotFoundException(
+        'La columna no existe o no tienes permiso en este tablero.',
+      );
+    }
+  }
+
+  /**
    * Crea un nuevo tablero.
    */
   async create(
@@ -128,7 +182,7 @@ export class BoardsService {
 
     const updatedBoard = await this.boardModel
       .findOneAndUpdate(filter, updateBoardDto, {
-        returnDocument: 'after',
+        new: true,
       })
       .exec();
 
@@ -160,25 +214,30 @@ export class BoardsService {
   async addColumn(
     boardId: string,
     createColumnDto: CreateColumnDto,
+    userId: string,
+    isAppAdmin = false,
   ): Promise<BoardDocument> {
+    const filter = this.boardAccessFilter(boardId, userId, isAppAdmin);
     const board = await this.boardModel
-      .findByIdAndUpdate(
-        boardId,
+      .findOneAndUpdate(
+        filter as never,
         {
           $push: {
             columns: {
               _id: new Types.ObjectId(),
               title: createColumnDto.title,
-              order: createColumnDto.order, // Usamos el orden del frontend
+              order: createColumnDto.order,
               tasks: [],
             },
           },
         },
-        { returnDocument: 'after' },
+        { new: true },
       )
       .exec();
 
-    if (!board) throw new NotFoundException('Tablero no encontrado');
+    if (!board) {
+      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+    }
     return board;
   }
 
@@ -189,16 +248,26 @@ export class BoardsService {
     boardId: string,
     columnId: string,
     title: string,
+    userId: string,
+    isAppAdmin = false,
   ): Promise<BoardDocument> {
+    const filter = {
+      ...this.boardAccessFilter(boardId, userId, isAppAdmin),
+      'columns._id': new Types.ObjectId(columnId),
+    };
     const board = await this.boardModel
       .findOneAndUpdate(
-        { _id: boardId, 'columns._id': new Types.ObjectId(columnId) },
+        filter as never,
         { $set: { 'columns.$.title': title } },
-        { returnDocument: 'after' },
+        { new: true },
       )
       .exec();
 
-    if (!board) throw new NotFoundException('Columna no encontrada');
+    if (!board) {
+      throw new NotFoundException(
+        'La columna no existe o no tienes permiso en este tablero.',
+      );
+    }
     return board;
   }
 
@@ -209,16 +278,26 @@ export class BoardsService {
     boardId: string,
     columnId: string,
     order: string,
+    userId: string,
+    isAppAdmin = false,
   ): Promise<BoardDocument> {
+    const filter = {
+      ...this.boardAccessFilter(boardId, userId, isAppAdmin),
+      'columns._id': new Types.ObjectId(columnId),
+    };
     const board = await this.boardModel
       .findOneAndUpdate(
-        { _id: boardId, 'columns._id': new Types.ObjectId(columnId) },
+        filter as never,
         { $set: { 'columns.$.order': order } },
-        { returnDocument: 'after' },
+        { new: true },
       )
       .exec();
 
-    if (!board) throw new NotFoundException('Columna no encontrada');
+    if (!board) {
+      throw new NotFoundException(
+        'La columna no existe o no tienes permiso en este tablero.',
+      );
+    }
     return board;
   }
 
@@ -228,16 +307,21 @@ export class BoardsService {
   async removeColumn(
     boardId: string,
     columnId: string,
+    userId: string,
+    isAppAdmin = false,
   ): Promise<BoardDocument> {
+    const filter = this.boardAccessFilter(boardId, userId, isAppAdmin);
     const board = await this.boardModel
-      .findByIdAndUpdate(
-        boardId,
+      .findOneAndUpdate(
+        filter as never,
         { $pull: { columns: { _id: new Types.ObjectId(columnId) } } },
-        { returnDocument: 'after' },
+        { new: true },
       )
       .exec();
 
-    if (!board) throw new NotFoundException('Tablero no encontrado');
+    if (!board) {
+      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+    }
 
     await this.taskModel
       .deleteMany({ columnId: new Types.ObjectId(columnId) })
