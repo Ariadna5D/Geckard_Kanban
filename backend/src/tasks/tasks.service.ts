@@ -1,51 +1,177 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
+import { Task, TaskDocument } from './schemas/task.schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
-import { Task, TaskDocument } from './schemas/task.schema';
+import { BoardsService } from '../boards/boards.service';
 
 @Injectable()
 export class TasksService {
-  constructor(@InjectModel(Task.name) private taskModel: Model<TaskDocument>) {}
+  constructor(
+    @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
+    private readonly boardsService: BoardsService,
+  ) {}
 
-  async create(createTaskDto: CreateTaskDto): Promise<Task> {
-    const createdTask = new this.taskModel(createTaskDto);
-    return createdTask.save();
+  /**
+   * CREATE: Crea una tarea y la pone automáticamente al final de la columna.
+   */
+  async create(
+    createTaskDto: CreateTaskDto,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument> {
+    await this.boardsService.assertUserHasBoardAccess(
+      createTaskDto.boardId,
+      userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertColumnBelongsToBoard(
+      createTaskDto.boardId,
+      createTaskDto.columnId,
+      userId,
+      isAppAdmin,
+    );
+
+    try {
+      const newTask = await this.taskModel.create({
+        ...createTaskDto,
+        boardId: new Types.ObjectId(createTaskDto.boardId),
+        columnId: new Types.ObjectId(createTaskDto.columnId),
+      });
+
+      return newTask;
+    } catch {
+      throw new InternalServerErrorException('Error al crear la tarea');
+    }
   }
 
-  async findAll(): Promise<Task[]> {
-    return this.taskModel.find().exec();
+  /**
+   * READ: Obtener TODAS las tareas de un tablero específico (solo miembros del tablero).
+   */
+  async findAllByBoard(
+    boardId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument[]> {
+    await this.boardsService.assertUserHasBoardAccess(
+      boardId,
+      userId,
+      isAppAdmin,
+    );
+    return this.taskModel
+      .find({ boardId: new Types.ObjectId(boardId) })
+      .sort({ columnId: 1, order: 1 })
+      .exec();
   }
 
-  async findOne(id: string): Promise<Task> {
+  /**
+   * UPDATE BASIC: Actualizar texto, descripción, o campos Scrum.
+   * No permite cambiar boardId/columnId por este endpoint (usar position / flujo DnD).
+   */
+  async update(
+    id: string,
+    updateTaskDto: UpdateTaskDto,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument> {
     const task = await this.taskModel.findById(id).exec();
     if (!task) {
-      throw new NotFoundException(`Tarea con ID ${id} no encontrada`);
+      throw new NotFoundException('Tarea no encontrada');
     }
-    return task;
-  }
+    await this.boardsService.assertUserHasBoardAccess(
+      task.boardId.toString(),
+      userId,
+      isAppAdmin,
+    );
 
-  async update(id: string, updateTaskDto: UpdateTaskDto): Promise<Task> {
-    const existingTask = await this.taskModel
-      .findByIdAndUpdate(id, updateTaskDto, { new: true }) // {new: true} sirve para que devuelva la tarea ya cambiada
+    const { boardId: _b, columnId: _c, ...safe } = updateTaskDto;
+    void _b;
+    void _c;
+
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        {
+          ...safe,
+        },
+        { returnDocument: 'after' },
+      )
       .exec();
 
-    if (!existingTask) {
-      throw new NotFoundException(
-        `Tarea con ID ${id} no encontrada para actualizar`,
-      );
+    if (!updatedTask) {
+      throw new NotFoundException('Tarea no encontrada');
     }
-    return existingTask;
+
+    return updatedTask;
   }
 
-  async remove(id: string): Promise<Task> {
-    const deletedTask = await this.taskModel.findByIdAndDelete(id).exec();
-    if (!deletedTask) {
-      throw new NotFoundException(
-        `Tarea con ID ${id} no encontrada para borrar`,
-      );
+  /**
+   * Recalcula la posición matemática con un solo UPDATE.
+   */
+  async updatePosition(
+    taskId: string,
+    newColumnId: string,
+    newOrder: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument> {
+    const task = await this.taskModel.findById(taskId).exec();
+    if (!task) {
+      throw new NotFoundException('Tarea no encontrada');
     }
-    return deletedTask;
+    const boardId = task.boardId.toString();
+    await this.boardsService.assertUserHasBoardAccess(
+      boardId,
+      userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertColumnBelongsToBoard(
+      boardId,
+      newColumnId,
+      userId,
+      isAppAdmin,
+    );
+
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
+        taskId,
+        {
+          columnId: new Types.ObjectId(newColumnId),
+          order: newOrder,
+        },
+        { returnDocument: 'after' },
+      )
+      .exec();
+
+    if (!updatedTask) throw new NotFoundException('Tarea no encontrada');
+
+    return updatedTask;
+  }
+
+  /**
+   * DELETE: Fulminar la tarea
+   */
+  async remove(id: string, userId: string, isAppAdmin = false): Promise<void> {
+    const task = await this.taskModel.findById(id).exec();
+    if (!task) {
+      throw new NotFoundException('No se pudo eliminar la tarea');
+    }
+    await this.boardsService.assertUserHasBoardAccess(
+      task.boardId.toString(),
+      userId,
+      isAppAdmin,
+    );
+
+    const result = await this.taskModel
+      .deleteOne({ _id: new Types.ObjectId(id) })
+      .exec();
+    if (result.deletedCount === 0) {
+      throw new NotFoundException('No se pudo eliminar la tarea');
+    }
   }
 }

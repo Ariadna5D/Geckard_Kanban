@@ -19,17 +19,19 @@
   --color-primary-900: #312e81;
   --color-primary-950: #1e1b4b;
 
-  /* --- SURFACE/NEUTRAL  --- */
-  --color-surface-50: #f8fafc;
-  --color-surface-100: #f1f5f9;
-  --color-surface-200: #e2e8f0;
-  --color-surface-300: #cbd5e1;
-  --color-surface-400: #94a3b8;
-  --color-surface-500: #64748b;
-  --color-surface-600: #475569;
-  --color-surface-700: #334155;
-  --color-surface-800: #1e293b;
-  --color-surface-900: #0f172a;
+  /* --- SURFACE: grises neutros. En claro, 50/100/200 más marcados que el blanco puro (lienzo vs paneles). --- */
+  --color-surface-50: #f0f0f3;
+  --color-surface-100: #e2e3e8;
+  --color-surface-200: #cecfd6;
+  --color-surface-300: #b4b5bf;
+  --color-surface-400: #91929e;
+  --color-surface-500: #737373;
+  --color-surface-600: #525252;
+  --color-surface-700: #404040;
+  --color-surface-800: #262626;
+  --color-surface-900: #171717;
+  /* Lienzo más profundo que 900 (modo oscuro / fondo app) */
+  --color-surface-950: #0a0a0a;
 
   /* --- ACCENT --- */
   --color-accent-50: #fffbeb;
@@ -44,10 +46,18 @@
   --color-accent-900: #78350f;
   --color-accent-950: #451a03;
 
-  /* --- SEMANTIC --- */
+  /* --- SEMANTIC (app) ---
+     success / warning / error: estados y mensajes.
+     danger: alias práctico de error para acciones destructivas (text-danger, bg-danger/10…).
+  */
   --color-success: #10b981;
   --color-error: #ef4444;
   --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Altura mínima zona de tareas en columna (~150px), usable como min-h-kanban-col-body */
+  --spacing-kanban-col-body: 9.375rem;
 }
 
 @theme inline {
@@ -71,13 +81,14 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent-shadcn: var(--accent); /* Renombrado para evitar choque con tu color accent */
+  /* Tokens planos para shadcn (bg-primary, text-primary, bg-accent…). La escala sigue en primary-50… y accent-50… */
+  --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-primary-shadcn: var(--primary); /* Renombrado para evitar choque con tu color primary */
+  --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -93,27 +104,35 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/**
+ * Tema: .dark en <html> (index.html).
+ * UI tipo Linear: casi todo surface-* (profundidad 50→950). Primary solo en CTAs,
+ * focus de controles, enlaces de acción y bordes/estados que requieren acento.
+ */
+
 :root {
-  --background: oklch(1 0 0);
+  color-scheme: light;
+  /* Alineado con surface-100 / surface-50: sin blanco puro en claro */
+  --background: oklch(0.91 0.006 264);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.945 0.005 264);
   --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.945 0.005 264);
   --popover-foreground: oklch(0.145 0 0);
   
   /* CORREGIDO: Ahora el botón de shadcn será del mismo azul índigo que tu paleta, no negro */
   --primary: oklch(0.446 0.16 264); 
   --primary-foreground: oklch(0.985 0 0);
   
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.93 0.006 264);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --muted: oklch(0.93 0.006 264);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: oklch(0.93 0.006 264);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.86 0.008 264);
+  --input: oklch(0.86 0.008 264);
   
   /* CORREGIDO: El borde al hacer focus en los inputs será azul índigo */
   --ring: oklch(0.446 0.16 264); 
@@ -124,17 +143,18 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.945 0.005 264);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.446 0.16 264);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: oklch(0.86 0.008 264);
   --sidebar-ring: oklch(0.446 0.16 264);
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -171,12 +191,20 @@
   --sidebar-ring: oklch(0.65 0.15 264);
 }
 
+/*
+ * Extensión (toggle manual): lee localStorage y aplica class "dark" | quítala;
+ * si usas "system", ejecuta la misma lógica que el script de index.html.
+ * Los tokens --background, --foreground, --card, --muted, --border, --primary
+ * bastan para toda la app mientras la UI use utilidades semánticas (bg-background,
+ * text-foreground, bg-card, border-border, text-primary, text-muted-foreground, …).
+ */
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-surface-100 text-surface-900 dark:bg-surface-950 dark:text-surface-50;
   }
   html {
     @apply font-sans;

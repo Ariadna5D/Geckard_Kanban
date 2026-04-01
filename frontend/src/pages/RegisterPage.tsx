@@ -2,9 +2,8 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock } from 'lucide-react'; // Iconos estándar
 import { useAuthStore } from '../store/useAuthStore';
-import axios from 'axios';
 import { useState } from 'react';
-
+import api from '../api/axios.instance';
 // 1. Definimos el "contrato" de lo que vamos a enviar
 interface RegisterFormData {
   username: string;
@@ -26,36 +25,35 @@ export const RegisterPage = () => {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Función que se ejecuta al enviar el formulario
-  const onSubmit = async (data: RegisterFormData) => {
+const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setServerError(null);
 
     try {
-      // Hacemos la petición al backend para registrar el usuario
-      const response = await axios.post('http://localhost:3000/api/auth/register', data);
+      await api.post('/auth/register', data);
       
-      // Si el registro es exitoso, guardamos el usuario y token en el estado global
-      loginFn(response.data.user, response.data.access_token);
+      const loginResponse = await api.post('/auth/login', {
+        email: data.email,
+        password: data.password
+      });
       
-      // Y mandamos al usuario al Kanban
+      loginFn(loginResponse.data.user, loginResponse.data.access_token);
+      
       navigate('/dashboard');
     } catch (error: any) {
-      
-      // Si NestJS nos rechaza (ej: email repetido), mostramos su mensaje
-      setServerError(error.response?.data?.message || 'Error al registrar el usuario');
+      setServerError(error.response?.data?.message || 'Error en el proceso');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-50">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6 text-primary-600">Crear Cuenta</h2>
+    <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
+      <div className="w-full max-w-md rounded-xl border border-surface-200 bg-surface-50 p-8 text-surface-900 shadow-md dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
+        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Crear Cuenta</h2>
 
         {serverError && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded border border-danger/30 bg-danger/10 px-4 py-3 text-danger">
             {serverError}
           </div>
         )}
@@ -65,72 +63,72 @@ export const RegisterPage = () => {
           
           {/* CAMPO USERNAME */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de usuario</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Nombre de usuario</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <User className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
               <input 
                 {...register('username', { 
                   required: 'El nombre es obligatorio',
                   minLength: { value: 3, message: 'Mínimo 3 caracteres' }
                 })}
                 type="text" 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="Ej: NinjaKanban"
               />
             </div>
-            {errors.username && <span className="text-red-500 text-xs">{errors.username.message}</span>}
+            {errors.username && <span className="text-xs text-danger">{errors.username.message}</span>}
           </div>
 
           {/* CAMPO EMAIL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Correo electrónico</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Mail className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
               <input 
                 {...register('email', { 
                   required: 'El email es obligatorio',
                   pattern: { value: /\S+@\S+\.\S+/, message: 'Email no válido' }
                 })}
                 type="email" 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="correo@ejemplo.com"
               />
             </div>
-            {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
+            {errors.email && <span className="text-xs text-danger">{errors.email.message}</span>}
           </div>
 
           {/* CAMPO PASSWORD */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Contraseña</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Lock className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
               <input 
                 {...register('password', { 
                   required: 'La contraseña es obligatoria',
                   minLength: { value: 6, message: 'Mínimo 6 caracteres' }
                 })}
                 type="password" 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="******"
               />
             </div>
-            {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
+            {errors.password && <span className="text-xs text-danger">{errors.password.message}</span>}
           </div>
 
           {/* BOTÓN SUBMIT */}
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition"
+            className="w-full rounded-lg bg-primary-600 py-2 px-4 font-bold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500 dark:hover:bg-primary-400"
           >
             {isLoading ? 'Registrando...' : 'Registrarse'}
           </button>
         </form>
 
         {/* ENLACE PARA IR AL LOGIN */}
-        <p className="text-center mt-6 text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-surface-600 dark:text-surface-400">
           ¿Ya tienes cuenta?{' '}
-          <Link to="/login" className="text-blue-600 hover:text-blue-800 font-semibold hover:underline">
+          <Link to="/login" className="font-semibold text-primary-600 hover:text-primary-700 hover:underline dark:text-primary-400 dark:hover:text-primary-300">
             Inicia sesión aquí
           </Link>
         </p>

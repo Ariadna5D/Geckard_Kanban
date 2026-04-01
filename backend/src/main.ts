@@ -28,4 +28,4 @@ async function bootstrap() {
   // Iniciamos la aplicación en el puerto 3000 y escuchando en todas las interfaces de red (
   await app.listen(3000, '0.0.0.0');
 }
-bootstrap();
+void bootstrap();

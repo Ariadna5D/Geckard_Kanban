@@ -8,6 +8,7 @@ import {
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { BoardPage } from "./pages/BoardPage"; // IMPORTANTE: Importar la página
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuthStore } from "./store/useAuthStore";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -16,18 +17,14 @@ import { MainLayout } from './components/layouts/MainLayout';
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const _hasHydrated = useAuthStore((state) => state._hasHydrated);
-
   if (!_hasHydrated) return null;
-
   return !isAuthenticated ? (children as React.ReactElement) : <Navigate to="/dashboard" replace />;
 };
 
 function RootRedirect() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const _hasHydrated = useAuthStore((state) => state._hasHydrated);
-
   if (!_hasHydrated) return null;
-
   return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
 }
 
@@ -38,10 +35,9 @@ export const App = () => {
     if (_hasHydrated && token) {
       fetchUser();
     }
-  }, [_hasHydrated, token]); 
+  }, [_hasHydrated, token, fetchUser]); 
 
   const router = useMemo(() => createBrowserRouter([
-
     {
       path: "/login",
       element: <PublicRoute><LoginPage /></PublicRoute>,
@@ -50,7 +46,7 @@ export const App = () => {
       path: "/register",
       element: <PublicRoute><RegisterPage /></PublicRoute>,
     },
-{
+    {
       element: <ProtectedRoute />, 
       children: [
         {
@@ -58,6 +54,7 @@ export const App = () => {
           children: [
             { path: "/dashboard", element: <DashboardPage /> },
             { path: "/profile", element: <ProfilePage /> },
+            { path: "/boards/:slug", element: <BoardPage /> }, 
           ],
         }
       ],
@@ -66,12 +63,12 @@ export const App = () => {
       path: "*",
       element: <RootRedirect />,
     },
-  ]), [_hasHydrated]); 
+  ]), []);
 
   if (!_hasHydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
+        <div className="size-12 animate-spin rounded-full border-2 border-surface-200 border-t-primary-600 dark:border-surface-800 dark:border-t-primary-500" />
       </div>
     );
   }

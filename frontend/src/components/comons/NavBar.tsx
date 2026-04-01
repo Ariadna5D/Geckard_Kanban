@@ -34,23 +34,23 @@ export const Navbar = () => {
   };
 
   return (
-    <nav className="flex items-center justify-between p-4 bg-white border-b border-slate-200 sticky top-0 z-50">
+    <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-surface-200 bg-surface-50/95 p-4 backdrop-blur-sm dark:border-surface-800 dark:bg-surface-900/95">
       
       <div 
         onClick={() => navigate('/dashboard')}
-        className="font-bold text-xl cursor-pointer hover:opacity-80 transition-opacity"
+        className="cursor-pointer text-xl font-bold transition-opacity hover:opacity-90"
       >
-        <span className="text-slate-800">Axi</span>
-        <span className="text-primary-600">Up</span>
+        <span className="text-surface-900 dark:text-surface-50">Axi</span>
+        <span className="text-primary-600 dark:text-primary-400">Up</span>
       </div>
 
       {/* MENÚ DESPLEGABLE DEL USUARIO */}
       <DropdownMenu>
         
         <DropdownMenuTrigger className="outline-none">
-          <Avatar className="w-10 h-10 border-2 border-transparent hover:border-primary-300 transition-colors cursor-pointer shadow-sm">
+          <Avatar className="size-10 cursor-pointer border-2 border-transparent shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:ring-2 hover:ring-primary-500/25 dark:hover:border-primary-400/45 dark:hover:ring-primary-400/20">
             <AvatarImage src={user?.avatarUrl || ''} alt="Avatar" className="object-cover" />
-            <AvatarFallback className="text-sm font-semibold bg-slate-800 text-white">
+            <AvatarFallback className="bg-surface-600 text-sm font-semibold text-white dark:bg-surface-700">
               {getInitials(user?.username || '')}
             </AvatarFallback>
           </Avatar>
@@ -61,7 +61,7 @@ export const Navbar = () => {
           <DropdownMenuLabel>
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user?.username}</p>
-              <p className="text-xs leading-none text-slate-500 truncate">{user?.email}</p>
+              <p className="truncate text-xs leading-none text-surface-500 dark:text-surface-400">{user?.email}</p>
             </div>
           </DropdownMenuLabel>
           
@@ -69,19 +69,19 @@ export const Navbar = () => {
           
           {/* Opciones del menú */}
           <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer py-2">
-            <LayoutDashboard className="mr-2 h-4 w-4 text-slate-500" />
+            <LayoutDashboard className="mr-2 size-4 text-surface-500 dark:text-surface-400" />
             <span>Dashboard</span>
           </DropdownMenuItem>
           
           <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer py-2">
-            <UserIcon className="mr-2 h-4 w-4 text-slate-500" />
+            <UserIcon className="mr-2 size-4 text-surface-500 dark:text-surface-400" />
             <span>Mi Perfil</span>
           </DropdownMenuItem>
           
           <DropdownMenuSeparator />
           
-          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer py-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-            <LogOut className="mr-2 h-4 w-4" />
+          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer py-2 text-danger focus:bg-danger/10 focus:text-danger">
+            <LogOut className="mr-2 size-4" />
             <span>Cerrar sesión</span>
           </DropdownMenuItem>
 
