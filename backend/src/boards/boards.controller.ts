@@ -23,7 +23,6 @@ import { Action } from '../casl/enums/action.enum';
 import { Board } from './schemas/board.schema';
 import { PoliciesGuard } from '../casl/policies.guard';
 import { CheckPolicies } from '../casl/policies.decorator';
-
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
 import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
@@ -36,6 +35,9 @@ import { CreateColumnDto } from './dto/create-column.dto';
 export class BoardsController {
   constructor(private readonly boardsService: BoardsService) {}
 
+  /**
+   * Handles the creation of a new board.
+   */
   @Post()
   @CheckPolicies((ability) => ability.can(Action.Create, Board))
   @ApiOperation({ summary: 'Create a new board' })
@@ -47,6 +49,9 @@ export class BoardsController {
     return this.boardsService.create(createBoardDto, req.user.sub);
   }
 
+  /**
+   * Retrieves all boards accessible by the authenticated user.
+   */
   @Get()
   @CheckPolicies((ability) => ability.can(Action.Read, Board))
   @ApiOperation({ summary: 'Get all boards for the authenticated user' })
@@ -54,6 +59,9 @@ export class BoardsController {
     return this.boardsService.findAll(req.user.sub);
   }
 
+  /**
+   * Retrieves a specific board using its unique slug.
+   */
   @Get(':slug')
   @CheckPolicies((ability) => ability.can(Action.Read, Board))
   @ApiOperation({ summary: 'Get a specific board by slug' })
@@ -61,15 +69,16 @@ export class BoardsController {
     return this.boardsService.findOneBySlug(slug, req.user.sub);
   }
 
+  /**
+   * Updates basic information of a board.
+   */
   @Patch(':id')
   @CheckPolicies((ability) => ability.can(Action.Update, Board))
   update(
-    // Inyectamos el Pipe nativo aquí
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() updateBoardDto: UpdateBoardDto,
     @Request() req: ValidatedRequest,
   ) {
-    // Al servicio le seguimos pasando el string para mantener su firma intacta
     return this.boardsService.update(
       id.toString(),
       updateBoardDto,
@@ -77,10 +86,12 @@ export class BoardsController {
     );
   }
 
+  /**
+   * Deletes a board permanently.
+   */
   @Delete(':id')
   @CheckPolicies((ability) => ability.can(Action.Delete, Board))
   remove(
-    // Y aquí igual
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
   ) {
@@ -89,6 +100,9 @@ export class BoardsController {
 
   // --- ENDPOINTS PARA COLUMNAS ---
 
+  /**
+   * Appends a new column to a specified board.
+   */
   @Post(':id/columns')
   @CheckPolicies((ability) => ability.can(Action.Update, Board))
   @ApiOperation({ summary: 'Añadir una columna al tablero' })
@@ -99,6 +113,9 @@ export class BoardsController {
     return this.boardsService.addColumn(boardId, createColumnDto);
   }
 
+  /**
+   * Updates the title of an existing column.
+   */
   @Patch(':id/columns/:columnId')
   @CheckPolicies((ability) => ability.can(Action.Update, Board))
   @ApiOperation({ summary: 'Editar título de una columna' })
@@ -110,9 +127,12 @@ export class BoardsController {
     return this.boardsService.updateColumn(boardId, columnId, title);
   }
 
+  /**
+   * Deletes a column and initiates a cascade delete for all its tasks.
+   */
   @Delete(':id/columns/:columnId')
   @CheckPolicies((ability) => ability.can(Action.Update, Board))
-  @ApiOperation({ summary: 'Eliminar una columna' })
+  @ApiOperation({ summary: 'Eliminar una columna y sus tareas (Cascada)' })
   removeColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,

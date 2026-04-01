@@ -20,25 +20,11 @@ export class TasksService {
    */
   async create(createTaskDto: CreateTaskDto): Promise<TaskDocument> {
     try {
-      // Si no nos pasan un orden, calculamos el máximo actual en esa columna
-      let newOrder = createTaskDto.order;
-
-      if (newOrder === undefined) {
-        const lastTask = await this.taskModel
-          .findOne({ columnId: new Types.ObjectId(createTaskDto.columnId) })
-          .sort({ order: -1 }) // Orden descendente para pillar el mayor
-          .exec();
-
-        // Dejamos huecos de 1000 en 1000
-        newOrder = lastTask ? lastTask.order + 1000 : 1000;
-      }
-
-      // Creamos la tarea con los IDs casteados correctamente
+      // Directo a base de datos. El DTO ya validó que 'order' viene relleno.
       const newTask = await this.taskModel.create({
         ...createTaskDto,
         boardId: new Types.ObjectId(createTaskDto.boardId),
         columnId: new Types.ObjectId(createTaskDto.columnId),
-        order: newOrder,
       });
 
       return newTask;
@@ -94,37 +80,16 @@ export class TasksService {
   async updatePosition(
     taskId: string,
     newColumnId: string,
-    prevTaskOrder: number | null,
-    nextTaskOrder: number | null,
+    newOrder: string, // <-- Ahora es un String
   ): Promise<TaskDocument> {
-    let calculatedOrder = 0;
-
-    // La soltamos al PRINCIPIO de la columna (no hay tarea previa)
-    if (prevTaskOrder === null && nextTaskOrder !== null) {
-      calculatedOrder = nextTaskOrder / 2;
-    }
-    // La soltamos al FINAL de la columna (no hay tarea siguiente)
-    else if (prevTaskOrder !== null && nextTaskOrder === null) {
-      calculatedOrder = prevTaskOrder + 1000;
-    }
-    // La soltamos ENTRE dos tareas existentes
-    else if (prevTaskOrder !== null && nextTaskOrder !== null) {
-      calculatedOrder = (prevTaskOrder + nextTaskOrder) / 2;
-    }
-    // La columna está VACÍA
-    else {
-      calculatedOrder = 1000;
-    }
-
-    // Ejecutamos el único UPDATE necesario
     const updatedTask = await this.taskModel
       .findByIdAndUpdate(
         taskId,
         {
           columnId: new Types.ObjectId(newColumnId),
-          order: calculatedOrder,
+          order: newOrder,
         },
-        { new: true },
+        { new: true }, // Devuelve el documento actualizado
       )
       .exec();
 

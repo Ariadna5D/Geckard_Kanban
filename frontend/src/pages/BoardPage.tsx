@@ -1,56 +1,70 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import api from "../api/axios.instance";
-import { Board } from "../types/board.types"; // Revisa que este archivo incluya 'columns'
-import { Loader2, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from 'react';
+import { useParams, Navigate } from 'react-router-dom';
+import { useActiveBoardStore } from '../store/useActiveBoardStore';
+import { BoardColumn } from '../components/board/BoardColumn';
+import { InlineCreateForm } from '../components/shared/InlineCreateForm'; // Importamos el compartido
+import { Loader2 } from 'lucide-react';
 
+/**
+ * Página principal del tablero (Canvas). 
+ * Renderiza las columnas y el formulario para añadir nuevas.
+ */
 export const BoardPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
-  const [board, setBoard] = useState<Board | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { board, isLoading, error, fetchBoard, addColumn } = useActiveBoardStore();
 
   useEffect(() => {
-    const fetchBoardData = async () => {
-      try {
-        const response = await api.get<Board>(`/boards/${slug}`);
-        setBoard(response.data);
-      } catch (error) {
-        navigate("/dashboard");
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (slug) fetchBoardData();
-  }, [slug, navigate]);
+    if (slug) {
+      fetchBoard(slug);
+    }
+  }, [slug, fetchBoard]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-blue-600" /></div>;
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-slate-50">
+        <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error || (!isLoading && !board)) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <header className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => navigate("/dashboard")} className="rounded-full">
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-2xl font-bold text-slate-800">{board?.title}</h1>
+    <div className="flex flex-col h-screen bg-slate-50">
+      <header className="px-8 py-4 bg-white border-b border-slate-200 flex-shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">{board?.title}</h1>
+          {board?.description && (
+            <p className="text-sm text-slate-500 mt-1">{board?.description}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+            {board?.columns.length} Columns
+          </span>
         </div>
       </header>
 
-      <div className="flex gap-6 overflow-x-auto pb-4">
-        {/* Aquí es donde crujía: añadimos comprobación de seguridad */}
-        {board?.columns && board.columns.length > 0 ? (
-          board.columns.map((col) => (
-            <div key={col._id} className="min-w-[300px] w-[300px] bg-slate-200/50 rounded-xl p-4">
-              <h3 className="font-bold text-slate-700 mb-4">{col.title}</h3>
-              {/* Espacio para tareas en el futuro */}
-            </div>
-          ))
-        ) : (
-          <div className="text-slate-400 italic">No hay columnas en este tablero.</div>
-        )}
-      </div>
+      <main className="flex-1 overflow-x-auto overflow-y-hidden p-8">
+        <div className="flex gap-6 h-full items-start">
+          {board?.columns.map((column) => (
+            <BoardColumn key={column._id} column={column} boardId={board._id} />
+          ))}
+
+          {/* Formulario Inline reutilizable para Columnas */}
+          <div className="flex-shrink-0 w-80">
+            <InlineCreateForm 
+              actionText="Add another column"
+              placeholder="Column title..."
+              onSubmit={(value) => addColumn(board._id, value)}
+              triggerClassName="w-full bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl p-4 text-sm font-medium transition-colors text-left flex items-center gap-2 border border-dashed border-slate-300"
+              formClassName="w-full bg-slate-100 rounded-xl p-3 border border-slate-200 shadow-sm"
+            />
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

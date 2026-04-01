@@ -55,14 +55,18 @@ export class CreateTaskDto {
   columnId: string;
 
   // El motor del Drag & Drop. Usaremos números flotantes o enteros espaciados para reordenar.
+  // --- EL MOTOR DEL DRAG & DROP ---
   @ApiProperty({
-    required: false,
-    example: 0,
-    description: 'Posición de la tarea en la columna (Drag & Drop)',
+    required: true,
+    example: 'a0',
+    description:
+      'Posición de la tarea en la columna (Índice fraccional generado por el frontend)',
   })
-  @IsNumber()
-  @IsOptional()
-  order?: number;
+  @IsString()
+  @IsNotEmpty({
+    message: 'El orden (order) es obligatorio para el posicionamiento',
+  })
+  order: string;
 
   // --- CAMPOS SCRUM  ---
 

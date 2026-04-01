@@ -1,16 +1,46 @@
+// Fíjate que ahora importamos CreateBoardPayload
 import { Board, CreateBoardPayload } from '../types/board.types';
-import axiosInstance from './axios.instance';
-
-
-// Por qué hacer esto: Separar las llamadas a la API de los componentes de React 
-// hace que el código sea testeable y reutilizable en cualquier parte de la app.
+import api from './axios.instance';
 
 export const getBoardsRequest = async (): Promise<Board[]> => {
-  const response = await axiosInstance.get<Board[]>('/boards');
+  const response = await api.get<Board[]>('/boards');
   return response.data;
 };
 
 export const createBoardRequest = async (data: CreateBoardPayload): Promise<Board> => {
-  const response = await axiosInstance.post<Board>('/boards', data);
+  const response = await api.post<Board>('/boards', data);
+  return response.data;
+};
+
+export const getBoardBySlugRequest = async (slug: string): Promise<Board> => {
+  const response = await api.get(`/boards/${slug}`);
+  return response.data;
+};
+
+export const addColumnRequest = async (boardId: string, title: string): Promise<Board> => {
+  const response = await api.post<Board>(`/boards/${boardId}/columns`, { title });
+  return response.data;
+};
+
+/**
+ * Renombra una columna existente.
+ */
+export const updateColumnRequest = async (
+  boardId: string, 
+  columnId: string, 
+  title: string
+): Promise<Board> => {
+  const response = await api.patch(`/boards/${boardId}/columns/${columnId}`, { title });
+  return response.data;
+};
+
+/**
+ * Borra una columna y desencadena el borrado en cascada de sus tareas en el backend.
+ */
+export const deleteColumnRequest = async (
+  boardId: string, 
+  columnId: string
+): Promise<Board> => {
+  const response = await api.delete(`/boards/${boardId}/columns/${columnId}`);
   return response.data;
 };

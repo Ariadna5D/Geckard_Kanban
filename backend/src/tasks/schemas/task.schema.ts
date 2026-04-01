@@ -36,8 +36,8 @@ export class Task {
   columnId: Types.ObjectId;
 
   // Orden dentro de la columna para mantener el orden de las tareas (se actualiza al mover tareas)
-  @Prop({ type: Number, required: true, default: 0 })
-  order: number;
+  @Prop({ type: String, required: true })
+  order: string;
 
   // --- CAMPOS SCRUM  ---
 

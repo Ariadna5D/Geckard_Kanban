@@ -1,30 +1,56 @@
-export type BoardRole = 'owner' | 'admin' | 'editor' | 'viewer';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
-export interface BoardMember {
-  user: string; 
-  role: BoardRole;
-}
-
-export interface BoardColumn {
+export interface Task {
   _id: string;
   title: string;
-  tasks: any[]; 
+  description: string;
+  boardId: string;
+  columnId: string;
+  order: string;
+  priority: TaskPriority;
+  storyPoints?: number;
+  dueDate?: string;
+  assigneeIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-// 3. Interfaz principal del Tablero
+export interface Column {
+  _id: string;
+  title: string;
+  tasks?: Task[]; 
+}
+
+export interface BoardMember {
+  user: string;
+  role: 'owner' | 'admin' | 'editor' | 'viewer';
+}
+
 export interface Board {
   _id: string;
   title: string;
   slug: string;
   description?: string;
   owner: string;
-  members: BoardMember[]; // Añadido para que coincida con tu Schema de Mongo
-  columns: BoardColumn[];
+  members: BoardMember[];
+  columns: Column[];
   createdAt: string;
   updatedAt: string;
 }
 
-// Payload para la creación (lo que enviamos al POST)
+// --- DTOs del Frontend ---
+
+export interface CreateTaskPayload {
+  title: string;
+  boardId: string;
+  columnId: string;
+}
+
+export interface UpdateTaskPositionPayload {
+  newColumnId: string;
+  newOrder: string;
+}
+
 export interface CreateBoardPayload {
   title: string;
   description?: string;
