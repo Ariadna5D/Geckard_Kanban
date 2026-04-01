@@ -23,13 +23,24 @@ import { BoardsModule } from './boards/boards.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const user = configService.get<string>('MONGO_USERNAME');
-        const pass = configService.get<string>('MONGO_PASSWORD');
+        const user = configService.get<string>('MONGO_USERNAME')?.trim();
+        const pass = configService.get<string>('MONGO_PASSWORD')?.trim();
         const dbName =
           configService.get<string>('MONGO_DATABASE')?.trim() || 'kanban_db';
 
-        const uri = `mongodb://${user}:${pass}@mongodb:27017/${dbName}?authSource=admin`;
-        return { uri };
+        if (!user || !pass) {
+          throw new Error(
+            'MONGO_USERNAME y MONGO_PASSWORD son obligatorias para MongoDB.',
+          );
+        }
+
+        // Credenciales en opciones (no en el URI): evita fallos si la contraseña tiene @, :, #, etc.
+        return {
+          uri: `mongodb://mongodb:27017/${encodeURIComponent(dbName)}`,
+          user,
+          pass,
+          authSource: 'admin',
+        };
       },
     }),
     TasksModule,

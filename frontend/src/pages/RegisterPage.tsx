@@ -4,6 +4,7 @@ import { User, Mail, Lock } from 'lucide-react'; // Iconos estándar
 import { useAuthStore } from '../store/useAuthStore';
 import { useState } from 'react';
 import api from '../api/axios.instance';
+import { apiErrorMessage } from '../utils/apiErrorMessage';
 // 1. Definimos el "contrato" de lo que vamos a enviar
 interface RegisterFormData {
   username: string;
@@ -40,8 +41,8 @@ const onSubmit = async (data: RegisterFormData) => {
       loginFn(loginResponse.data.user, loginResponse.data.access_token);
       
       navigate('/dashboard');
-    } catch (error: any) {
-      setServerError(error.response?.data?.message || 'Error en el proceso');
+    } catch (error: unknown) {
+      setServerError(apiErrorMessage(error, 'Error en el proceso'));
     } finally {
       setIsLoading(false);
     }

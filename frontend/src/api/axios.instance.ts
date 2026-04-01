@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
+/** Misma origen que el SPA (nginx /api → backend). Override: VITE_API_BASE_URL en build. */
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', 
+  baseURL,
 });
 
 api.interceptors.request.use((config) => {

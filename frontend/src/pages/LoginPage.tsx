@@ -2,7 +2,8 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react'; // Añadimos los iconos para mantener la consistencia
 import { useAuthStore } from '../store/useAuthStore';
-import api from '../api/axios.instance'; // Asumo que tienes tu instancia de axios configurada
+import api from '../api/axios.instance';
+import { apiErrorMessage } from '../utils/apiErrorMessage';
 import { useState } from 'react';
 
 // 1. Contrato estricto para el Login
@@ -34,9 +35,10 @@ export const LoginPage = () => {
       // Guardamos en Zustand y pa'dentro
       loginFn(response.data.user, response.data.access_token);
       navigate('/dashboard');
-    } catch (error: any) {
-      // Adiós al alert(). Capturamos el mensaje del backend o ponemos uno genérico
-      setServerError(error.response?.data?.message || 'Correo o contraseña incorrectos');
+    } catch (error: unknown) {
+      setServerError(
+        apiErrorMessage(error, 'Correo o contraseña incorrectos'),
+      );
     } finally {
       setIsLoading(false);
     }
