@@ -18,9 +18,11 @@ import { useActiveBoardStore } from '@/store/useActiveBoardStore';
 interface TaskCardProps {
   task: Task;
   isOverlay?: boolean;
+  /** Solo lectura: sin arrastre, borrado ni edición (rol viewer en el tablero). */
+  readOnly?: boolean;
 }
 
-export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
+export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) => {
   const { deleteTask, updateTask } = useActiveBoardStore();
   
   // AQUÍ ESTÁN LOS ESTADOS QUE FALTABAN
@@ -38,6 +40,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
   } = useSortable({
     id: task._id,
     data: { type: 'Task', task },
+    disabled: readOnly,
   });
 
   const style = {
@@ -85,9 +88,11 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
         ref={setNodeRef}
         style={style}
         {...attributes}
-        {...listeners}
+        {...(readOnly ? {} : listeners)}
         onClick={() => setIsPanelOpen(true)}
-        className="group relative cursor-grab select-none rounded-lg border border-surface-200 bg-surface-50 p-3 text-sm shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md active:cursor-grabbing dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45"
+        className={`group relative select-none rounded-lg border border-surface-200 bg-surface-50 p-3 text-sm shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45 ${
+          readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+        }`}
       >
         <p className="pr-6 font-medium leading-relaxed text-surface-900 dark:text-surface-50">{task.title}</p>
         {task.description && (
@@ -95,6 +100,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
             <AlignLeft size={14} />
           </div>
         )}
+        {!readOnly && (
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -105,6 +111,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
         >
           <Trash2 size={16} />
         </button>
+        )}
       </div>
 
       {/* EL PANEL LATERAL (SHEET) */}
@@ -112,7 +119,9 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
         <SheetContent className="flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900">
           
           <SheetHeader className="border-b border-surface-200 p-6 dark:border-surface-800">
-            <SheetTitle className="text-left text-xl text-surface-900 dark:text-surface-50">Task Details</SheetTitle>
+            <SheetTitle className="text-left text-xl text-surface-900 dark:text-surface-50">
+              {readOnly ? "Detalle de la tarea" : "Task Details"}
+            </SheetTitle>
           </SheetHeader>
           
           <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-surface-100 p-6 dark:bg-surface-950">
@@ -121,6 +130,7 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
               <Input 
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
+                readOnly={readOnly}
                 className="h-10 bg-surface-50 text-base font-medium shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
             </div>
@@ -131,18 +141,27 @@ export const TaskCard = ({ task, isOverlay }: TaskCardProps) => {
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Add a more detailed description..."
+                readOnly={readOnly}
                 className="min-h-50 flex-1 resize-none bg-surface-50 shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
             </div>
           </div>
 
           <SheetFooter className="border-t border-surface-200 bg-surface-50 p-6 dark:border-surface-800 dark:bg-surface-900">
-            <Button variant="outline" onClick={() => setIsPanelOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveChanges}>
-              Save changes
-            </Button>
+            {readOnly ? (
+              <Button variant="outline" onClick={() => setIsPanelOpen(false)}>
+                Cerrar
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setIsPanelOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveChanges}>
+                  Save changes
+                </Button>
+              </>
+            )}
           </SheetFooter>
 
         </SheetContent>

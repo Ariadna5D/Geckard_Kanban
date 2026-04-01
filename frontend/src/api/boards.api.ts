@@ -1,5 +1,11 @@
 // Fíjate que ahora importamos CreateBoardPayload
-import { Board, CreateBoardPayload, UpdateBoardPayload } from '../types/board.types';
+import {
+  Board,
+  CreateBoardPayload,
+  UpdateBoardPayload,
+  InviteBoardMemberPayload,
+  BoardMemberSummary,
+} from '../types/board.types';
 import api from './axios.instance';
 
 export const getBoardsRequest = async (): Promise<Board[]> => {
@@ -73,4 +79,28 @@ export const updateColumnPositionRequest = async (
 ): Promise<Board> => {
   const response = await api.patch(`/boards/${boardId}/columns/${columnId}/position`, { order });
   return response.data;
+};
+
+export const inviteBoardMemberRequest = async (
+  boardId: string,
+  payload: InviteBoardMemberPayload,
+): Promise<Board> => {
+  const response = await api.post<Board>(`/boards/${boardId}/members`, payload);
+  return response.data;
+};
+
+export const getBoardMembersRequest = async (
+  boardId: string,
+): Promise<{ ownerId: string; members: BoardMemberSummary[] }> => {
+  const response = await api.get<{ ownerId: string; members: BoardMemberSummary[] }>(
+    `/boards/${boardId}/members`,
+  );
+  return response.data;
+};
+
+export const removeBoardMemberRequest = async (
+  boardId: string,
+  memberUserId: string,
+): Promise<void> => {
+  await api.delete(`/boards/${boardId}/members/${memberUserId}`);
 };

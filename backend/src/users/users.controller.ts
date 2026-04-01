@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Delete,
   Param,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -128,6 +129,18 @@ export class UsersController {
     }
 
     return this.usersService.update(req.user.sub, updateUserDto);
+  }
+
+  /**
+   * Buscar usuarios por nombre o email (invitaciones a tableros). Mínimo 2 caracteres.
+   */
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar usuarios para invitar (autenticado)' })
+  async searchUsers(
+    @Query('q') q: string,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.usersService.searchForInvite(q ?? '', req.user.sub);
   }
 
   /**

@@ -28,9 +28,15 @@ import { Input } from '@/components/ui/input';
 interface BoardColumnProps {
   column: Column;
   boardId: string;
+  /** Si es false, la columna es solo lectura (rol viewer en el tablero). */
+  canEdit?: boolean;
 }
 
-export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
+export const BoardColumn = ({
+  column,
+  boardId,
+  canEdit = true,
+}: BoardColumnProps) => {
   const { addTask, editColumn, deleteColumn } = useActiveBoardStore();
   
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -50,6 +56,7 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
   } = useSortable({
     id: column._id,
     data: { type: 'Column', column },
+    disabled: !canEdit,
   });
 
   const style = {
@@ -83,16 +90,18 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
         ref={setNodeRef} 
         style={style}
         // Feedback visual al arrastrar la columna entera
-        className={`flex max-h-full w-80 shrink-0 flex-col rounded-xl border shadow-sm transition-colors ${
+        className={`kanban-column-width flex max-h-full flex-col rounded-xl border shadow-sm transition-colors ${
           isDragging
             ? 'border-dashed border-surface-400 bg-surface-200/60 opacity-60 dark:border-surface-600 dark:bg-surface-800/40'
             : 'border-surface-200 bg-surface-50 hover:border-primary-500/45 dark:border-surface-800 dark:bg-surface-900 dark:hover:border-primary-400/40'
         }`}
       >
         <div 
-          {...attributes} 
-          {...listeners}
-          className="p-4 flex items-center justify-between shrink-0 group/header cursor-grab active:cursor-grabbing"
+          {...(canEdit ? attributes : {})} 
+          {...(canEdit ? listeners : {})}
+          className={`p-4 flex items-center justify-between shrink-0 group/header ${
+            canEdit ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
         >
           {isEditingTitle ? (
             <Input
@@ -108,9 +117,9 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
             <h3 
               onClick={(e) => {
                 e.stopPropagation();
-                setIsEditingTitle(true);
+                if (canEdit) setIsEditingTitle(true);
               }}
-              className="flex-1 cursor-text text-sm font-semibold text-surface-800 dark:text-surface-100"
+              className={`flex-1 text-sm font-semibold text-surface-800 dark:text-surface-100 ${canEdit ? 'cursor-text' : ''}`}
               onPointerDown={(e) => e.stopPropagation()} 
             >
               {column.title}
@@ -121,6 +130,7 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
             <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-300">
               {column.tasks?.length || 0}
             </span>
+            {canEdit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="rounded-md p-0.5 text-surface-500 outline-none hover:bg-primary-500/10 hover:text-primary-700 dark:text-surface-400 dark:hover:bg-primary-500/15 dark:hover:text-primary-300"><MoreHorizontal size={18} /></button>
@@ -132,20 +142,23 @@ export const BoardColumn = ({ column, boardId }: BoardColumnProps) => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
           </div>
         </div>
 
         <div className="mx-2 mb-1 flex min-h-kanban-col-body flex-1 flex-col gap-3 overflow-y-auto rounded-lg bg-surface-100/90 p-2 pt-2 dark:bg-surface-950/50">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {column.tasks?.map((task) => (
-              <TaskCard key={task._id} task={task} />
+              <TaskCard key={task._id} task={task} readOnly={!canEdit} />
             ))}
           </SortableContext>
         </div>
 
+        {canEdit && (
         <div className="p-3 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
           <InlineCreateForm actionText="Add task" onSubmit={handleCreateTask} />
         </div>
+        )}
       </div>
 
       <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>

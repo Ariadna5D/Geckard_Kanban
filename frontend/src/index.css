@@ -210,3 +210,21 @@
     @apply font-sans;
   }
 }
+
+/* Ancho de columna Kanban: usable en móvil y un poco más ancho en pantallas grandes. */
+@layer components {
+  .kanban-column-width {
+    width: min(20rem, calc(100vw - 2.5rem));
+    flex-shrink: 0;
+  }
+  @media (min-width: 1280px) {
+    .kanban-column-width {
+      width: 22rem;
+    }
+  }
+  @media (min-width: 1536px) {
+    .kanban-column-width {
+      width: 24rem;
+    }
+  }
+}

@@ -4,7 +4,8 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useBoardStore } from "../store/useBoardStore";
 import {
   type Board,
-  boardOwnerUserId,
+  canDeleteBoard,
+  canEditBoardSettings,
   getBoardDocumentId,
 } from "../types/board.types";
 import { Button } from "@/components/ui/button";
@@ -36,16 +37,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { Plus, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-
-function canManageBoard(
-  board: Board,
-  userId: string | undefined,
-  role: string | undefined,
-): boolean {
-  if (role === "admin") return true;
-  if (!userId) return false;
-  return boardOwnerUserId(board) === userId;
-}
 
 /**
  * Dashboard de usuario. Lista los tableros; crear, editar (título/descripción) y eliminar.
@@ -290,7 +281,9 @@ export const DashboardPage = () => {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {boards.map((board) => {
-          const canManage = canManageBoard(board, user?.id, user?.role);
+          const showEdit = user && canEditBoardSettings(board, user);
+          const showDelete = user && canDeleteBoard(board, user);
+          const showBoardMenu = showEdit || showDelete;
           return (
             <div
               key={board._id}
@@ -303,7 +296,7 @@ export const DashboardPage = () => {
                 <article
                   className={cn(
                     "flex h-full min-h-[220px] flex-col rounded-xl border border-surface-200 bg-surface-50 p-6 shadow-sm transition-[border-color,box-shadow] duration-200 group-hover:border-primary-500/40 group-hover:shadow-md dark:border-surface-800 dark:bg-surface-900 dark:group-hover:border-primary-400/35 dark:group-hover:shadow-lg",
-                    canManage && "pr-11",
+                    showBoardMenu && "pr-11",
                   )}
                 >
                   <h3 className="mb-2 text-lg font-semibold text-surface-900 transition-colors group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400">
@@ -322,7 +315,7 @@ export const DashboardPage = () => {
                   </div>
                 </article>
               </Link>
-              {canManage && (
+              {showBoardMenu && (
                 <div
                   className="absolute top-3 right-3 z-10"
                   onPointerDown={(e) => e.stopPropagation()}
@@ -338,20 +331,24 @@ export const DashboardPage = () => {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuItem
-                        className="cursor-pointer"
-                        onClick={() => setEditingBoard(board)}
-                      >
-                        <Pencil size={14} className="mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="cursor-pointer text-danger focus:bg-danger/10 focus:text-danger"
-                        onClick={() => setDeleteTarget(board)}
-                      >
-                        <Trash2 size={14} className="mr-2" />
-                        Eliminar
-                      </DropdownMenuItem>
+                      {showEdit && (
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          onClick={() => setEditingBoard(board)}
+                        >
+                          <Pencil size={14} className="mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                      )}
+                      {showDelete && (
+                        <DropdownMenuItem
+                          className="cursor-pointer text-danger focus:bg-danger/10 focus:text-danger"
+                          onClick={() => setDeleteTarget(board)}
+                        >
+                          <Trash2 size={14} className="mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
