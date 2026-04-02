@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock } from 'lucide-react'; // Añadimos los iconos para mantener la consistencia
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'; // Iconos para mostrar/ocultar contraseña
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../api/axios.instance';
 import { apiErrorMessage } from '../utils/apiErrorMessage';
@@ -21,6 +21,7 @@ export const LoginPage = () => {
   // 3. Estados locales para manejar la UI
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -85,10 +86,18 @@ export const LoginPage = () => {
                 {...register('password', { 
                   required: 'La contraseña es obligatoria' 
                 })}
-                type="password" 
-                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 outline-none transition focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
+                type={showPassword ? 'text' : 'password'}
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-12 pl-10 text-surface-900 outline-none transition focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
             {errors.password && <span className="mt-1 block text-xs text-danger">{errors.password.message}</span>}
           </div>

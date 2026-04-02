@@ -1,4 +1,11 @@
-import { IsString, IsOptional, MinLength, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MinLength,
+  IsEmail,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateUserDto {
@@ -6,6 +13,9 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   @MinLength(3)
+  // Evita inyección/XSS al restringir caracteres típicos de tags HTML.
+  @Matches(/^[^<>]+$/, { message: 'El nombre no puede contener < ni >.' })
+  @MaxLength(20, { message: 'El nombre no puede tener más de 20 caracteres' })
   username?: string;
 
   @ApiPropertyOptional({ description: 'Nuevo correo electrónico' })
@@ -16,6 +26,12 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ description: 'Biografía del usuario' })
   @IsOptional()
   @IsString()
+  @MaxLength(200, {
+    message: 'La biografía no puede tener más de 200 caracteres',
+  })
+  @Matches(/^[^<>]*$/, {
+    message: 'La biografía no puede contener < ni >.',
+  })
   bio?: string;
 
   @ApiPropertyOptional({

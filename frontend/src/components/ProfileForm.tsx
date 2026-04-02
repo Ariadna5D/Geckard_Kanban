@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { UploadCloud, Loader2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../api/axios.instance';
+import { apiErrorMessage } from '@/utils/apiErrorMessage';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,100 @@ export const ProfileForm = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // Máximo 5MB (coherente con el texto de la UI)
+  const AVATAR_SIZE = 400; // Cloudinary redimensiona a 400x400; así reducimos payload antes de subir
+
+  const canvasToBlob = (
+    canvas: HTMLCanvasElement,
+    mime: string,
+    quality: number,
+  ) =>
+    new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(
+        (b) => resolve(b),
+        mime,
+        quality,
+      );
+    });
+
+  const compressImageForUpload = async (file: File): Promise<File> => {
+    if (file.size <= MAX_AVATAR_BYTES) return file;
+
+    // Decodificamos para poder redimensionar en canvas.
+    // `createImageBitmap` falla en algunos navegadores/formatos (p.ej. HEIC), así que hacemos fallback con <img>.
+    let source: ImageBitmap | HTMLImageElement;
+    try {
+      source = await createImageBitmap(file);
+    } catch {
+      const url = URL.createObjectURL(file);
+      try {
+        source = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to decode image'));
+          img.src = url;
+        });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = AVATAR_SIZE;
+    canvas.height = AVATAR_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+
+    // Recorte "cover" a 1:1 centrado
+    const imgW = source.width;
+    const imgH = source.height;
+    const srcAspect = imgW / imgH;
+    const targetAspect = 1;
+
+    let sx = 0;
+    let sy = 0;
+    let sw = imgW;
+    let sh = imgH;
+
+    if (srcAspect > targetAspect) {
+      sw = imgH;
+      sh = imgH;
+      sx = (imgW - sw) / 2;
+      sy = 0;
+    } else {
+      sw = imgW;
+      sh = imgW;
+      sx = 0;
+      sy = (imgH - sh) / 2;
+    }
+
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    const targetName = `${baseName}.jpg`;
+
+    // Loop de calidad: bajamos hasta cumplir el límite (si es posible).
+    const qualitySteps = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
+    for (const q of qualitySteps) {
+      const blob = await canvasToBlob(canvas, 'image/jpeg', q);
+      if (!blob) continue;
+      if (blob.size <= MAX_AVATAR_BYTES) {
+        return new File([blob], targetName, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+      }
+    }
+
+    // Último intento: devolvemos un JPEG con calidad baja (puede superar el límite y fallar en backend)
+    const finalBlob = await canvasToBlob(canvas, 'image/jpeg', 0.4);
+    if (!finalBlob) return file;
+    return new File([finalBlob], targetName, {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+  };
+
   useEffect(() => {
     if (user) {
       reset({ username: user.username || '', bio: user.bio || '' });
@@ -62,19 +157,33 @@ export const ProfileForm = () => {
     }
   }, [user, reset]);
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setMessage({ type: 'error', text: 'Por favor, sube solo archivos de imagen.' });
       return;
     }
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setMessage(null);
+
+    try {
+      const normalized = await compressImageForUpload(file);
+      if (normalized.size > MAX_AVATAR_BYTES) {
+        setMessage({
+          type: 'error',
+          text: 'La imagen supera 5MB y no se pudo reducir lo suficiente. Intenta con otra.',
+        });
+        // Aun así guardamos para permitir que backend maneje casos raros.
+      } else {
+        setMessage(null);
+      }
+      setSelectedFile(normalized);
+      setPreviewUrl(URL.createObjectURL(normalized));
+    } catch {
+      setMessage({ type: 'error', text: 'No se pudo preparar la imagen para subir. Intenta con otra.' });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) processFile(file);
+    if (file) void processFile(file);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -91,7 +200,7 @@ export const ProfileForm = () => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    if (file) void processFile(file);
   };
 
   const onSubmit = async (data: ProfileFormData) => {
@@ -110,10 +219,10 @@ export const ProfileForm = () => {
 
       updateUser(response.data);
       setMessage({ type: 'success', text: 'Perfil actualizado correctamente' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.message || 'Error al actualizar el perfil' 
+        text: apiErrorMessage(error, 'Error al actualizar el perfil'),
       });
     } finally {
       setIsLoading(false);

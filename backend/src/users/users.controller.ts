@@ -136,10 +136,7 @@ export class UsersController {
    */
   @Get('search')
   @ApiOperation({ summary: 'Buscar usuarios para invitar (autenticado)' })
-  async searchUsers(
-    @Query('q') q: string,
-    @Request() req: ValidatedRequest,
-  ) {
+  async searchUsers(@Query('q') q: string, @Request() req: ValidatedRequest) {
     return this.usersService.searchForInvite(q ?? '', req.user.sub);
   }
 

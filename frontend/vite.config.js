@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
+/* global process */
+
 // En Docker (compose dev): backend. En máquina local: localhost
 const apiProxyTarget =
   process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3000'

@@ -1,6 +1,14 @@
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Lock } from 'lucide-react'; // Iconos estándar
+import {
+  User,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'; // Iconos estándar
 import { useAuthStore } from '../store/useAuthStore';
 import { useState } from 'react';
 import api from '../api/axios.instance';
@@ -10,6 +18,7 @@ interface RegisterFormData {
   username: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 /**
@@ -19,19 +28,41 @@ interface RegisterFormData {
  * Si hay un error (ej: email ya registrado), muestra el mensaje de error del backend.
  */
 export const RegisterPage = () => {
-  const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormData>();
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<RegisterFormData>();
   const navigate = useNavigate();
   const loginFn = useAuthStore((state) => state.login); //
   
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-const onSubmit = async (data: RegisterFormData) => {
+  const passwordValue = watch('password');
+  const pw = passwordValue ?? '';
+
+  const hasMinLen = pw.length >= 8 && pw.length <= 64;
+  const hasLower = /[a-z]/.test(pw);
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasSpecial = /[^A-Za-z0-9\s]/.test(pw);
+
+  const passwordMeetsRules = hasMinLen && hasLower && hasUpper && hasSpecial;
+
+  const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setServerError(null);
 
     try {
-      await api.post('/auth/register', data);
+      // El backend solo espera { username, email, password }
+      await api.post('/auth/register', {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+      });
       
       const loginResponse = await api.post('/auth/login', {
         email: data.email,
@@ -106,14 +137,98 @@ const onSubmit = async (data: RegisterFormData) => {
               <input 
                 {...register('password', { 
                   required: 'La contraseña es obligatoria',
-                  minLength: { value: 6, message: 'Mínimo 6 caracteres' }
+                  minLength: { value: 8, message: 'Mínimo 8 caracteres' },
+                  maxLength: { value: 64, message: 'Máximo 64 caracteres' },
+                  validate: (value) => {
+                    const ok =
+                      /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{8,64}$/.test(
+                        value,
+                      );
+                    return (
+                      ok ||
+                      'Debe incluir al menos 1 minúscula, 1 mayúscula y 1 carácter especial.'
+                    );
+                  }
                 })}
-                type="password" 
-                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
+                type={showPassword ? 'text' : 'password'}
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-12 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
                 placeholder="******"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
             {errors.password && <span className="text-xs text-danger">{errors.password.message}</span>}
+
+            {/* Feedback visual (checks) mientras el usuario escribe */}
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2 text-xs">
+                {hasMinLen ? (
+                  <CheckCircle2 size={16} className="text-success" />
+                ) : (
+                  <XCircle size={16} className="text-danger" />
+                )}
+                <span>8-64 caracteres</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {hasLower ? (
+                  <CheckCircle2 size={16} className="text-success" />
+                ) : (
+                  <XCircle size={16} className="text-danger" />
+                )}
+                <span>1 minúscula</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {hasUpper ? (
+                  <CheckCircle2 size={16} className="text-success" />
+                ) : (
+                  <XCircle size={16} className="text-danger" />
+                )}
+                <span>1 mayúscula</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {hasSpecial ? (
+                  <CheckCircle2 size={16} className="text-success" />
+                ) : (
+                  <XCircle size={16} className="text-danger" />
+                )}
+                <span>1 carácter especial</span>
+              </div>
+            </div>
+          </div>
+
+          {/* CAMPO CONFIRMAR PASSWORD */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Confirmar contraseña</label>
+            <div className="relative">
+              <Lock className="absolute top-1/2 left-3 -translate-y-1/2 text-surface-500 dark:text-surface-400" size={18} />
+              <input
+                {...register('confirmPassword', {
+                  required: 'Debes confirmar la contraseña',
+                  validate: (value) =>
+                    value === passwordValue || 'Las contraseñas no coinciden',
+                })}
+                type={showConfirmPassword ? 'text' : 'password'}
+                className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-12 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
+                aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {errors.confirmPassword && (
+              <span className="text-xs text-danger">{errors.confirmPassword.message}</span>
+            )}
           </div>
 
           {/* BOTÓN SUBMIT */}
