@@ -1,8 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Task, TaskLabel, TaskLabelColor } from '../../types/board.types';
-import { Trash2, AlignLeft, Check, X, Plus, CalendarDays, Flag } from 'lucide-react';
+import {
+  Task,
+  TaskLabel,
+  TaskLabelColor,
+  BoardMemberSummary,
+} from '../../types/board.types';
+import {
+  Trash2,
+  AlignLeft,
+  Check,
+  X,
+  Plus,
+  CalendarDays,
+  Flag,
+  Sigma,
+  Users,
+} from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -15,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useActiveBoardStore } from '@/store/useActiveBoardStore';
 import { TASK_LABEL_COLORS, taskLabelColorClasses } from '@/constants/taskLabels';
+import { getBoardMembersRequest } from '@/api/boards.api';
 
 interface TaskCardProps {
   task: Task;
@@ -44,7 +60,36 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   };
+  const dueDateState = (raw?: string): 'normal' | 'today' | 'overdue' => {
+    if (!raw) return 'normal';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return 'normal';
+    const due = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    if (due < today) return 'overdue';
+    if (due === today) return 'today';
+    return 'normal';
+  };
+  const dueBadgeClasses: Record<'normal' | 'today' | 'overdue', string> = {
+    normal:
+      'border-surface-300 bg-surface-100 text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300',
+    today:
+      'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
+    overdue:
+      'border-red-300 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300',
+  };
+  const dueBadgeTitle: Record<'normal' | 'today' | 'overdue', string> = {
+    normal: 'Fecha límite programada',
+    today: 'Vence hoy',
+    overdue: 'Atrasada',
+  };
   const dueDateShort = formatDueDate(task.dueDate);
+  const dueState = dueDateState(task.dueDate);
 
   /**
    * Normaliza etiquetas para que el componente soporte:
@@ -93,12 +138,19 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
   const [editDueDate, setEditDueDate] = useState(
     task.dueDate ? task.dueDate.slice(0, 10) : '',
   );
+  const [editStoryPoints, setEditStoryPoints] = useState<string>(
+    task.storyPoints !== undefined ? String(task.storyPoints) : '',
+  );
+  const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
+    task.assigneeIds || [],
+  );
   const [editLabels, setEditLabels] = useState<TaskLabel[]>(
     normalizeTaskLabels(task.labels),
   );
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState<TaskLabelColor>('blue');
   const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null);
+  const [boardMembers, setBoardMembers] = useState<BoardMemberSummary[]>([]);
 
   const normalizedLabels = normalizeTaskLabels(task.labels);
   const suggestionMap = new Map<string, TaskLabel>();
@@ -112,6 +164,14 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     });
   });
   const boardLabelSuggestions = Array.from(suggestionMap.values());
+  const assigneeCount = task.assigneeIds?.length || 0;
+
+  useEffect(() => {
+    if (!isPanelOpen) return;
+    void getBoardMembersRequest(task.boardId)
+      .then((data) => setBoardMembers(data.members))
+      .catch(() => setBoardMembers([]));
+  }, [isPanelOpen, task.boardId]);
 
   const {
     setNodeRef,
@@ -140,6 +200,11 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
       description: editDescription,
       priority: editPriority,
       dueDate: editDueDate ? new Date(editDueDate).toISOString() : undefined,
+      storyPoints:
+        editStoryPoints.trim() === ''
+          ? undefined
+          : Number(editStoryPoints),
+      assigneeIds: editAssigneeIds,
       labels: editLabels.slice(0, 6),
     });
     setIsPanelOpen(false);
@@ -226,9 +291,30 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
             {PRIORITY_LABEL[task.priority || 'medium']}
           </span>
           {dueDateShort && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-surface-300 bg-surface-100 px-2 py-0.5 text-[11px] font-medium text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300">
+            <span
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${dueBadgeClasses[dueState]}`}
+              title={dueBadgeTitle[dueState]}
+            >
               <CalendarDays size={12} />
               {dueDateShort}
+            </span>
+          )}
+          {task.storyPoints !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-violet-300 bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300"
+              title="Story points"
+            >
+              <Sigma size={12} />
+              {task.storyPoints}
+            </span>
+          )}
+          {assigneeCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"
+              title={`${assigneeCount} asignado(s)`}
+            >
+              <Users size={12} />
+              {assigneeCount}
             </span>
           )}
         </div>
@@ -287,9 +373,30 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
             {PRIORITY_LABEL[task.priority || 'medium']}
           </span>
           {dueDateShort && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-surface-300 bg-surface-100 px-2 py-0.5 text-[11px] font-medium text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300">
+            <span
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${dueBadgeClasses[dueState]}`}
+              title={dueBadgeTitle[dueState]}
+            >
               <CalendarDays size={12} />
               {dueDateShort}
+            </span>
+          )}
+          {task.storyPoints !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-violet-300 bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300"
+              title="Story points"
+            >
+              <Sigma size={12} />
+              {task.storyPoints}
+            </span>
+          )}
+          {assigneeCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"
+              title={`${assigneeCount} asignado(s)`}
+            >
+              <Users size={12} />
+              {assigneeCount}
             </span>
           )}
         </div>
@@ -343,7 +450,7 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
                 className="min-h-50 flex-1 resize-none bg-surface-50 shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
                   Prioridad
@@ -372,6 +479,64 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
                   className="h-10 bg-surface-50 text-sm shadow-sm focus-visible:ring-ring dark:bg-surface-900"
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+                  Story points
+                </label>
+                <select
+                  value={editStoryPoints}
+                  onChange={(e) => setEditStoryPoints(e.target.value)}
+                  disabled={readOnly}
+                  className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  <option value="">Sin estimar</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="5">5</option>
+                  <option value="8">8</option>
+                  <option value="13">13</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+                Asignados
+              </label>
+              {boardMembers.length === 0 ? (
+                <p className="text-xs text-surface-500 dark:text-surface-400">
+                  No hay miembros disponibles para asignar.
+                </p>
+              ) : (
+                <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-surface-200 bg-surface-50 p-2 dark:border-surface-700 dark:bg-surface-900">
+                  {boardMembers.map((m) => {
+                    const selected = editAssigneeIds.includes(m.userId);
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        disabled={readOnly}
+                        onClick={() => {
+                          if (readOnly) return;
+                          setEditAssigneeIds((prev) =>
+                            selected
+                              ? prev.filter((id) => id !== m.userId)
+                              : [...prev, m.userId],
+                          );
+                        }}
+                        className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'border-indigo-400 bg-indigo-100 text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300'
+                            : 'border-surface-300 bg-surface-100 text-surface-700 hover:border-indigo-300 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300'
+                        }`}
+                        title={m.email}
+                      >
+                        {m.username}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
