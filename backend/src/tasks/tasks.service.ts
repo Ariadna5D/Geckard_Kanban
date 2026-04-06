@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Task, TaskDocument } from './schemas/task.schema';
+import {
+  Task,
+  TaskDocument,
+  TaskLabel,
+  TaskLabelColor,
+} from './schemas/task.schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { BoardsService } from '../boards/boards.service';
@@ -17,6 +22,41 @@ export class TasksService {
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     private readonly boardsService: BoardsService,
   ) {}
+
+  private normalizeLabels(input: unknown): TaskLabel[] | undefined {
+    if (!Array.isArray(input)) return undefined;
+    const allowedColors = new Set<TaskLabelColor>([
+      'green',
+      'yellow',
+      'orange',
+      'red',
+      'purple',
+      'blue',
+      'sky',
+      'gray',
+    ]);
+    const dedupe = new Set<string>();
+    const cleaned = input
+      .map((v) => {
+        if (!v || typeof v !== 'object') return null;
+        const nameRaw = (v as { name?: unknown }).name;
+        const colorRaw = (v as { color?: unknown }).color;
+        const name = typeof nameRaw === 'string' ? nameRaw.trim() : '';
+        const color =
+          typeof colorRaw === 'string' &&
+          allowedColors.has(colorRaw as TaskLabelColor)
+            ? (colorRaw as TaskLabelColor)
+            : 'blue';
+        if (!name) return null;
+        const key = name.toLowerCase();
+        if (dedupe.has(key)) return null;
+        dedupe.add(key);
+        return { name: name.slice(0, 24), color };
+      })
+      .filter((v): v is TaskLabel => v !== null)
+      .slice(0, 6);
+    return cleaned;
+  }
 
   /**
    * CREATE: Crea una tarea y la pone automáticamente al final de la columna.
@@ -45,8 +85,10 @@ export class TasksService {
     );
 
     try {
+      const labels = this.normalizeLabels(createTaskDto.labels) ?? [];
       const newTask = await this.taskModel.create({
         ...createTaskDto,
+        labels,
         boardId: new Types.ObjectId(createTaskDto.boardId),
         columnId: new Types.ObjectId(createTaskDto.columnId),
       });
@@ -105,6 +147,10 @@ export class TasksService {
     const { boardId: _b, columnId: _c, ...safe } = updateTaskDto;
     void _b;
     void _c;
+    const labels = this.normalizeLabels(updateTaskDto.labels);
+    if (labels !== undefined) {
+      safe.labels = labels;
+    }
 
     const updatedTask = await this.taskModel
       .findByIdAndUpdate(

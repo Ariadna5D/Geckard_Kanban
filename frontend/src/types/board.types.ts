@@ -1,4 +1,18 @@
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskLabelColor =
+  | 'green'
+  | 'yellow'
+  | 'orange'
+  | 'red'
+  | 'purple'
+  | 'blue'
+  | 'sky'
+  | 'gray';
+
+export interface TaskLabel {
+  name: string;
+  color: TaskLabelColor;
+}
 
 export interface Task {
   _id: string;
@@ -8,6 +22,7 @@ export interface Task {
   columnId: string;
   order: string;
   priority: TaskPriority;
+  labels?: TaskLabel[];
   storyPoints?: number;
   dueDate?: string;
   assigneeIds: string[];

@@ -8,9 +8,24 @@ import {
   IsDateString,
   IsArray,
   MaxLength,
+  ArrayMaxSize,
+  ValidateNested,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TaskPriority } from '../schemas/task.schema';
+import { Type } from 'class-transformer';
+
+class TaskLabelDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(24)
+  name: string;
+
+  @IsString()
+  @IsIn(['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'gray'])
+  color: string;
+}
 
 export class CreateTaskDto {
   // --- CAMPOS CORE ---
@@ -98,6 +113,22 @@ export class CreateTaskDto {
   @IsDateString({}, { message: 'La fecha límite debe ser una fecha válida' })
   @IsOptional()
   dueDate?: string;
+
+  @ApiProperty({
+    required: false,
+    type: [Object],
+    example: [
+      { name: 'backend', color: 'blue' },
+      { name: 'bug', color: 'red' },
+    ],
+    description: 'Etiquetas (nombre + color) de la tarea',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskLabelDto)
+  @ArrayMaxSize(6, { message: 'Máximo 6 etiquetas por tarea' })
+  @IsOptional()
+  labels?: TaskLabelDto[];
 
   // Array de usuarios asignados (para que salgan sus avatares en la tarjeta)
   @ApiProperty({

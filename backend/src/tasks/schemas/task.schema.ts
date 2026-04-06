@@ -11,6 +11,29 @@ export enum TaskPriority {
   URGENT = 'urgent',
 }
 
+export type TaskLabelColor =
+  | 'green'
+  | 'yellow'
+  | 'orange'
+  | 'red'
+  | 'purple'
+  | 'blue'
+  | 'sky'
+  | 'gray';
+
+export class TaskLabel {
+  @Prop({ type: String, required: true, trim: true, maxlength: 24 })
+  name: string;
+
+  @Prop({
+    type: String,
+    required: true,
+    enum: ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'gray'],
+    default: 'blue',
+  })
+  color: TaskLabelColor;
+}
+
 @Schema({ timestamps: true })
 export class Task {
   // --- CAMPOS CORE ---
@@ -51,6 +74,10 @@ export class Task {
   // Fecha de vencimiento opcional
   @Prop({ type: Date, required: false })
   dueDate?: Date;
+
+  // Etiquetas cortas para contexto visual rápido en la tarjeta
+  @Prop({ type: [TaskLabel], default: [] })
+  labels: TaskLabel[];
 
   // Array de usuarios asignados (para que salgan sus avatares en la tarjeta)
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
