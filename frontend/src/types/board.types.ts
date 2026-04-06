@@ -17,6 +17,18 @@ export interface TaskLabel {
   color: TaskLabelColor;
 }
 
+/** Enlace adjunto en el detalle de la tarea. */
+export interface TaskLink {
+  url: string;
+  title?: string;
+}
+
+/** Ítem de checklist persistido en la tarea. */
+export interface TaskChecklistItem {
+  text: string;
+  checked: boolean;
+}
+
 export interface Task {
   _id: string;
   title: string;
@@ -26,6 +38,10 @@ export interface Task {
   order: string;
   priority: TaskPriority;
   labels?: TaskLabel[];
+  /** Enlaces http(s) con título opcional. */
+  links?: TaskLink[];
+  /** Checklist de subtareas. */
+  checklist?: TaskChecklistItem[];
   storyPoints?: number;
   dueDate?: string;
   assigneeIds: string[];

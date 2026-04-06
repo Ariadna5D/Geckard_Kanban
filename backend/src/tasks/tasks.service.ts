@@ -11,6 +11,8 @@ import {
   TaskDocument,
   TaskLabel,
   TaskLabelColor,
+  TaskLink,
+  TaskChecklistItem,
   STORY_POINT_SCALE,
   StoryPointValue,
 } from './schemas/task.schema';
@@ -68,6 +70,68 @@ export class TasksService {
   }
 
   /**
+   * URLs http(s) únicas, título opcional acotado.
+   */
+  private normalizeLinks(input: unknown): TaskLink[] | undefined {
+    if (!Array.isArray(input)) return undefined;
+    const seen = new Set<string>();
+    const out: TaskLink[] = [];
+    for (const entry of input) {
+      if (out.length >= 20) break;
+      if (!entry || typeof entry !== 'object') continue;
+      const urlRaw = (entry as { url?: unknown }).url;
+      const titleRaw = (entry as { title?: unknown }).title;
+      if (typeof urlRaw !== 'string') continue;
+      let trimmed = urlRaw.trim();
+      if (!trimmed) continue;
+      if (!/^https?:\/\//i.test(trimmed)) {
+        trimmed = `https://${trimmed}`;
+      }
+      let hrefKey: string;
+      let storedUrl: string;
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+        hrefKey = parsed.href;
+        storedUrl = parsed.href.slice(0, 2048);
+      } catch {
+        continue;
+      }
+      if (seen.has(hrefKey)) continue;
+      seen.add(hrefKey);
+      const link: TaskLink = { url: storedUrl };
+      if (typeof titleRaw === 'string') {
+        const t = titleRaw.trim().slice(0, 200);
+        if (t) link.title = t;
+      }
+      out.push(link);
+    }
+    return out;
+  }
+
+  /**
+   * Texto no vacío por ítem; checked solo si es boolean true.
+   */
+  private normalizeChecklist(input: unknown): TaskChecklistItem[] | undefined {
+    if (!Array.isArray(input)) return undefined;
+    const out: TaskChecklistItem[] = [];
+    for (const entry of input) {
+      if (out.length >= 50) break;
+      if (!entry || typeof entry !== 'object') continue;
+      const textRaw = (entry as { text?: unknown }).text;
+      const checkedRaw = (entry as { checked?: unknown }).checked;
+      const text =
+        typeof textRaw === 'string' ? textRaw.trim().slice(0, 500) : '';
+      if (!text) continue;
+      out.push({
+        text,
+        checked: checkedRaw === true,
+      });
+    }
+    return out;
+  }
+
+  /**
    * Con la media de los votos, elegimos el número Fibonacci más cercano (empate: el más bajo).
    */
   private nearestFibonacciFromMean(values: number[]): StoryPointValue | null {
@@ -114,12 +178,24 @@ export class TasksService {
     );
 
     try {
-      const labels = this.normalizeLabels(createTaskDto.labels) ?? [];
+      const {
+        labels: rawLabels,
+        links: rawLinks,
+        checklist: rawChecklist,
+        boardId,
+        columnId,
+        ...rest
+      } = createTaskDto;
+      const labels = this.normalizeLabels(rawLabels) ?? [];
+      const links = this.normalizeLinks(rawLinks) ?? [];
+      const checklist = this.normalizeChecklist(rawChecklist) ?? [];
       const newTask = await this.taskModel.create({
-        ...createTaskDto,
+        ...rest,
         labels,
-        boardId: new Types.ObjectId(createTaskDto.boardId),
-        columnId: new Types.ObjectId(createTaskDto.columnId),
+        links,
+        checklist,
+        boardId: new Types.ObjectId(boardId),
+        columnId: new Types.ObjectId(columnId),
       });
 
       return newTask;
@@ -179,7 +255,7 @@ export class TasksService {
       if (key === 'boardId' || key === 'columnId') {
         continue;
       }
-      if (key === 'labels') {
+      if (key === 'labels' || key === 'links' || key === 'checklist') {
         continue;
       }
       updatePayload[key as string] = updateTaskDto[key];
@@ -187,6 +263,14 @@ export class TasksService {
     const cleanedLabels = this.normalizeLabels(updateTaskDto.labels);
     if (cleanedLabels !== undefined) {
       updatePayload.labels = cleanedLabels;
+    }
+    const cleanedLinks = this.normalizeLinks(updateTaskDto.links);
+    if (cleanedLinks !== undefined) {
+      updatePayload.links = cleanedLinks;
+    }
+    const cleanedChecklist = this.normalizeChecklist(updateTaskDto.checklist);
+    if (cleanedChecklist !== undefined) {
+      updatePayload.checklist = cleanedChecklist;
     }
 
     const updatedTask = await this.taskModel

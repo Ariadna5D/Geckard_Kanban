@@ -49,6 +49,29 @@ export class TaskStoryPointVote {
   votedAt: Date;
 }
 
+/** Enlace adjunto en el detalle de la tarea (URL + título opcional). */
+@Schema({ _id: false })
+export class TaskLink {
+  @Prop({ type: String, required: true, trim: true, maxlength: 2048 })
+  url: string;
+
+  @Prop({ type: String, trim: true, maxlength: 200 })
+  title?: string;
+}
+export const TaskLinkSchema = SchemaFactory.createForClass(TaskLink);
+
+/** Ítem de checklist en el detalle de la tarea. */
+@Schema({ _id: false })
+export class TaskChecklistItem {
+  @Prop({ type: String, required: true, trim: true, maxlength: 500 })
+  text: string;
+
+  @Prop({ type: Boolean, default: false })
+  checked: boolean;
+}
+export const TaskChecklistItemSchema =
+  SchemaFactory.createForClass(TaskChecklistItem);
+
 @Schema({ timestamps: true })
 export class Task {
   // --- CAMPOS CORE ---
@@ -97,6 +120,12 @@ export class Task {
   // Array de usuarios asignados (para que salgan sus avatares en la tarjeta)
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
   assigneeIds: Types.ObjectId[];
+
+  @Prop({ type: [TaskLinkSchema], default: [] })
+  links: TaskLink[];
+
+  @Prop({ type: [TaskChecklistItemSchema], default: [] })
+  checklist: TaskChecklistItem[];
 
   // --- VOTACIÓN DE STORY POINTS (Planning Poker sin websockets) ---
   @Prop({

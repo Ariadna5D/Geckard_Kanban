@@ -214,6 +214,46 @@ export class BoardsService {
   }
 
   /**
+   * Asegura enlaces y checklist como JSON plano (por si el driver devuelve subdocumentos raros).
+   */
+  private normalizeTaskLinksForClient(
+    raw: unknown,
+  ): { url: string; title?: string }[] {
+    if (!Array.isArray(raw)) return [];
+    const out: { url: string; title?: string }[] = [];
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') continue;
+      const urlVal = (entry as { url?: unknown }).url;
+      if (typeof urlVal !== 'string') continue;
+      const url = urlVal.trim();
+      if (!url) continue;
+      const titleVal = (entry as { title?: unknown }).title;
+      const titleTrim =
+        typeof titleVal === 'string' ? titleVal.trim().slice(0, 200) : '';
+      if (titleTrim) out.push({ url, title: titleTrim });
+      else out.push({ url });
+    }
+    return out;
+  }
+
+  private normalizeTaskChecklistForClient(
+    raw: unknown,
+  ): { text: string; checked: boolean }[] {
+    if (!Array.isArray(raw)) return [];
+    const out: { text: string; checked: boolean }[] = [];
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') continue;
+      const textVal = (entry as { text?: unknown }).text;
+      if (typeof textVal !== 'string') continue;
+      const text = textVal.trim().slice(0, 500);
+      if (!text) continue;
+      const checkedVal = (entry as { checked?: unknown }).checked;
+      out.push({ text, checked: checkedVal === true });
+    }
+    return out;
+  }
+
+  /**
    * Pasa ids de Mongo a texto para que el front reciba JSON sencillo.
    */
   private mapTaskForBoardClient(task: Record<string, unknown>) {
@@ -236,6 +276,8 @@ export class BoardsService {
         userId: v.userId?.toString?.() ?? '',
         value: v.value,
       })),
+      links: this.normalizeTaskLinksForClient(t.links),
+      checklist: this.normalizeTaskChecklistForClient(t.checklist),
     };
   }
 
