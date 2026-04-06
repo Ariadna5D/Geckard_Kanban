@@ -20,9 +20,8 @@ import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UpdateTaskPositionDto } from './dto/update-task-position.dto';
+import { StoryPointVoteDto } from './dto/story-point-vote.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { Action } from 'src/casl/enums/action.enum';
-import { Task } from './schemas/task.schema';
 import { BoardPolicyGuard } from '../boards/board-policy.guard';
 import {
   BoardIdFrom,
@@ -32,6 +31,12 @@ import {
 import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
+import {
+  canCreateTask,
+  canReadTask,
+  canUpdateTask,
+  canDeleteTask,
+} from '../casl/named-policy.handlers';
 
 @ApiTags('Tasks')
 @ApiBearerAuth()
@@ -40,11 +45,13 @@ import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface'
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
-  /** Crea una tarea dentro de un tablero/columna. */
+  /**
+   * Crea una tarjeta en la columna indicada del tablero.
+   */
   @Post()
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.BodyBoardId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Create, Task))
+  @CheckBoardPolicies(canCreateTask)
   @ApiOperation({ summary: 'Crear una nueva tarea en una columna' })
   @ApiResponse({ status: 201, description: 'Tarea creada con éxito.' })
   create(
@@ -58,11 +65,13 @@ export class TasksController {
     );
   }
 
-  /** Lista tareas de un tablero si el usuario tiene acceso. */
+  /**
+   * Devuelve todas las tareas de un tablero (para pintar el Kanban).
+   */
   @Get('board/:boardId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamBoardId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Read, Task))
+  @CheckBoardPolicies(canReadTask)
   @ApiOperation({ summary: 'Obtener todas las tareas de un tablero' })
   @ApiParam({ name: 'boardId', type: 'string', description: 'ID del tablero' })
   findAllByBoard(
@@ -76,11 +85,13 @@ export class TasksController {
     );
   }
 
-  /** Actualiza campos básicos de la tarea (no posición). */
+  /**
+   * Cambia título, descripción, prioridad, etc. (no mueve de columna).
+   */
   @Patch(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Update, Task))
+  @CheckBoardPolicies(canUpdateTask)
   @ApiOperation({ summary: 'Actualizar datos básicos de la tarea' })
   @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' })
   update(
@@ -96,11 +107,13 @@ export class TasksController {
     );
   }
 
-  /** Reubica tarea por drag & drop (columna y order). */
+  /**
+   * Mueve la tarjeta a otra columna o reordena dentro de la misma (arrastrar y soltar).
+   */
   @Patch(':id/position')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Update, Task))
+  @CheckBoardPolicies(canUpdateTask)
   @ApiOperation({ summary: 'Update task position (Drag & Drop)' })
   @ApiParam({ name: 'id', type: 'string', description: 'Task ID' })
   updatePosition(
@@ -117,11 +130,13 @@ export class TasksController {
     );
   }
 
-  /** Elimina una tarea por id. */
+  /**
+   * Borra la tarjeta del tablero.
+   */
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Delete, Task))
+  @CheckBoardPolicies(canDeleteTask)
   @ApiOperation({ summary: 'Eliminar una tarea' })
   @ApiResponse({ status: 204, description: 'Tarea fulminada.' })
   @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' })
@@ -132,6 +147,44 @@ export class TasksController {
     return this.tasksService.remove(
       id.toString(),
       req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Lista quién votó qué y el número sugerido según la media del equipo.
+   */
+  @Get(':id/story-points')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.TaskParamId)
+  @CheckBoardPolicies(canReadTask)
+  getStoryPointVoting(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.tasksService.getStoryPointVoting(
+      id.toString(),
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Registra tu voto de story points (puedes cambiarlo cuando quieras).
+   */
+  @Patch(':id/story-points/vote')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.TaskParamId)
+  @CheckBoardPolicies(canReadTask)
+  async voteStoryPoints(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Body() body: StoryPointVoteDto,
+    @Request() req: ValidatedRequest,
+  ) {
+    await this.tasksService.voteStoryPoints(
+      id.toString(),
+      req.user.sub,
+      body.value,
       req.user.role === 'admin',
     );
   }

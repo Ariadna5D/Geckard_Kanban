@@ -12,39 +12,31 @@ export class AuthService {
   ) {}
 
   /**
-   * Valida credenciales contra base de datos.
-   * @param email correo del login
-   * @param pass contraseña en claro recibida en login
-   * @returns usuario sin passwordHash o null si no coincide
+   * Mira si el email y la contraseña coinciden con un usuario guardado.
+   * Si no, devuelve null (el controlador mostrará “credenciales inválidas”).
    */
   async validateUser(
     email: string,
     pass: string,
   ): Promise<ValidatedUser | null> {
-    // Búsqueda por email (normalizado dentro de UsersService).
     const user = await this.usersService.findByEmail(email);
-
-    if (
-      user &&
-      (await this.usersService.comparePassword(pass, user.passwordHash))
-    ) {
-      const userDoc = user as UserDocument;
-      const userObject = userDoc.toObject() as ValidatedUser & {
-        passwordHash: string;
-      };
-
-      const { passwordHash, ...result } = userObject;
-      void passwordHash;
-
-      return result as ValidatedUser;
-    }
-    return null;
+    if (!user) return null;
+    const passwordMatches = await this.usersService.comparePassword(
+      pass,
+      user.passwordHash,
+    );
+    if (!passwordMatches) return null;
+    const doc = user as UserDocument;
+    return {
+      _id: doc._id,
+      email: doc.email,
+      username: doc.username,
+      role: doc.role,
+    };
   }
 
   /**
-   * Genera JWT de acceso para frontend.
-   * @param user usuario ya validado
-   * @returns objeto con `access_token`
+   * Crea el token que el front guardará para las siguientes peticiones.
    */
   login(user: ValidatedUser) {
     const payload = {

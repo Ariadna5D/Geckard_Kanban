@@ -1,16 +1,14 @@
 import { SetMetadata } from '@nestjs/common';
 import type { AppAbility } from '../casl/casl-ability.factory';
 
+/**
+ * Indica de dónde sacamos el id del tablero en cada ruta (URL, cuerpo, tarea…).
+ */
 export enum BoardIdSource {
-  /** `GET/POST/PATCH/DELETE .../boards/:id/...` */
   ParamId = 'param.id',
-  /** `GET .../tasks/board/:boardId` */
   ParamBoardId = 'param.boardId',
-  /** `GET .../boards/by-slug/:slug` */
   ParamSlug = 'param.slug',
-  /** Cuerpo `boardId` al crear tarea */
   BodyBoardId = 'body.boardId',
-  /** `PATCH|DELETE .../tasks/:id` — resuelve `boardId` desde la tarea */
   TaskParamId = 'task.param.id',
 }
 

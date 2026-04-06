@@ -1,5 +1,10 @@
 import api from './axios.instance';
-import { Task, CreateTaskPayload, UpdateTaskPositionPayload } from '../types/board.types';
+import {
+  Task,
+  CreateTaskPayload,
+  UpdateTaskPositionPayload,
+  StoryPointVotingState,
+} from '../types/board.types';
 
 /** Devuelve tareas del tablero ya autorizadas por backend. */
 export const getTasksByBoardRequest = async (boardId: string): Promise<Task[]> => {
@@ -31,4 +36,20 @@ export const updateTaskRequest = async (taskId: string, data: Partial<Task>): Pr
 /** Borra tarea por id. */
 export const deleteTaskRequest = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
+};
+
+/** Lee estado de votación de story points de una tarea. */
+export const getStoryPointVotingRequest = async (
+  taskId: string,
+): Promise<StoryPointVotingState> => {
+  const response = await api.get(`/tasks/${taskId}/story-points`);
+  return response.data;
+};
+
+/** Registra o actualiza voto personal de story points. */
+export const voteStoryPointsRequest = async (
+  taskId: string,
+  value: number,
+): Promise<void> => {
+  await api.patch(`/tasks/${taskId}/story-points/vote`, { value });
 };

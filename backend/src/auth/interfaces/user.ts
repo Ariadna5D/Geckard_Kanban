@@ -1,8 +1,11 @@
 import { Types } from 'mongoose';
 
+/**
+ * Usuario tal como lo usamos tras el login: datos básicos, sin contraseña.
+ */
 export interface ValidatedUser {
-  _id: Types.ObjectId; // El ID de MongoDB es un ObjectId
-  email: string; // El email del usuario
-  username: string; // El nombre de usuario
-  role: string; // El rol del usuario
+  _id: Types.ObjectId;
+  email: string;
+  username: string;
+  role: string;
 }

@@ -29,10 +29,8 @@ export class BoardPolicyGuard implements CanActivate {
   ) {}
 
   /**
-   * Guard de permisos por tablero:
-   * 1) resuelve boardId desde params/body/task/slug
-   * 2) obtiene rol del usuario en ese tablero
-   * 3) evalúa handlers CASL definidos en el decorador
+   * Mira si el usuario puede hacer la acción en ESTE tablero concreto
+   * (propietario, editor, etc.).
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const handlers =
@@ -52,7 +50,7 @@ export class BoardPolicyGuard implements CanActivate {
 
     if (source === undefined) {
       throw new ForbiddenException(
-        'Falta metadata BoardIdFrom en la ruta protegida.',
+        'Esta ruta de tablero no está bien enlazada en el código.',
       );
     }
 
@@ -82,42 +80,47 @@ export class BoardPolicyGuard implements CanActivate {
       roleOnBoard,
     );
 
-    const ok = handlers.every((h) => h(ability));
-    if (!ok) {
-      throw new ForbiddenException('No tienes permiso para esta acción.');
+    for (const checkPolicy of handlers) {
+      if (!checkPolicy(ability)) {
+        throw new ForbiddenException('No tienes permiso para esta acción.');
+      }
     }
     return true;
   }
 
-  private asParamString(v: string | string[] | undefined): string | undefined {
-    if (v === undefined) return undefined;
-    return Array.isArray(v) ? v[0] : v;
+  /**
+   * A veces el id del tablero viene en la URL, otras en el cuerpo, otras hay que
+   * leerlo desde la tarea… Aquí unificamos eso.
+   */
+  private normalizeRouteParam(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    if (value === undefined) return undefined;
+    if (Array.isArray(value)) return value[0];
+    return value;
   }
 
-  /**
-   * Convierte diferentes fuentes de id (ruta/body/task/slug) a boardId final.
-   */
   private async resolveBoardId(
     source: BoardIdSource,
     req: ValidatedRequest,
   ): Promise<string> {
     switch (source) {
       case BoardIdSource.ParamId: {
-        const raw = this.asParamString(req.params['id']);
+        const raw = this.normalizeRouteParam(req.params['id']);
         if (!raw || !Types.ObjectId.isValid(raw)) {
           throw new NotFoundException('Identificador de tablero no válido.');
         }
         return raw;
       }
       case BoardIdSource.ParamBoardId: {
-        const raw = this.asParamString(req.params['boardId']);
+        const raw = this.normalizeRouteParam(req.params['boardId']);
         if (!raw || !Types.ObjectId.isValid(raw)) {
           throw new NotFoundException('Identificador de tablero no válido.');
         }
         return raw;
       }
       case BoardIdSource.ParamSlug: {
-        const slug = this.asParamString(req.params['slug']);
+        const slug = this.normalizeRouteParam(req.params['slug']);
         if (!slug?.trim()) {
           throw new NotFoundException('El tablero no existe.');
         }
@@ -133,7 +136,7 @@ export class BoardPolicyGuard implements CanActivate {
         return raw;
       }
       case BoardIdSource.TaskParamId: {
-        const taskId = this.asParamString(req.params['id']);
+        const taskId = this.normalizeRouteParam(req.params['id']);
         if (!taskId || !Types.ObjectId.isValid(taskId)) {
           throw new NotFoundException('Tarea no encontrada.');
         }

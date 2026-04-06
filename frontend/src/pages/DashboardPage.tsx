@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { useBoardStore } from "../store/useBoardStore";
@@ -127,6 +127,39 @@ export const DashboardPage = () => {
     }
   };
 
+  function handleEditDialogOpenChange(open: boolean) {
+    if (!open) setEditingBoard(null);
+  }
+
+  function handleDeleteDialogOpenChange(open: boolean) {
+    if (!open) setDeleteTarget(null);
+  }
+
+  function handleDeleteBoardActionClick(event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    void handleConfirmDelete();
+  }
+
+  function handleOpenCreateBoardDialog() {
+    setIsCreateOpen(true);
+  }
+
+  function handleStartBoardEdit(board: Board) {
+    setEditingBoard(board);
+  }
+
+  function handleOpenDeleteBoardDialog(board: Board) {
+    setDeleteTarget(board);
+  }
+
+  function handleCloseEditDialog() {
+    setEditingBoard(null);
+  }
+
+  function handleBoardMenuPointerDown(event: React.PointerEvent<HTMLElement>) {
+    event.stopPropagation();
+  }
+
   return (
     <main className="mx-auto max-w-7xl p-8">
       <section className="mb-10 rounded-2xl border border-surface-200 bg-surface-50 p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 md:p-8">
@@ -173,9 +206,7 @@ export const DashboardPage = () => {
 
       <Dialog
         open={editingBoard !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingBoard(null);
-        }}
+        onOpenChange={handleEditDialogOpenChange}
       >
         <DialogContent className="border border-surface-200 bg-surface-50 text-surface-900 shadow-lg dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
           <DialogHeader>
@@ -217,7 +248,7 @@ export const DashboardPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setEditingBoard(null)}
+                  onClick={handleCloseEditDialog}
                 >
                   Cancelar
                 </Button>
@@ -236,9 +267,7 @@ export const DashboardPage = () => {
 
       <AlertDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
+        onOpenChange={handleDeleteDialogOpenChange}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -253,10 +282,7 @@ export const DashboardPage = () => {
             <AlertDialogAction
               variant="destructive"
               disabled={isDeleting}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleConfirmDelete();
-              }}
+              onClick={handleDeleteBoardActionClick}
             >
               {isDeleting ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -318,7 +344,7 @@ export const DashboardPage = () => {
               {showBoardMenu && (
                 <div
                   className="absolute top-3 right-3 z-10"
-                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerDown={handleBoardMenuPointerDown}
                 >
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -334,7 +360,7 @@ export const DashboardPage = () => {
                       {showEdit && (
                         <DropdownMenuItem
                           className="cursor-pointer"
-                          onClick={() => setEditingBoard(board)}
+                          onClick={handleStartBoardEdit.bind(null, board)}
                         >
                           <Pencil size={14} className="mr-2" />
                           Editar
@@ -343,7 +369,7 @@ export const DashboardPage = () => {
                       {showDelete && (
                         <DropdownMenuItem
                           className="cursor-pointer text-danger focus:bg-danger/10 focus:text-danger"
-                          onClick={() => setDeleteTarget(board)}
+                          onClick={handleOpenDeleteBoardDialog.bind(null, board)}
                         >
                           <Trash2 size={14} className="mr-2" />
                           Eliminar
@@ -360,7 +386,7 @@ export const DashboardPage = () => {
         <button
           type="button"
           aria-label="Crear nuevo tablero"
-          onClick={() => setIsCreateOpen(true)}
+          onClick={handleOpenCreateBoardDialog}
           className="group flex min-h-[220px] w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-surface-300 bg-surface-50/50 p-6 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-500/55 hover:bg-primary-500/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-100 dark:border-surface-600 dark:bg-surface-900/40 dark:hover:border-primary-400/50 dark:hover:bg-primary-500/10 dark:focus-visible:ring-primary-400 dark:focus-visible:ring-offset-surface-950"
         >
           <span className="flex size-12 items-center justify-center rounded-full bg-surface-200/90 text-surface-600 transition-colors group-hover:bg-primary-500/15 group-hover:text-primary-600 dark:bg-surface-800 dark:text-surface-400 dark:group-hover:bg-primary-500/20 dark:group-hover:text-primary-400">

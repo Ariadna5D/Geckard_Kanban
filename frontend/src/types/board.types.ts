@@ -29,8 +29,31 @@ export interface Task {
   storyPoints?: number;
   dueDate?: string;
   assigneeIds: string[];
+  /** Estado de ronda de planning poker en backend. */
+  storyPointVotingStatus?: StoryPointVotingStatus;
+  /** Votos crudos (pueden venir ocultos por API de resumen). */
+  storyPointVotes?: { userId: string; value: number }[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** Legacy en documentos Mongo; la UI ya no cierra rondas. */
+export type StoryPointVotingStatus = "idle" | "voting" | "revealed" | "locked";
+
+export interface StoryPointVoteSummary {
+  userId: string;
+  value: number;
+}
+
+/**
+ * Respuesta GET /tasks/:id/story-points.
+ * `average` es el valor de la escala (1,2,3,5,8,13) más cercano a la media aritmética.
+ */
+export interface StoryPointVotingState {
+  totalVotes: number;
+  myVote: number | null;
+  average: number | null;
+  votes: StoryPointVoteSummary[];
 }
 
 export interface Column {
@@ -142,8 +165,10 @@ export function getCurrentUserBoardRole(
 ): BoardRole | null {
   if (!userId) return null;
   if (boardOwnerUserId(board) === userId) return "owner";
-  const m = board.members.find((x) => memberUserId(x) === userId);
-  return m?.role ?? null;
+  const member = board.members.find(
+    (entry) => memberUserId(entry) === userId,
+  );
+  return member?.role ?? null;
 }
 
 export function boardRoleAtLeast(

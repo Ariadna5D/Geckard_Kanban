@@ -25,6 +25,14 @@ export const Navbar = () => {
     navigate('/login');
   };
 
+  function handleGoToDashboard() {
+    navigate('/dashboard');
+  }
+
+  function handleGoToProfile() {
+    navigate('/profile');
+  }
+
   // Reutilizamos tu función de iniciales elegantes
   const getInitials = (name: string) => {
     if (!name) return 'U';
@@ -37,7 +45,7 @@ export const Navbar = () => {
     <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-surface-200 bg-surface-50/95 p-4 backdrop-blur-sm dark:border-surface-800 dark:bg-surface-900/95">
       
       <div 
-        onClick={() => navigate('/dashboard')}
+        onClick={handleGoToDashboard}
         className="cursor-pointer text-xl font-bold transition-opacity hover:opacity-90"
       >
         <span className="text-surface-900 dark:text-surface-50">Axi</span>
@@ -68,12 +76,12 @@ export const Navbar = () => {
           <DropdownMenuSeparator />
           
           {/* Opciones del menú */}
-          <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer py-2">
+          <DropdownMenuItem onClick={handleGoToDashboard} className="cursor-pointer py-2">
             <LayoutDashboard className="mr-2 size-4 text-surface-500 dark:text-surface-400" />
             <span>Dashboard</span>
           </DropdownMenuItem>
           
-          <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer py-2">
+          <DropdownMenuItem onClick={handleGoToProfile} className="cursor-pointer py-2">
             <UserIcon className="mr-2 size-4 text-surface-500 dark:text-surface-400" />
             <span>Mi Perfil</span>
           </DropdownMenuItem>

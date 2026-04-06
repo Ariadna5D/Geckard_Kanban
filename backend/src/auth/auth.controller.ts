@@ -23,8 +23,7 @@ export class AuthController {
   ) {}
 
   /**
-   * Registro de usuario.
-   * Límite estricto para evitar abuso/bots en creación de cuentas.
+   * Alta de usuario nuevo. El límite de intentos evita que alguien cree miles de cuentas seguidas.
    */
   @Post('register')
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
@@ -33,8 +32,7 @@ export class AuthController {
   }
 
   /**
-   * Inicio de sesión.
-   * Si email/contraseña son válidos, devuelve el JWT de acceso.
+   * Entrada: si los datos son correctos, se devuelve el token de sesión.
    */
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -45,12 +43,9 @@ export class AuthController {
       loginDto.password,
     );
 
-    // Si no valida, respondemos error genérico de credenciales.
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
-
-    // Token firmado con email + id + rol.
     return this.authService.login(user);
   }
 }

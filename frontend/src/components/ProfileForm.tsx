@@ -250,14 +250,19 @@ export const ProfileForm = () => {
       await api.delete('/users/me');
       logout();
       navigate('/login');
-    } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Error al eliminar la cuenta' 
+    } catch (error: unknown) {
+      setMessage({
+        type: 'error',
+        text: apiErrorMessage(error, 'Error al eliminar la cuenta'),
       });
+    } finally {
       setIsDeleting(false);
     }
   };
+
+  function handleAvatarZoneClick() {
+    fileInputRef.current?.click();
+  }
 
   return (
     <Card className="mx-auto mt-8 max-w-xl border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
@@ -273,7 +278,7 @@ export const ProfileForm = () => {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleAvatarZoneClick}
             className={`group/avatar-zone relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors
               ${isDragging ? 'border-primary-500 bg-primary-500/10 dark:border-primary-400 dark:bg-primary-500/15' : 'border-surface-300 hover:border-primary-500/45 hover:bg-primary-500/10 dark:border-surface-600 dark:hover:border-primary-400/40 dark:hover:bg-primary-500/10'}`}
           >

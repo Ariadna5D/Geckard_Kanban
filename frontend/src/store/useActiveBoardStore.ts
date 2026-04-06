@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import {
   Board,
+  Column,
   UpdateTaskPositionPayload,
   Task,
   InviteBoardMemberPayload,
+  BoardMemberSummary,
+  getBoardDocumentId,
 } from '../types/board.types';
 import {
   addColumnRequest,
@@ -13,6 +16,7 @@ import {
   updateColumnPositionRequest,
   inviteBoardMemberRequest,
   removeBoardMemberRequest,
+  getBoardMembersRequest,
 } from '../api/boards.api';
 import {
   updateTaskPosition,
@@ -22,10 +26,24 @@ import {
 } from '../api/tasks.api';
 import { compareOrderKey } from '../utils/boardMath';
 
+function mergeServerColumnsWithLocalTasks(
+  previousColumns: Column[],
+  serverColumns: Column[],
+): Column[] {
+  const merged = serverColumns.map((serverCol) => {
+    const local = previousColumns.find((col) => col._id === serverCol._id);
+    return {
+      ...serverCol,
+      tasks: local?.tasks && local.tasks.length > 0 ? local.tasks : [],
+    };
+  });
+  merged.sort((a, b) => compareOrderKey(a.order, b.order));
+  return merged;
+}
+
 interface ActiveBoardState {
-  /** Tablero activo con columnas y tareas ya ordenadas para UI. */
   board: Board | null;
-  /** Carga principal de la vista de tablero. */
+  boardMembers: BoardMemberSummary[];
   isLoading: boolean;
   error: string | null;
 
@@ -62,18 +80,15 @@ interface ActiveBoardState {
 
 export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   board: null,
+  boardMembers: [],
   isLoading: false,
   error: null,
 
-  /**
-   * Carga el tablero por slug y ordena columnas/tareas por su order (Fractional Index).
-   * @param slug slug público del tablero
-   * @param opts silent evita spinner global para refrescos en segundo plano
-   */
+  // Carga tablero; silent = sin poner isLoading (refrescos)
   fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
     if (!silent) {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, boardMembers: [] });
     }
     try {
       const board = await getBoardBySlugRequest(slug);
@@ -86,17 +101,32 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
         }));
 
+      const boardPayload = { ...board, columns: sortedColumns };
+      const boardDocId = getBoardDocumentId(boardPayload);
+
       set({
-        board: { ...board, columns: sortedColumns },
+        board: boardPayload,
         isLoading: false,
         error: null,
       });
+
+      if (boardDocId) {
+        try {
+          const { members } = await getBoardMembersRequest(boardDocId);
+          set({ boardMembers: members });
+        } catch {
+          set({ boardMembers: [] });
+        }
+      } else {
+        set({ boardMembers: [] });
+      }
     } catch {
       if (!silent) {
         set({
           error: 'Error al cargar el tablero.',
           isLoading: false,
           board: null,
+          boardMembers: [],
         });
       } else {
         set({ isLoading: false });
@@ -184,17 +214,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       set((state) => {
         if (!state.board) return state;
-
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol?.tasks || []
-          };
-        });
-
-        // Asegura posición visual correcta tras crear.
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -211,14 +234,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       set((state) => {
         if (!state.board) return state;
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
-          };
-        });
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -235,14 +254,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       set((state) => {
         if (!state.board) return state;
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
-          };
-        });
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {

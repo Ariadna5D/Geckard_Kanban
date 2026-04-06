@@ -18,7 +18,7 @@ interface BoardState {
   fetchBoards: () => Promise<void>;
   /** Crea tablero y lo inserta en la lista local. */
   addBoard: (data: CreateBoardPayload) => Promise<void>;
-  /** Edita título/descripcion de un tablero existente. */
+  /** Edita título/descripción de un tablero existente. */
   updateBoard: (id: string, data: UpdateBoardPayload) => Promise<void>;
   /** Elimina tablero del backend y del estado local. */
   removeBoard: (id: string) => Promise<void>;
@@ -35,7 +35,7 @@ export const useBoardStore = create<BoardState>((set) => ({
     try {
       const boards = await getBoardsRequest();
       set({ boards, isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar los tableros. Inténtalo de nuevo.', isLoading: false });
     }
   },
@@ -60,16 +60,18 @@ export const useBoardStore = create<BoardState>((set) => ({
     try {
       const updated = await updateBoardRequest(id, data);
       set((state) => ({
-        boards: state.boards.map((b) => (b._id === id ? { ...b, ...updated } : b)),
+        boards: state.boards.map((board) =>
+          board._id === id ? { ...board, ...updated } : board,
+        ),
       }));
       // Sincroniza también el tablero activo si está abierto en /boards/:slug.
       const active = useActiveBoardStore.getState().board;
       if (active?._id === id) {
-        useActiveBoardStore.setState((s) =>
-          s.board
+        useActiveBoardStore.setState((storeState) =>
+          storeState.board
             ? {
                 board: {
-                  ...s.board,
+                  ...storeState.board,
                   title: updated.title,
                   description: updated.description,
                 },
@@ -77,9 +79,9 @@ export const useBoardStore = create<BoardState>((set) => ({
             : {},
         );
       }
-    } catch (e) {
+    } catch (error) {
       set({ error: 'No se pudo actualizar el tablero.' });
-      throw e;
+      throw error;
     }
   },
 
@@ -88,16 +90,16 @@ export const useBoardStore = create<BoardState>((set) => ({
     try {
       await deleteBoardRequest(id);
       set((state) => ({
-        boards: state.boards.filter((b) => b._id !== id),
+        boards: state.boards.filter((board) => board._id !== id),
       }));
       // Si borra el tablero activo, limpiamos su estado para evitar datos huérfanos.
       const active = useActiveBoardStore.getState().board;
       if (active?._id === id) {
         useActiveBoardStore.setState({ board: null, error: null });
       }
-    } catch (e) {
+    } catch (error) {
       set({ error: 'No se pudo eliminar el tablero.' });
-      throw e;
+      throw error;
     }
   },
 }));

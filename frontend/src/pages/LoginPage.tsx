@@ -45,6 +45,10 @@ export const LoginPage = () => {
     }
   };
 
+  function handleTogglePasswordVisibility() {
+    setShowPassword((previous) => !previous);
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
       <div className="w-full max-w-md rounded-xl border border-surface-200 bg-surface-50 p-8 text-surface-900 shadow-md dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
@@ -92,7 +96,7 @@ export const LoginPage = () => {
               />
               <button
                 type="button"
-                onClick={() => setShowPassword((s) => !s)}
+                onClick={handleTogglePasswordVisibility}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >

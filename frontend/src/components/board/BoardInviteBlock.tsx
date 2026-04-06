@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { isAxiosError } from "axios";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { searchUsersForInviteRequest } from "@/api/users.api";
 import { useActiveBoardStore } from "@/store/useActiveBoardStore";
 import type { BoardInviteRole } from "@/types/board.types";
 import { cn } from "@/lib/utils";
+import { apiErrorMessage } from "@/utils/apiErrorMessage";
 
 const ROLE_OPTIONS: { value: BoardInviteRole; label: string }[] = [
   { value: "admin", label: "Administrador" },
@@ -15,16 +15,7 @@ const ROLE_OPTIONS: { value: BoardInviteRole; label: string }[] = [
   { value: "viewer", label: "Lector" },
 ];
 
-/** Normaliza mensajes de error de API para mostrarlos en UI. */
-function apiErrorMessage(err: unknown): string {
-  if (isAxiosError(err)) {
-    const data = err.response?.data as { message?: string | string[] };
-    if (Array.isArray(data?.message)) return data.message.join(", ");
-    if (typeof data?.message === "string") return data.message;
-    return err.message || "No se pudo completar la invitación.";
-  }
-  return "No se pudo completar la invitación.";
-}
+const INVITE_ERROR_FALLBACK = "No se pudo completar la invitación.";
 
 type Props = {
   slug: string;
@@ -74,23 +65,28 @@ export function BoardInviteBlock({
 
   useEffect(() => {
     if (!enabled) return;
-    const q = query.trim();
-    if (q.length < 2) {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < 2) {
       setResults([]);
       setSearching(false);
       return;
     }
 
     setSearching(true);
-    // Debounce de búsqueda para evitar saturar la API por cada tecla.
-    const t = window.setTimeout(() => {
-      void searchUsersForInviteRequest(q)
-        .then(setResults)
-        .catch(() => setResults([]))
-        .finally(() => setSearching(false));
+    const timeoutId = window.setTimeout(() => {
+      async function runUserSearch() {
+        try {
+          setResults(await searchUsersForInviteRequest(trimmedQuery));
+        } catch {
+          setResults([]);
+        } finally {
+          setSearching(false);
+        }
+      }
+      void runUserSearch();
     }, 300);
 
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timeoutId);
   }, [query, enabled]);
 
   /** Envía invitación con el rol seleccionado al usuario marcado. */
@@ -106,13 +102,29 @@ export function BoardInviteBlock({
       setRole("editor");
       await onSuccess?.();
     } catch (e) {
-      setSubmitError(apiErrorMessage(e));
+      setSubmitError(apiErrorMessage(e, INVITE_ERROR_FALLBACK));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectedUser = results.find((u) => u.id === selectedId);
+  function handleSearchChange(event: ChangeEvent<HTMLInputElement>) {
+    setQuery(event.target.value);
+  }
+
+  function handleRoleChange(event: ChangeEvent<HTMLSelectElement>) {
+    setRole(event.target.value as BoardInviteRole);
+  }
+
+  function handleSelectSearchResult(userId: string) {
+    setSelectedId(userId);
+  }
+
+  function handleInviteClick() {
+    void handleInvite();
+  }
+
+  const selectedUser = results.find((user) => user.id === selectedId);
 
   return (
     <div className={cn("grid gap-3", className)}>
@@ -130,7 +142,7 @@ export function BoardInviteBlock({
           autoComplete="off"
           placeholder="Mínimo 2 caracteres…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={handleSearchChange}
           disabled={!enabled}
         />
         {searching && (
@@ -150,20 +162,20 @@ export function BoardInviteBlock({
           className="max-h-36 overflow-y-auto rounded-lg border border-border"
           role="listbox"
         >
-          {results.map((u) => (
-            <li key={u.id}>
+          {results.map((user) => (
+            <li key={user.id}>
               <button
                 type="button"
                 role="option"
-                aria-selected={selectedId === u.id}
+                aria-selected={selectedId === user.id}
                 className={cn(
                   "hover:bg-muted/80 flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm transition-colors",
-                  selectedId === u.id && "bg-primary/10",
+                  selectedId === user.id && "bg-primary/10",
                 )}
-                onClick={() => setSelectedId(u.id)}
+                onClick={handleSelectSearchResult.bind(null, user.id)}
               >
-                <span className="font-medium">{u.username}</span>
-                <span className="text-muted-foreground text-xs">{u.email}</span>
+                <span className="font-medium">{user.username}</span>
+                <span className="text-muted-foreground text-xs">{user.email}</span>
               </button>
             </li>
           ))}
@@ -177,11 +189,11 @@ export function BoardInviteBlock({
           className="border-input bg-background h-9 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
           value={role}
           disabled={!enabled}
-          onChange={(e) => setRole(e.target.value as BoardInviteRole)}
+          onChange={handleRoleChange}
         >
-          {ROLE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
+          {ROLE_OPTIONS.map((roleOption) => (
+            <option key={roleOption.value} value={roleOption.value}>
+              {roleOption.label}
             </option>
           ))}
         </select>
@@ -193,7 +205,7 @@ export function BoardInviteBlock({
           <strong className="text-foreground">{selectedUser.username}</strong>{" "}
           como{" "}
           <strong className="text-foreground">
-            {ROLE_OPTIONS.find((r) => r.value === role)?.label}
+            {ROLE_OPTIONS.find((roleOption) => roleOption.value === role)?.label}
           </strong>
           .
         </p>
@@ -217,7 +229,7 @@ export function BoardInviteBlock({
         <Button
           type="button"
           disabled={!selectedId || submitting || !enabled}
-          onClick={() => void handleInvite()}
+          onClick={handleInviteClick}
         >
           {submitting ? (
             <>

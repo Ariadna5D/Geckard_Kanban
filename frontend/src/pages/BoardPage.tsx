@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,6 +13,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Settings, UserPlus } from 'lucide-react';
 import { calculateNewOrder } from '../utils/boardMath';
+import {
+  createBoardCollisionDetection,
+  destinationColumnIdFromDroppable,
+  type ColumnDropPayload,
+  type TaskDropPayload,
+} from '../utils/boardDnd';
 import { Task, Column } from '../types/board.types';
 
 // DND-KIT
@@ -24,8 +30,6 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
-  closestCorners,
-  type CollisionDetection,
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from '../components/board/TaskCard';
@@ -58,17 +62,22 @@ export const BoardPage = () => {
   useLayoutEffect(() => {
     if (!slug) return;
     setFetchSettled(false);
-    useActiveBoardStore.setState({ isLoading: true, error: null, board: null });
+    useActiveBoardStore.setState({
+      isLoading: true,
+      error: null,
+      board: null,
+      boardMembers: [],
+    });
   }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
-    let alive = true;
+    let isMounted = true;
     void fetchBoard(slug).finally(() => {
-      if (alive) setFetchSettled(true);
+      if (isMounted) setFetchSettled(true);
     });
     return () => {
-      alive = false;
+      isMounted = false;
     };
   }, [slug, fetchBoard]);
 
@@ -76,27 +85,10 @@ export const BoardPage = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const columnIds = board?.columns.map((c) => c._id) || [];
+  const columnIds = board?.columns.map((col) => col._id) || [];
 
-  /**
-   * Si no filtramos, al arrastrar una columna `closestCorners` choca casi siempre
-   * con las tareas (más superficie) y `over.id` deja de ser un id de columna:
-   * el reorden horizontal y la previsualización solo encajan al inicio/final.
-   */
-  const collisionDetection: CollisionDetection = useCallback(
-    (args) => {
-      const draggingColumn = args.active.data.current?.type === 'Column';
-      if (draggingColumn && board) {
-        const columnIdSet = new Set(board.columns.map((c) => c._id));
-        const onlyColumns = args.droppableContainers.filter((c) =>
-          columnIdSet.has(String(c.id)),
-        );
-        if (onlyColumns.length > 0) {
-          return closestCorners({ ...args, droppableContainers: onlyColumns });
-        }
-      }
-      return closestCorners(args);
-    },
+  const collisionDetection = useMemo(
+    () => createBoardCollisionDetection(board),
     [board],
   );
 
@@ -126,12 +118,15 @@ export const BoardPage = () => {
     if (activeId === overId) return;
 
     const activeType = active.data.current?.type;
-    const overData = over.data.current as any;
+    const overData = over.data.current as
+      | ColumnDropPayload
+      | TaskDropPayload
+      | undefined;
 
     // --- Reorden de columnas ---
     if (activeType === 'Column') {
-      const oldIndex = board.columns.findIndex((c) => c._id === activeId);
-      const newIndex = board.columns.findIndex((c) => c._id === overId);
+      const oldIndex = board.columns.findIndex((col) => col._id === activeId);
+      const newIndex = board.columns.findIndex((col) => col._id === overId);
 
       if (oldIndex === -1 || newIndex === -1) return;
 
@@ -154,19 +149,19 @@ export const BoardPage = () => {
     // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
       const sourceColumnId = active.data.current?.task?.columnId;
-      const destColumnId = overData?.type === 'Column' ? overData.column._id : overData.task.columnId;
+      const destColumnId = destinationColumnIdFromDroppable(overData);
 
       if (!sourceColumnId || !destColumnId) return;
 
-      const destCol = board.columns.find(c => c._id === destColumnId);
+      const destCol = board.columns.find((col) => col._id === destColumnId);
       if (!destCol) return;
       const destTasks = destCol.tasks || [];
 
       let newOrder = '';
 
       // Índices de referencia en la columna destino.
-      const oldIndexInDest = destTasks.findIndex(t => t._id === activeId);
-      const overIndex = destTasks.findIndex(t => t._id === overId);
+      const oldIndexInDest = destTasks.findIndex((task) => task._id === activeId);
+      const overIndex = destTasks.findIndex((task) => task._id === overId);
 
       // Si el puntero cae en la mitad inferior, inserta debajo.
       const isBelow = over && active.rect.current.translated && 
@@ -200,6 +195,14 @@ export const BoardPage = () => {
     const newOrder = calculateNewOrder(lastCol?.order || null, null);
     addColumn(board!._id, title, newOrder);
   };
+
+  function handleOpenSettings() {
+    setSettingsOpen(true);
+  }
+
+  function handleOpenShare() {
+    setShareOpen(true);
+  }
 
   if (!slug) return <Navigate to="/dashboard" replace />;
 
@@ -237,7 +240,7 @@ export const BoardPage = () => {
                 variant="outline"
                 size="sm"
                 className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-                onClick={() => setSettingsOpen(true)}
+                onClick={handleOpenSettings}
                 aria-label="Configuración del tablero"
               >
                 <Settings className="size-4" />
@@ -258,7 +261,7 @@ export const BoardPage = () => {
                 variant="outline"
                 size="sm"
                 className="shrink-0 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-                onClick={() => setShareOpen(true)}
+                onClick={handleOpenShare}
               >
                 <UserPlus data-icon="inline-start" />
                 Compartir

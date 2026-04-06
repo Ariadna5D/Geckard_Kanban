@@ -1,12 +1,11 @@
 import { generateKeyBetween } from 'fractional-indexing';
 
 /**
- * Comprueba si `key` es válida para `fractional-indexing` (misma regla que generateKeyBetween).
+ * Comprueba si `key` es válida para fractional-indexing (misma regla que generateKeyBetween).
  * Claves inválidas típicas: "", "a" (sin sufijo), "1" (empieza en dígito), etc.
  */
 function isValidOrderKey(key: string): boolean {
   try {
-    // Valida `key` como extremo izquierdo; (null, key) puede fallar en el mínimo teórico.
     generateKeyBetween(key, null);
     return true;
   } catch {
@@ -38,10 +37,10 @@ export function compareOrderKey(
  * Calcula una clave entre dos índices fraccionarios existentes.
  * Pasa null si no hay anterior o siguiente.
  */
-export const calculateNewOrder = (
+export function calculateNewOrder(
   prevOrder: string | null | undefined,
   nextOrder: string | null | undefined,
-): string => {
+): string {
   let a = normalizeOrderKey(prevOrder);
   let b = normalizeOrderKey(nextOrder);
 
@@ -64,4 +63,4 @@ export const calculateNewOrder = (
   } catch {
     return generateKeyBetween(null, null);
   }
-};
+}

@@ -31,18 +31,27 @@ export class BoardsService {
     private readonly usersService: UsersService,
   ) {}
 
-  /** Convierte rol de tablero a prioridad numérica para comparaciones. */
+  /**
+   * Número más alto = más permisos en el tablero (sirve para comparar roles).
+   */
   private boardRoleRank(r: BoardRole): number {
-    const order: Record<BoardRole, number> = {
-      [BoardRole.VIEWER]: 1,
-      [BoardRole.EDITOR]: 2,
-      [BoardRole.ADMIN]: 3,
-      [BoardRole.OWNER]: 4,
-    };
-    return order[r];
+    switch (r) {
+      case BoardRole.VIEWER:
+        return 1;
+      case BoardRole.EDITOR:
+        return 2;
+      case BoardRole.ADMIN:
+        return 3;
+      case BoardRole.OWNER:
+        return 4;
+      default:
+        return 0;
+    }
   }
 
-  /** Comprueba rápido si existe tablero por id válido. */
+  /**
+   * Comprueba si existe un tablero con ese id (sin cargar todo el documento).
+   */
   async boardExists(boardId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(boardId)) return false;
     const n = await this.boardModel
@@ -51,7 +60,9 @@ export class BoardsService {
     return n > 0;
   }
 
-  /** Busca id de tablero a partir del slug público. */
+  /**
+   * El “slug” es la parte bonita de la URL; aquí obtenemos el id real del tablero.
+   */
   async getBoardIdBySlug(slug: string): Promise<string | null> {
     const b = await this.boardModel
       .findOne({ slug })
@@ -62,7 +73,7 @@ export class BoardsService {
   }
 
   /**
-   * Rol efectivo del usuario en el tablero (owner cuenta como OWNER aunque también esté en members).
+   * Dice qué rol tiene una persona: si es la dueña del tablero, o un miembro invitado, o nada.
    */
   async getEffectiveBoardRole(
     boardId: string,
@@ -77,12 +88,16 @@ export class BoardsService {
     if (!board) return null;
     const ownerId = board.owner.toString();
     if (ownerId === userId) return BoardRole.OWNER;
-    const m = board.members.find((x) => x.user.toString() === userId);
-    return m?.role ?? null;
+    for (const member of board.members) {
+      if (member.user.toString() === userId) {
+        return member.role;
+      }
+    }
+    return null;
   }
 
   /**
-   * Requiere al menos el rol indicado (owner > admin > editor > viewer).
+   * Lanza error si el usuario no llega al rol mínimo pedido (por ejemplo solo lectura).
    */
   async assertMinBoardRole(
     boardId: string,
@@ -100,7 +115,7 @@ export class BoardsService {
   }
 
   /**
-   * Filtro base de acceso: owner o miembro, salvo admin global.
+   * Condiciones de Mongo para “este usuario puede ver este tablero”.
    */
   private boardAccessFilter(
     boardId: string,
@@ -117,8 +132,7 @@ export class BoardsService {
   }
 
   /**
-   * Comprueba que el usuario pertenezca al tablero (o sea admin global).
-   * Mismo mensaje que findOneBySlug para no filtrar si el tablero existe.
+   * Comprueba que el tablero exista y que el usuario sea dueño o esté invitado.
    */
   async assertUserHasBoardAccess(
     boardId: string,
@@ -133,7 +147,7 @@ export class BoardsService {
   }
 
   /**
-   * Comprueba que la columna pertenezca al tablero y el usuario tenga acceso al tablero.
+   * Evita que alguien cree tareas en columnas de otro tablero.
    */
   async assertColumnBelongsToBoard(
     boardId: string,
@@ -154,7 +168,7 @@ export class BoardsService {
   }
 
   /**
-   * Crea un nuevo tablero.
+   * Crea tablero nuevo: el usuario queda como dueño y miembro.
    */
   async create(
     createBoardDto: CreateBoardDto,
@@ -187,7 +201,7 @@ export class BoardsService {
   }
 
   /**
-   * Obtiene todos los tableros del usuario.
+   * Tableros donde participo (creados por mí o donde me invitaron).
    */
   async findAll(userId: string): Promise<BoardDocument[]> {
     const userObjectId = new Types.ObjectId(userId);
@@ -200,7 +214,33 @@ export class BoardsService {
   }
 
   /**
-   * Obtiene un tablero por su slug y mapea sus tareas dentro de las columnas.
+   * Pasa ids de Mongo a texto para que el front reciba JSON sencillo.
+   */
+  private mapTaskForBoardClient(task: Record<string, unknown>) {
+    const t = task as {
+      _id: Types.ObjectId;
+      boardId: Types.ObjectId;
+      columnId: Types.ObjectId;
+      assigneeIds?: Types.ObjectId[];
+      storyPointVotes?: { userId: Types.ObjectId; value: number }[];
+      [key: string]: unknown;
+    };
+    const votes = t.storyPointVotes ?? [];
+    return {
+      ...task,
+      _id: t._id.toString(),
+      boardId: t.boardId.toString(),
+      columnId: t.columnId.toString(),
+      assigneeIds: (t.assigneeIds ?? []).map((id) => id.toString()),
+      storyPointVotes: votes.map((v) => ({
+        userId: v.userId?.toString?.() ?? '',
+        value: v.value,
+      })),
+    };
+  }
+
+  /**
+   * Carga un tablero por su URL amigable y mete las tareas dentro de cada columna.
    */
   async findOneBySlug(slug: string, userId: string) {
     const userObjectId = new Types.ObjectId(userId);
@@ -229,16 +269,20 @@ export class BoardsService {
         const col = column as ColumnWithId;
         return {
           ...column,
-          tasks: tasks.filter(
-            (task) => task.columnId.toString() === col._id.toString(),
-          ),
+          tasks: tasks
+            .filter(
+              (task) => task.columnId.toString() === col._id.toString(),
+            )
+            .map((task) =>
+              this.mapTaskForBoardClient(task as unknown as Record<string, unknown>),
+            ),
         };
       }),
     };
   }
 
   /**
-   * Actualiza título/descripción (owner o admin del tablero; admin de la app).
+   * Cambia título u otros datos básicos del tablero (según permisos).
    */
   async update(
     id: string,
@@ -260,7 +304,7 @@ export class BoardsService {
   }
 
   /**
-   * Borra el tablero y todas sus tareas (solo owner; admin de la app).
+   * Borra tablero y todas sus tareas (solo quien tenga permiso fuerte).
    */
   async remove(id: string, userId: string, isAdmin = false): Promise<void> {
     await this.assertMinBoardRole(id, userId, BoardRole.OWNER, isAdmin);
@@ -277,7 +321,7 @@ export class BoardsService {
   // --- GESTIÓN DE COLUMNAS ---
 
   /**
-   * Añade una nueva columna al final.
+   * Añade una columna nueva al final del tablero.
    */
   async addColumn(
     boardId: string,
@@ -315,7 +359,7 @@ export class BoardsService {
   }
 
   /**
-   * Actualiza el título de una columna.
+   * Cambia solo el título de una columna.
    */
   async updateColumn(
     boardId: string,
@@ -350,7 +394,7 @@ export class BoardsService {
   }
 
   /**
-   * Actualiza la posición (Fractional Index) de una columna.
+   * Guarda la posición al arrastrar columnas (el front manda un “order” nuevo).
    */
   async updateColumnPosition(
     boardId: string,
@@ -385,7 +429,7 @@ export class BoardsService {
   }
 
   /**
-   * Borrado en cascada: Elimina la columna y todas sus tareas.
+   * Quita la columna y borra en cascada las tareas que había dentro.
    */
   async removeColumn(
     boardId: string,
@@ -419,9 +463,7 @@ export class BoardsService {
   }
 
   /**
-   * Invita o actualiza el rol de un miembro.
-   * Solo: propietario del tablero, miembro con rol `admin` en el tablero, o admin de la aplicación.
-   * No: `editor` ni `viewer` (assertMinBoardRole(ADMIN) + CASL BoardMembers).
+   * Invita a alguien o le cambia el rol si ya estaba dentro.
    */
   async inviteMember(
     boardId: string,
@@ -476,7 +518,7 @@ export class BoardsService {
   }
 
   /**
-   * Lista miembros con username/email (cualquier miembro del tablero puede leer).
+   * Lista de personas del tablero con nombre y foto para mostrar en la UI.
    */
   async listMembers(
     boardId: string,
@@ -556,24 +598,25 @@ export class BoardsService {
       rawRows.push({ userId: uid, username, email, avatarUrl, role: m.role });
     }
 
-    const byId = new Map<
-      string,
-      {
-        userId: string;
-        username: string;
-        email: string;
-        avatarUrl?: string;
-        role: BoardRole;
-      }
-    >();
+    type MemberRow = {
+      userId: string;
+      username: string;
+      email: string;
+      avatarUrl?: string;
+      role: BoardRole;
+    };
+    const byId: Record<string, MemberRow> = {};
     for (const r of rawRows) {
-      const prev = byId.get(r.userId);
-      if (!prev || this.boardRoleRank(r.role) > this.boardRoleRank(prev.role)) {
-        byId.set(r.userId, r);
+      const prev = byId[r.userId];
+      if (
+        !prev ||
+        this.boardRoleRank(r.role) > this.boardRoleRank(prev.role)
+      ) {
+        byId[r.userId] = r;
       }
     }
 
-    const members = [...byId.values()].sort((a, b) => {
+    const members = Object.values(byId).sort((a, b) => {
       if (a.userId === ownerId) return -1;
       if (b.userId === ownerId) return 1;
       return a.username.localeCompare(b.username, 'es', {
@@ -585,7 +628,7 @@ export class BoardsService {
   }
 
   /**
-   * Expulsa a un miembro (no al propietario). Requiere admin del tablero o admin de la app.
+   * Saca a un miembro del tablero (no se puede echar al dueño).
    */
   async removeMember(
     boardId: string,

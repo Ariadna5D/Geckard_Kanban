@@ -25,6 +25,10 @@ export function BoardShareDialog({
   slug,
   boardId,
 }: Props) {
+  function handleClose() {
+    onOpenChange(false);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" showCloseButton>
@@ -42,8 +46,8 @@ export function BoardShareDialog({
           slug={slug}
           boardId={boardId}
           enabled={open}
-          onSuccess={() => onOpenChange(false)}
-          onCancel={() => onOpenChange(false)}
+          onSuccess={handleClose}
+          onCancel={handleClose}
         />
       </DialogContent>
     </Dialog>
