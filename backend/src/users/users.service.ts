@@ -23,7 +23,9 @@ export class UsersService {
    */
   async create(registerDto: RegisterDto): Promise<User> {
     // Extraemos los campos del DTO
-    const { email, username, password } = registerDto;
+    const { username, password } = registerDto;
+    // Aseguramos consistencia: el correo siempre se guarda en minúsculas.
+    const email = registerDto.email.toLowerCase().trim();
 
     // Validamos que el email y el username sean únicos
     const existingEmail = await this.userModel.findOne({ email });
@@ -54,7 +56,8 @@ export class UsersService {
    * @returns El usuario encontrado o null si no existe.
    */
   async findByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ email }).exec();
+    // Aseguramos que las búsquedas coincidan aunque el usuario escriba mayúsculas.
+    return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
   }
 
   /**
