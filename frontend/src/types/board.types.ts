@@ -1,4 +1,5 @@
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+/** Colores permitidos para etiquetas de tarea (estilo Trello simplificado). */
 export type TaskLabelColor =
   | 'green'
   | 'yellow'
@@ -10,7 +11,9 @@ export type TaskLabelColor =
   | 'gray';
 
 export interface TaskLabel {
+  /** Texto corto de etiqueta (ej. "bug", "backend"). */
   name: string;
+  /** Color de la etiqueta para render visual rápido. */
   color: TaskLabelColor;
 }
 

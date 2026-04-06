@@ -12,21 +12,21 @@ export class AuthService {
   ) {}
 
   /**
-   * Valida las credenciales del usuario.
-   * @param email
-   * @param pass
-   * @returns El usuario validado sin el passwordHash, o null si las credenciales son inválidas.
+   * Valida credenciales contra base de datos.
+   * @param email correo del login
+   * @param pass contraseña en claro recibida en login
+   * @returns usuario sin passwordHash o null si no coincide
    */
   async validateUser(
     email: string,
     pass: string,
   ): Promise<ValidatedUser | null> {
-    //Buscamos el usuario por su email
+    // Búsqueda por email (normalizado dentro de UsersService).
     const user = await this.usersService.findByEmail(email);
 
     if (
       user &&
-      (await this.usersService.comparePassword(pass, user.passwordHash)) // Si la contraseña es correcta, devolvemos el usuario sin el passwordHash
+      (await this.usersService.comparePassword(pass, user.passwordHash))
     ) {
       const userDoc = user as UserDocument;
       const userObject = userDoc.toObject() as ValidatedUser & {
@@ -42,9 +42,9 @@ export class AuthService {
   }
 
   /**
-   * Genera un JWT para el usuario validado.
-   * @param user El usuario validado del cual se extraerá la información para el payload del token.
-   * @returns Un objeto con el access_token.
+   * Genera JWT de acceso para frontend.
+   * @param user usuario ya validado
+   * @returns objeto con `access_token`
    */
   login(user: ValidatedUser) {
     const payload = {

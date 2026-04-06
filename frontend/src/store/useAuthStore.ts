@@ -9,7 +9,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   
-  // --- Getters/Hydration ---
+  // --- Hidratación de persist ---
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
 
@@ -18,6 +18,7 @@ interface AuthState {
   logout: () => void;
   updateUser: (updatedData: Partial<User>) => void;
   
+  /** Revalida usuario actual con /users/me usando el token persistido. */
   fetchUser: () => Promise<void>;
 }
 
@@ -30,18 +31,22 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       _hasHydrated: false,
 
+      /** Marca que el store persistido ya se restauró en cliente. */
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
+      /** Guarda usuario+token tras login correcto. */
       login: (user, token) => set({ 
         user, 
         token, 
         isAuthenticated: true 
       }),
 
+      /** Limpia sesión local (logout). */
       logout: () => {
         set({ user: null, token: null, isAuthenticated: false });
       },
 
+      /** Actualiza parcialmente datos del perfil sin perder los existentes. */
       updateUser: (updatedData) => set((state) => ({
         user: state.user ? { ...state.user, ...updatedData } : null
       })),
@@ -54,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true 
           });
         } catch (error) {
+          // Token inválido/caducado o backend no accesible.
           set({ user: null, token: null, isAuthenticated: false });
         }
       },

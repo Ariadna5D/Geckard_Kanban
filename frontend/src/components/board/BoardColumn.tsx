@@ -39,6 +39,7 @@ export const BoardColumn = ({
 }: BoardColumnProps) => {
   const { addTask, editColumn, deleteColumn } = useActiveBoardStore();
   
+  // Estado local para edición inline del título y confirmación de borrado.
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(column.title);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
@@ -68,6 +69,9 @@ export const BoardColumn = ({
     if (isEditingTitle && inputRef.current) inputRef.current.focus();
   }, [isEditingTitle]);
 
+  /**
+   * Guarda el nuevo título de columna si cambió y no está vacío.
+   */
   const handleUpdateTitle = async () => {
     if (!titleValue.trim() || titleValue === column.title) {
       setIsEditingTitle(false);
@@ -77,6 +81,10 @@ export const BoardColumn = ({
     setIsEditingTitle(false);
   };
 
+  /**
+   * Crea tarea al final de la columna usando order calculado.
+   * @param title título de la nueva tarea
+   */
   const handleCreateTask = async (title: string) => {
     const tasks = column.tasks || [];
     const lastTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
@@ -86,10 +94,10 @@ export const BoardColumn = ({
 
   return (
     <>
-      <div 
+      <div
         ref={setNodeRef} 
         style={style}
-        // Feedback visual al arrastrar la columna entera
+        // Feedback visual de "columna en arrastre".
         className={`kanban-column-width flex max-h-full flex-col rounded-xl border shadow-sm transition-colors ${
           isDragging
             ? 'border-dashed border-surface-400 bg-surface-200/60 opacity-60 dark:border-surface-600 dark:bg-surface-800/40'

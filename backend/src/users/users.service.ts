@@ -17,30 +17,28 @@ export class UsersService {
 
   /**
    * Crea un nuevo usuario a partir del RegisterDto.
-   * @param registerDto
-   * @returns El usuario creado.
-   * @throws ConflictException si el email o el username ya están en uso.
+   * @param registerDto datos de registro
+   * @returns usuario creado
+   * @throws ConflictException email o username duplicados
    */
   async create(registerDto: RegisterDto): Promise<User> {
-    // Extraemos los campos del DTO
     const { username, password } = registerDto;
-    // Aseguramos consistencia: el correo siempre se guarda en minúsculas.
+    // Consistencia: email siempre en minúsculas y sin espacios extremos.
     const email = registerDto.email.toLowerCase().trim();
 
-    // Validamos que el email y el username sean únicos
+    // Validación de email único.
     const existingEmail = await this.userModel.findOne({ email });
     if (existingEmail)
       throw new ConflictException('El email ya está registrado');
 
-    // Validamos que el username sea único
+    // Validación de username único.
     const existingUser = await this.userModel.findOne({ username });
     if (existingUser)
       throw new ConflictException('El nombre de usuario ya está en uso');
 
-    // Hasheamos la contraseña antes de guardarla
+    // Nunca guardamos contraseña en texto plano.
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Creamos el nuevo usuario con el password hasheado
     const newUser = new this.userModel({
       email,
       username,
@@ -52,8 +50,8 @@ export class UsersService {
 
   /**
    * Busca un usuario por su email.
-   * @param email
-   * @returns El usuario encontrado o null si no existe.
+   * @param email correo recibido por login/otras rutas
+   * @returns usuario o null
    */
   async findByEmail(email: string): Promise<User | null> {
     // Aseguramos que las búsquedas coincidan aunque el usuario escriba mayúsculas.
@@ -62,15 +60,15 @@ export class UsersService {
 
   /**
    * Busca un usuario por su ID.
-   * @param id
-   * @returns El usuario encontrado o null si no existe.
+   * @param id ObjectId de usuario
+   * @returns usuario o null
    */
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id).exec();
   }
 
   /**
-   * Obtiene todos los usuarios de la plataforma
+   * Obtiene todos los usuarios (sin passwordHash).
    */
   async findAll() {
     return this.userModel.find().select('-passwordHash').exec();
@@ -112,36 +110,28 @@ export class UsersService {
   }
 
   /**
-   * Compara una contraseña sin hash con su versión hasheada.
-   * @param password
-   * @param hash
-   * @returns true si la contraseña coincide con el hash, false en caso contrario.
+   * Compara password en claro contra hash guardado.
    */
   async comparePassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
   /**
-   * Actualiza la información de un usuario. Solo se pueden actualizar email, username y bio.
-   * @param userId ID del usuario a actualizar
-   * @param updateDto DTO con los campos a actualizar (email, username, bio)
-   * @returns El usuario actualizado, o null si no se encontró el usuario.
-   * @throws BadRequestException si el usuario no existe.
-   * @throws ConflictException si el nuevo email o username ya están en uso por otro usuario.
+   * Actualiza perfil de usuario validando unicidad en email/username.
    */
   async update(userId: string, updateDto: UpdateUserDto) {
     const user = await this.userModel.findById(userId);
 
     if (!user) throw new BadRequestException('Usuario no encontrado');
 
-    // Validar email único solo si lo está cambiando
+    // Si cambia email, validamos duplicados.
     if (updateDto.email && updateDto.email !== user.email) {
       const isTaken = await this.userModel.findOne({ email: updateDto.email });
       if (isTaken)
         throw new ConflictException('Este email ya lo usa otra persona');
     }
 
-    // Validar username único solo si lo está cambiando
+    // Si cambia username, validamos duplicados.
     if (updateDto.username && updateDto.username !== user.username) {
       const isTaken = await this.userModel.findOne({
         username: updateDto.username,
@@ -155,6 +145,7 @@ export class UsersService {
       .exec();
   }
 
+  /** Obtiene perfil público básico por id (sin hash ni __v). */
   async findOne(id: string) {
     const doc = await this.userModel
       .findById(id)
@@ -174,9 +165,8 @@ export class UsersService {
   }
 
   /**
-   * Elimina un usuario por su ID de la base de datos.
-   * @param id ID del usuario a eliminar
-   * @returns El usuario eliminado (para poder leer su avatar y borrarlo luego)
+   * Elimina usuario por id.
+   * @returns documento eliminado (útil para limpiar avatar en capa controller)
    */
   async remove(id: string) {
     const deletedUser = await this.userModel.findByIdAndDelete(id).exec();

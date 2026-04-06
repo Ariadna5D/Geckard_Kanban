@@ -15,6 +15,7 @@ const ROLE_OPTIONS: { value: BoardInviteRole; label: string }[] = [
   { value: "viewer", label: "Lector" },
 ];
 
+/** Normaliza mensajes de error de API para mostrarlos en UI. */
 function apiErrorMessage(err: unknown): string {
   if (isAxiosError(err)) {
     const data = err.response?.data as { message?: string | string[] };
@@ -59,6 +60,7 @@ export function BoardInviteBlock({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Al cerrar el diálogo/panel, reseteamos el formulario completo.
   useEffect(() => {
     if (!enabled) {
       setQuery("");
@@ -80,6 +82,7 @@ export function BoardInviteBlock({
     }
 
     setSearching(true);
+    // Debounce de búsqueda para evitar saturar la API por cada tecla.
     const t = window.setTimeout(() => {
       void searchUsersForInviteRequest(q)
         .then(setResults)
@@ -90,6 +93,7 @@ export function BoardInviteBlock({
     return () => window.clearTimeout(t);
   }, [query, enabled]);
 
+  /** Envía invitación con el rol seleccionado al usuario marcado. */
   const handleInvite = async () => {
     if (!selectedId) return;
     setSubmitting(true);

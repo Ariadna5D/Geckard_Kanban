@@ -40,6 +40,7 @@ import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface'
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
+  /** Crea una tarea dentro de un tablero/columna. */
   @Post()
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.BodyBoardId)
@@ -57,6 +58,7 @@ export class TasksController {
     );
   }
 
+  /** Lista tareas de un tablero si el usuario tiene acceso. */
   @Get('board/:boardId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamBoardId)
@@ -74,6 +76,7 @@ export class TasksController {
     );
   }
 
+  /** Actualiza campos básicos de la tarea (no posición). */
   @Patch(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
@@ -93,6 +96,7 @@ export class TasksController {
     );
   }
 
+  /** Reubica tarea por drag & drop (columna y order). */
   @Patch(':id/position')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
@@ -113,6 +117,7 @@ export class TasksController {
     );
   }
 
+  /** Elimina una tarea por id. */
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)

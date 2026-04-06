@@ -23,7 +23,9 @@ import {
 import { compareOrderKey } from '../utils/boardMath';
 
 interface ActiveBoardState {
+  /** Tablero activo con columnas y tareas ya ordenadas para UI. */
   board: Board | null;
+  /** Carga principal de la vista de tablero. */
   isLoading: boolean;
   error: string | null;
 
@@ -46,13 +48,13 @@ interface ActiveBoardState {
     apiPayload: UpdateTaskPositionPayload
   ) => Promise<void>;
   
-  // CRUD Columnas
+  // --- CRUD de columnas ---
   addColumn: (boardId: string, title: string, order: string) => Promise<void>;
   editColumn: (boardId: string, columnId: string, title: string) => Promise<void>;
   deleteColumn: (boardId: string, columnId: string) => Promise<void>;
   moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
   
-  // CRUD Tareas
+  // --- CRUD de tareas ---
   addTask: (boardId: string, columnId: string, title: string, order: string) => Promise<void>;
   deleteTask: (taskId: string, columnId: string) => Promise<void>;
   updateTask: (taskId: string, columnId: string, data: Partial<Task>) => Promise<void>;
@@ -64,7 +66,9 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   error: null,
 
   /**
-   * Carga el tablero y ordena tanto las columnas como las tareas por su Fractional Index.
+   * Carga el tablero por slug y ordena columnas/tareas por su order (Fractional Index).
+   * @param slug slug público del tablero
+   * @param opts silent evita spinner global para refrescos en segundo plano
    */
   fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
@@ -111,7 +115,8 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Mueve una tarea en 0ms en el frontend clonando el estado.
+   * UI optimista al mover una tarea: actualiza primero la UI y luego sincroniza API.
+   * Si falla, hace rollback al estado anterior.
    */
   moveTaskOptimistic: async (taskId, oldColumnId, newColumnId, newOrder, apiPayload) => {
     const previousBoard = get().board;
@@ -144,42 +149,37 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Reordena las columnas visualmente al instante y sincroniza con el servidor.
+   * UI optimista para mover columnas con rollback si la API falla.
    */
   moveColumnOptimistic: async (boardId, columnId, newOrder) => {
     const previousBoard = get().board;
     if (!previousBoard) return;
 
-    // 1. Clonamos el estado anterior para UI optimista
+    // Clonamos estado para aplicar el cambio al instante sin esperar al backend.
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
     const colIndex = newBoard.columns.findIndex(c => c._id === columnId);
     
     if (colIndex !== -1) {
       newBoard.columns[colIndex].order = newOrder;
-      // Reordenamos las columnas basándonos en el nuevo index
+      // Reorden visual por order.
       newBoard.columns.sort((a, b) => compareOrderKey(a.order, b.order));
     }
 
     set({ board: newBoard });
 
     try {
-      // 2. Mandamos el cambio al backend
       await updateColumnPositionRequest(boardId, columnId, newOrder);
     } catch (error) {
       console.error("Error al mover la columna, revirtiendo...", error);
-      set({ board: previousBoard }); // 3. Rollback si falla
+      set({ board: previousBoard });
     }
   },
 
-  /**
-   * Añade una nueva columna al tablero manteniendo las tareas locales intactas.
-   */
   /**
    * Añade una nueva columna al tablero al final de la lista.
    */
   addColumn: async (boardId: string, title: string, order: string) => {
     try {
-      // 1. Petición a la API incluyendo el order calculado
       const updatedBoard = await addColumnRequest(boardId, title, order);
       
       set((state) => {
@@ -193,7 +193,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           };
         });
 
-        // 2. Ordenamos para que la nueva columna aparezca a la derecha
+        // Asegura posición visual correcta tras crear.
         mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
@@ -251,7 +251,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Crea una tarea esperando la respuesta del servidor para obtener su _id.
+   * Crea una tarea y la inserta en estado local al recibir _id real del backend.
    */
   addTask: async (boardId, columnId, title, order) => {
     try {
@@ -300,7 +300,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Actualiza el contenido de una tarea (título, descripción, etc.)
+   * Actualiza campos de una tarea (título, descripción, etiquetas, etc.).
    */
   updateTask: async (taskId, columnId, data) => {
     try {

@@ -23,7 +23,8 @@ export class AuthController {
   ) {}
 
   /**
-   * Endpoint de Registro.
+   * Registro de usuario.
+   * Límite estricto para evitar abuso/bots en creación de cuentas.
    */
   @Post('register')
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
@@ -32,8 +33,8 @@ export class AuthController {
   }
 
   /**
-   * Endpoint de Login.
-   * Si las credenciales son correctas, devuelve el access_token.
+   * Inicio de sesión.
+   * Si email/contraseña son válidos, devuelve el JWT de acceso.
    */
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -44,12 +45,12 @@ export class AuthController {
       loginDto.password,
     );
 
-    // Si el servicio devuelve null, lanzamos la excepción de Unauthorized
+    // Si no valida, respondemos error genérico de credenciales.
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Si el usuario es válido, generamos y devolvemos el token
+    // Token firmado con email + id + rol.
     return this.authService.login(user);
   }
 }

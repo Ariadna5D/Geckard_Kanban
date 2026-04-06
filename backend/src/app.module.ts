@@ -12,14 +12,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
-    // Carga de variables entorno
+    // Variables de entorno globales para toda la app.
     ConfigModule.forRoot({
       isGlobal: true,
       ignoreEnvFile: true,
       envFilePath: '.env',
     }),
 
-    // Conexión a MongoDB con credenciales desde variables de entorno
+    // Conexión MongoDB con credenciales por options (más robusto con caracteres especiales).
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -35,7 +35,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
           );
         }
 
-        // Credenciales en opciones (no en el URI): evita fallos si la contraseña tiene @, :, #, etc.
+        // user/pass fuera del URI: evita errores con @, :, # y similares.
         return {
           uri: `mongodb://mongodb:27017/${encodeURIComponent(dbName)}`,
           user,
@@ -44,7 +44,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
         };
       },
     }),
-    // Rate limit global básico (se puede personalizar por ruta con @Throttle).
+    // Límite global básico; rutas críticas pueden sobrescribir con @Throttle.
     ThrottlerModule.forRoot([
       {
         ttl: 60_000,

@@ -28,6 +28,12 @@ export class BoardPolicyGuard implements CanActivate {
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
   ) {}
 
+  /**
+   * Guard de permisos por tablero:
+   * 1) resuelve boardId desde params/body/task/slug
+   * 2) obtiene rol del usuario en ese tablero
+   * 3) evalúa handlers CASL definidos en el decorador
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const handlers =
       this.reflector.getAllAndOverride<BoardPolicyHandler[]>(
@@ -88,6 +94,9 @@ export class BoardPolicyGuard implements CanActivate {
     return Array.isArray(v) ? v[0] : v;
   }
 
+  /**
+   * Convierte diferentes fuentes de id (ruta/body/task/slug) a boardId final.
+   */
   private async resolveBoardId(
     source: BoardIdSource,
     req: ValidatedRequest,

@@ -5,6 +5,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * Bootstrap principal de Nest:
+ * - seguridad HTTP (helmet)
+ * - CORS según entorno
+ * - validación global de DTOs
+ * - Swagger solo fuera de producción
+ */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
@@ -26,30 +33,31 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.use(helmet());
-  app.setGlobalPrefix('api'); // Añadimos un prefijo global "api" para todas las rutas, por ejemplo: /api/users/me
+  // Todas las rutas de backend quedan bajo /api.
+  app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Elimina propiedades no definidas en los DTOs
-      forbidNonWhitelisted: true, // Lanza un error si se envían propiedades no definidas
-      transform: true, // Transforma los payloads a los tipos definidos en los DTOs automáticamente
+      whitelist: true, // Elimina campos extra no declarados en DTO.
+      forbidNonWhitelisted: true, // Rechaza payloads con propiedades no permitidas.
+      transform: true, // Aplica tipos/transformaciones definidas por DTO.
     }),
   );
 
   // Swagger solo fuera de producción para reducir superficie de reconocimiento.
   if (nodeEnv !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('Kanban TFG API') // Título de la documentación
+      .setTitle('Kanban TFG API')
       .setDescription(
         'Documentación de la API para el tablero Kanban gamificado',
-      ) // Descripción de la API
-      .setVersion('0.1') // Versión de la API
-      .addBearerAuth() // Añade soporte para autenticación Bearer (JWT)
+      )
+      .setVersion('0.1')
+      .addBearerAuth()
       .build();
-    const document = SwaggerModule.createDocument(app, config); // Genera el documento Swagger a partir de los controladores y DTOs definidos
-    SwaggerModule.setup('api/docs', app, document); // Ruta Swagger
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
   }
 
-  // Iniciamos la aplicación en el puerto 3000 y escuchando en todas las interfaces de red (
+  // Escucha en todas las interfaces para entorno Docker/LAN.
   await app.listen(3000, '0.0.0.0');
 }
 void bootstrap();

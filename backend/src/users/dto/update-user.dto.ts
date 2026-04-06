@@ -9,6 +9,7 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateUserDto {
+  /** Nuevo username (opcional). */
   @ApiPropertyOptional({ description: 'Nuevo nombre de usuario' })
   @IsOptional()
   @IsString()
@@ -18,11 +19,13 @@ export class UpdateUserDto {
   @MaxLength(20, { message: 'El nombre no puede tener más de 20 caracteres' })
   username?: string;
 
+  /** Nuevo email (opcional). */
   @ApiPropertyOptional({ description: 'Nuevo correo electrónico' })
   @IsOptional()
   @IsEmail({}, { message: 'El formato del email no es válido' })
   email?: string;
 
+  /** Biografía corta de perfil (opcional). */
   @ApiPropertyOptional({ description: 'Biografía del usuario' })
   @IsOptional()
   @IsString()
@@ -34,6 +37,7 @@ export class UpdateUserDto {
   })
   bio?: string;
 
+  /** URL de avatar ya subida (normalmente la fija backend tras Cloudinary). */
   @ApiPropertyOptional({
     description: 'URL del avatar',
   })

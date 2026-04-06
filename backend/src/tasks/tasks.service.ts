@@ -23,6 +23,11 @@ export class TasksService {
     private readonly boardsService: BoardsService,
   ) {}
 
+  /**
+   * Limpia etiquetas recibidas desde el cliente.
+   * @param input valor crudo del DTO
+   * @returns etiquetas válidas (máx 6) o undefined si no llega array
+   */
   private normalizeLabels(input: unknown): TaskLabel[] | undefined {
     if (!Array.isArray(input)) return undefined;
     const allowedColors = new Set<TaskLabelColor>([

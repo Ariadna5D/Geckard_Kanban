@@ -31,6 +31,7 @@ export class BoardsService {
     private readonly usersService: UsersService,
   ) {}
 
+  /** Convierte rol de tablero a prioridad numérica para comparaciones. */
   private boardRoleRank(r: BoardRole): number {
     const order: Record<BoardRole, number> = {
       [BoardRole.VIEWER]: 1,
@@ -41,6 +42,7 @@ export class BoardsService {
     return order[r];
   }
 
+  /** Comprueba rápido si existe tablero por id válido. */
   async boardExists(boardId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(boardId)) return false;
     const n = await this.boardModel
@@ -49,6 +51,7 @@ export class BoardsService {
     return n > 0;
   }
 
+  /** Busca id de tablero a partir del slug público. */
   async getBoardIdBySlug(slug: string): Promise<string | null> {
     const b = await this.boardModel
       .findOne({ slug })
@@ -97,7 +100,7 @@ export class BoardsService {
   }
 
   /**
-   * Filtro Mongo: tablero por id y usuario miembro (owner o members[]) o admin de la app.
+   * Filtro base de acceso: owner o miembro, salvo admin global.
    */
   private boardAccessFilter(
     boardId: string,

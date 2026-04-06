@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task, TaskLabel, TaskLabelColor } from '../../types/board.types';
-import { Trash2, AlignLeft, Check, X, Plus } from 'lucide-react';
+import { Trash2, AlignLeft, Check, X, Plus, CalendarDays, Flag } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -25,7 +25,32 @@ interface TaskCardProps {
 
 export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) => {
   const { board, deleteTask, updateTask } = useActiveBoardStore();
+  const PRIORITY_LABEL: Record<Task['priority'], string> = {
+    low: 'Baja',
+    medium: 'Media',
+    high: 'Alta',
+    urgent: 'Urgente',
+  };
+  const PRIORITY_CLASSES: Record<Task['priority'], string> = {
+    low: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
+    medium:
+      'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300',
+    high: 'border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300',
+    urgent: 'border-red-300 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300',
+  };
+  const formatDueDate = (raw?: string) => {
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  };
+  const dueDateShort = formatDueDate(task.dueDate);
 
+  /**
+   * Normaliza etiquetas para que el componente soporte:
+   * - formato antiguo: string[]
+   * - formato actual: { name, color }[]
+   */
   const normalizeTaskLabels = (input: unknown): TaskLabel[] => {
     if (!Array.isArray(input)) return [];
     const allowed = new Set<TaskLabelColor>(TASK_LABEL_COLORS);
@@ -58,10 +83,16 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     return out;
   };
   
-  // AQUÍ ESTÁN LOS ESTADOS QUE FALTABAN
+  // Estado local del panel lateral
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDescription, setEditDescription] = useState(task.description || '');
+  const [editPriority, setEditPriority] = useState<Task['priority']>(
+    task.priority || 'medium',
+  );
+  const [editDueDate, setEditDueDate] = useState(
+    task.dueDate ? task.dueDate.slice(0, 10) : '',
+  );
   const [editLabels, setEditLabels] = useState<TaskLabel[]>(
     normalizeTaskLabels(task.labels),
   );
@@ -100,24 +131,32 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     transform: CSS.Transform.toString(transform),
   };
 
+  /**
+   * Guarda cambios principales de la tarea.
+   */
   const handleSaveChanges = async () => {
     await updateTask(task._id, task.columnId, {
       title: editTitle,
       description: editDescription,
+      priority: editPriority,
+      dueDate: editDueDate ? new Date(editDueDate).toISOString() : undefined,
       labels: editLabels.slice(0, 6),
     });
     setIsPanelOpen(false);
   };
 
+  /**
+   * Añade o reutiliza una etiqueta.
+   * Si estamos editando, reemplaza la etiqueta seleccionada.
+   * @param candidate Etiqueta candidata (nombre + color)
+   */
   const addOrReuseLabel = (candidate: TaskLabel) => {
     const cleanName = candidate.name.trim().slice(0, 24);
     if (!cleanName) return;
     const key = cleanName.toLowerCase();
     setEditLabels((prev) => {
       if (editingLabelIndex !== null) {
-        // Editar una etiqueta existente (permite renombrar y recolorear)
         const next = [...prev];
-        // Evitar duplicados con otras etiquetas
         const duplicated = next.some(
           (l, idx) => idx !== editingLabelIndex && l.name.trim().toLowerCase() === key,
         );
@@ -146,6 +185,9 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     setEditingLabelIndex(null);
   };
 
+  /**
+   * Carga una etiqueta en el formulario para editar nombre/color.
+   */
   const beginEditLabel = (label: TaskLabel, idx: number) => {
     setNewLabelName(label.name);
     setNewLabelColor(label.color);
@@ -158,7 +200,7 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     setNewLabelColor('blue');
   };
 
-  // --- 1. EL CLON FLOTANTE (Lo que llevas en el ratón) ---
+  // Render del clon flotante durante drag & drop
   if (isOverlay) {
     return (
       <div className="relative z-50 scale-105 cursor-grabbing rotate-2 rounded-lg border border-primary-500/35 bg-surface-50 p-3 text-sm shadow-2xl ring-2 ring-primary-500/25 dark:border-primary-400/40 dark:bg-surface-800 dark:ring-primary-400/20">
@@ -176,6 +218,20 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
             ))}
           </div>
         )}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${PRIORITY_CLASSES[task.priority || 'medium']}`}
+          >
+            <Flag size={12} />
+            {PRIORITY_LABEL[task.priority || 'medium']}
+          </span>
+          {dueDateShort && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-surface-300 bg-surface-100 px-2 py-0.5 text-[11px] font-medium text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300">
+              <CalendarDays size={12} />
+              {dueDateShort}
+            </span>
+          )}
+        </div>
         {task.description && (
           <div className="mt-2 flex items-center text-surface-500 dark:text-surface-400">
             <AlignLeft size={14} />
@@ -185,7 +241,7 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     );
   }
 
-  // --- 2. EL HUECO (Lo que se queda en la lista original) ---
+  // Render del hueco mientras arrastras la tarjeta original
   if (isDragging) {
     return (
       <div
@@ -196,7 +252,7 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
     );
   }
 
-  // --- 3. LA TARJETA NORMAL Y EL PANEL LATERAL ---
+  // Render normal de tarjeta + panel de detalle
   return (
     <>
       <div
@@ -223,6 +279,20 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
             ))}
           </div>
         )}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${PRIORITY_CLASSES[task.priority || 'medium']}`}
+          >
+            <Flag size={12} />
+            {PRIORITY_LABEL[task.priority || 'medium']}
+          </span>
+          {dueDateShort && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-surface-300 bg-surface-100 px-2 py-0.5 text-[11px] font-medium text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300">
+              <CalendarDays size={12} />
+              {dueDateShort}
+            </span>
+          )}
+        </div>
         {task.description && (
           <div className="mt-2 flex items-center text-surface-500 dark:text-surface-400">
             <AlignLeft size={14} />
@@ -242,7 +312,7 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
         )}
       </div>
 
-      {/* EL PANEL LATERAL (SHEET) */}
+      {/* Panel lateral de detalle/edición */}
       <Sheet open={isPanelOpen} onOpenChange={setIsPanelOpen}>
         <SheetContent className="flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900">
           
@@ -272,6 +342,36 @@ export const TaskCard = ({ task, isOverlay, readOnly = false }: TaskCardProps) =
                 readOnly={readOnly}
                 className="min-h-50 flex-1 resize-none bg-surface-50 shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+                  Prioridad
+                </label>
+                <select
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value as Task['priority'])}
+                  disabled={readOnly}
+                  className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                  <option value="urgent">Urgente</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+                  Fecha límite
+                </label>
+                <Input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  readOnly={readOnly}
+                  className="h-10 bg-surface-50 text-sm shadow-sm focus-visible:ring-ring dark:bg-surface-900"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">

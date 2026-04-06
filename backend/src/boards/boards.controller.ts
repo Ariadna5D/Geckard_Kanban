@@ -45,7 +45,7 @@ export class BoardsController {
   constructor(private readonly boardsService: BoardsService) {}
 
   /**
-   * Handles the creation of a new board.
+   * Crea un tablero nuevo para el usuario autenticado.
    */
   @Post()
   @UseGuards(PoliciesGuard)
@@ -60,7 +60,7 @@ export class BoardsController {
   }
 
   /**
-   * Retrieves all boards accessible by the authenticated user.
+   * Lista tableros visibles por membresía/propiedad.
    */
   @Get()
   @CheckPolicies((ability) => ability.can(Action.Read, Board))
@@ -93,7 +93,7 @@ export class BoardsController {
   }
 
   /**
-   * Deletes a board permanently (ObjectId en la URL).
+   * Elimina tablero completo (y sus tareas) por id.
    */
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
@@ -201,7 +201,7 @@ export class BoardsController {
   }
 
   /**
-   * Updates the title of an existing column.
+   * Renombra una columna del tablero.
    */
   @Patch(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
@@ -226,7 +226,7 @@ export class BoardsController {
   }
 
   /**
-   * Deletes a column and initiates a cascade delete for all its tasks.
+   * Elimina columna + cascade delete de sus tareas.
    */
   @Delete(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)

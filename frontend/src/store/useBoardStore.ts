@@ -10,12 +10,17 @@ import {
 import { useActiveBoardStore } from './useActiveBoardStore';
 
 interface BoardState {
+  /** Lista de tableros visibles para el usuario autenticado. */
   boards: Board[];
   isLoading: boolean;
   error: string | null;
+  /** Carga inicial del dashboard. */
   fetchBoards: () => Promise<void>;
+  /** Crea tablero y lo inserta en la lista local. */
   addBoard: (data: CreateBoardPayload) => Promise<void>;
+  /** Edita título/descripcion de un tablero existente. */
   updateBoard: (id: string, data: UpdateBoardPayload) => Promise<void>;
+  /** Elimina tablero del backend y del estado local. */
   removeBoard: (id: string) => Promise<void>;
 }
 
@@ -25,11 +30,10 @@ export const useBoardStore = create<BoardState>((set) => ({
   error: null,
 
   fetchBoards: async () => {
-    // Activamos el loading y limpiamos errores antes de empezar
+    // Estado de carga global de la pantalla dashboard.
     set({ isLoading: true, error: null });
     try {
       const boards = await getBoardsRequest();
-      // Guardamos los tableros y quitamos el loading
       set({ boards, isLoading: false });
     } catch (error) {
       set({ error: 'Error al cargar los tableros. Inténtalo de nuevo.', isLoading: false });
@@ -40,9 +44,7 @@ export const useBoardStore = create<BoardState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const newBoard = await createBoardRequest(data);
-      // Magia de Zustand: Actualizamos el estado inyectando el nuevo tablero 
-      // al principio del array, manteniendo los que ya estaban (...state.boards).
-      // Así la UI se actualiza al instante sin tener que hacer otro GET al backend.
+      // Nuevo tablero arriba para feedback inmediato al usuario.
       set((state) => ({
         boards: [newBoard, ...state.boards],
         isLoading: false,
@@ -60,6 +62,7 @@ export const useBoardStore = create<BoardState>((set) => ({
       set((state) => ({
         boards: state.boards.map((b) => (b._id === id ? { ...b, ...updated } : b)),
       }));
+      // Sincroniza también el tablero activo si está abierto en /boards/:slug.
       const active = useActiveBoardStore.getState().board;
       if (active?._id === id) {
         useActiveBoardStore.setState((s) =>
@@ -87,6 +90,7 @@ export const useBoardStore = create<BoardState>((set) => ({
       set((state) => ({
         boards: state.boards.filter((b) => b._id !== id),
       }));
+      // Si borra el tablero activo, limpiamos su estado para evitar datos huérfanos.
       const active = useActiveBoardStore.getState().board;
       if (active?._id === id) {
         useActiveBoardStore.setState({ board: null, error: null });

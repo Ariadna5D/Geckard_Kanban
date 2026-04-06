@@ -109,6 +109,10 @@ export const BoardPage = () => {
     }
   };
 
+  /**
+   * Maneja el fin del drag para columnas y tareas.
+   * Se apoya en moveColumnOptimistic / moveTaskOptimistic del store.
+   */
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveTask(null);
     setActiveColumn(null);
@@ -124,7 +128,7 @@ export const BoardPage = () => {
     const activeType = active.data.current?.type;
     const overData = over.data.current as any;
 
-    // --- LÓGICA DE COLUMNAS (HORIZONTAL) ---
+    // --- Reorden de columnas ---
     if (activeType === 'Column') {
       const oldIndex = board.columns.findIndex((c) => c._id === activeId);
       const newIndex = board.columns.findIndex((c) => c._id === overId);
@@ -138,7 +142,7 @@ export const BoardPage = () => {
       const prevCol = newIndex > 0 ? tempColumns[newIndex - 1] : null;
       const nextCol = newIndex < tempColumns.length - 1 ? tempColumns[newIndex + 1] : null;
       
-      // Seguridad: Si los órdenes son iguales, forzamos un valor nulo para recalcular
+      // Evita colisión de índices cuando dos columnas comparten order.
       const prevOrder = prevCol?.order;
       const nextOrder = (nextCol?.order === prevOrder) ? null : nextCol?.order;
       
@@ -147,7 +151,7 @@ export const BoardPage = () => {
       return;
     }
 
-    // --- LÓGICA DE TAREAS (VERTICAL) ---
+    // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
       const sourceColumnId = active.data.current?.task?.columnId;
       const destColumnId = overData?.type === 'Column' ? overData.column._id : overData.task.columnId;
@@ -160,18 +164,18 @@ export const BoardPage = () => {
 
       let newOrder = '';
 
-      // Calculamos la posición real dentro del array de destino
+      // Índices de referencia en la columna destino.
       const oldIndexInDest = destTasks.findIndex(t => t._id === activeId);
       const overIndex = destTasks.findIndex(t => t._id === overId);
 
-      // Usamos la posición del puntero para saber si insertar arriba o abajo
+      // Si el puntero cae en la mitad inferior, inserta debajo.
       const isBelow = over && active.rect.current.translated && 
                       active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
 
       let tempTasks = [...destTasks];
       if (oldIndexInDest !== -1) tempTasks.splice(oldIndexInDest, 1);
 
-      // Encontrar el nuevo índice de inserción
+      // Cálculo final del punto de inserción.
       let insertIndex = overIndex === -1 ? tempTasks.length : overIndex;
       if (isBelow && overIndex !== -1) insertIndex++;
 
@@ -180,7 +184,7 @@ export const BoardPage = () => {
       const prev = insertIndex > 0 ? tempTasks[insertIndex - 1] : null;
       const next = insertIndex < tempTasks.length - 1 ? tempTasks[insertIndex + 1] : null;
 
-      // Seguridad anti "a0 >= a0"
+      // Evita order duplicado consecutivo.
       const prevOrder = prev?.order;
       const nextOrder = (next?.order === prevOrder) ? null : next?.order;
 

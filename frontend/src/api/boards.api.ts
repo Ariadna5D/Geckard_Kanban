@@ -8,16 +8,19 @@ import {
 } from '../types/board.types';
 import api from './axios.instance';
 
+/** Lista tableros accesibles para el usuario autenticado. */
 export const getBoardsRequest = async (): Promise<Board[]> => {
   const response = await api.get<Board[]>('/boards');
   return response.data;
 };
 
+/** Crea tablero nuevo (título + descripción opcional). */
 export const createBoardRequest = async (data: CreateBoardPayload): Promise<Board> => {
   const response = await api.post<Board>('/boards', data);
   return response.data;
 };
 
+/** Edita datos básicos del tablero. */
 export const updateBoardRequest = async (
   id: string,
   data: UpdateBoardPayload,
@@ -26,10 +29,12 @@ export const updateBoardRequest = async (
   return response.data;
 };
 
+/** Borra un tablero por id de documento. */
 export const deleteBoardRequest = async (id: string): Promise<void> => {
   await api.delete(`/boards/${id}`);
 };
 
+/** Carga tablero completo por slug (incluye columnas y tareas). */
 export const getBoardBySlugRequest = async (slug: string): Promise<Board> => {
   const response = await api.get<Board>(
     `/boards/by-slug/${encodeURIComponent(slug)}`,
@@ -37,6 +42,7 @@ export const getBoardBySlugRequest = async (slug: string): Promise<Board> => {
   return response.data;
 };
 
+/** Añade columna al tablero con order pre-calculado en frontend. */
 export const addColumnRequest = async (
   boardId: string, 
   title: string, 
@@ -81,6 +87,7 @@ export const updateColumnPositionRequest = async (
   return response.data;
 };
 
+/** Invita usuario al tablero o actualiza su rol. */
 export const inviteBoardMemberRequest = async (
   boardId: string,
   payload: InviteBoardMemberPayload,
@@ -89,6 +96,7 @@ export const inviteBoardMemberRequest = async (
   return response.data;
 };
 
+/** Lista owner y miembros para vista de participantes. */
 export const getBoardMembersRequest = async (
   boardId: string,
 ): Promise<{ ownerId: string; members: BoardMemberSummary[] }> => {
@@ -98,6 +106,7 @@ export const getBoardMembersRequest = async (
   return response.data;
 };
 
+/** Expulsa miembro del tablero. */
 export const removeBoardMemberRequest = async (
   boardId: string,
   memberUserId: string,

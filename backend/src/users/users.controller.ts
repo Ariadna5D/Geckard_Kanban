@@ -30,7 +30,7 @@ import { PoliciesGuard } from 'src/casl/policies.guard';
 import { CheckPolicies } from 'src/casl/policies.decorator';
 import { User } from './schemas/user.schema';
 import { Action } from 'src/casl/enums/action.enum';
-// Interfaz para definir la estructura del archivo subido, asegurando que tenga un buffer para la carga a Cloudinary
+// Estructura mínima esperada del archivo de avatar.
 interface UploadedFileMetadata {
   buffer: Buffer;
 }
@@ -46,9 +46,7 @@ export class UsersController {
   ) {}
 
   /**
-   * Obtener el perfil del usuario logueado
-   * @param req - La solicitud autenticada que contiene la información del usuario
-   * @returns El perfil del usuario logueado
+   * Devuelve perfil del usuario autenticado.
    */
   @Get('me')
   @ApiOperation({ summary: 'Obtener perfil logueado' })
@@ -57,9 +55,7 @@ export class UsersController {
   }
 
   /**
-   *  Eliminar la cuenta del usuario logueado, incluyendo la eliminación de su avatar en Cloudinary si existe
-   * @param req  - La solicitud autenticada que contiene la información del usuario
-   * @returns  Un mensaje de confirmación de que la cuenta y los datos asociados han sido eliminados correctamente
+   * Elimina cuenta propia y limpia avatar remoto (Cloudinary) si existe.
    */
   @Delete('me')
   @ApiOperation({ summary: 'Eliminar cuenta del usuario logueado' })
@@ -81,16 +77,13 @@ export class UsersController {
   }
 
   /**
-   * Actualizar el perfil del usuario logueado, incluyendo la posibilidad de subir una nueva imagen de avatar
-   * @param req - La solicitud autenticada que contiene la información del usuario
-   * @param updateUserDto - Los datos para actualizar el perfil del usuario
-   * @param file - El archivo de imagen para el avatar (opcional)
-   * @returns El perfil actualizado del usuario logueado
+   * Actualiza perfil propio y, opcionalmente, reemplaza avatar.
+   * Si sube nuevo avatar, elimina el anterior para no dejar basura en Cloudinary.
    */
   @Patch('me')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB máx.
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
           cb(
@@ -158,8 +151,7 @@ export class UsersController {
   }
 
   /**
-   *  Obtener todos los usuarios registrados en el sistema (Solo accesible para administradores)
-   * @returns  Una lista de todos los usuarios registrados en el sistema, incluyendo sus detalles básicos (sin contraseñas)
+   * Listado global de usuarios (solo admin app).
    */
   @Get()
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -170,8 +162,7 @@ export class UsersController {
   }
 
   /**
-   * Actualizar cualquier usuario por su ID
-   * @param id - El ID del usuario que el admin quiere editar
+   * Edición de cualquier usuario por id (solo admin app).
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -181,13 +172,11 @@ export class UsersController {
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    // Reutilizamos tu método update del servicio, pero pasándole el ID de la URL
     return this.usersService.update(id, updateUserDto);
   }
 
   /**
-   * Eliminar cualquier usuario por su ID y limpiar su foto
-   * @param id - El ID del usuario a fulminar
+   * Borrado de cualquier usuario (solo admin app) + limpieza de avatar.
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -196,7 +185,6 @@ export class UsersController {
   async deleteUserById(@Param('id') id: string) {
     const userToDelete = await this.usersService.findById(id);
 
-    // Si el usuario tiene una foto de avatar, eliminamos esa foto de Cloudinary antes de eliminar el usuario
     if (userToDelete && userToDelete.avatarUrl) {
       const publicId = this.cloudinaryService.extractPublicId(
         userToDelete.avatarUrl,
@@ -206,7 +194,6 @@ export class UsersController {
       }
     }
 
-    // Ahora sí, eliminamos el usuario del sistema
     await this.usersService.remove(id);
     return {
       message: `Usuario con ID ${id} eliminado correctamente del sistema.`,

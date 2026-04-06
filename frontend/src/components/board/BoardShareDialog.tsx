@@ -15,6 +15,10 @@ type Props = {
   boardId: string;
 };
 
+/**
+ * Modal simple para compartir tablero.
+ * Delega búsqueda/invitación real en `BoardInviteBlock`.
+ */
 export function BoardShareDialog({
   open,
   onOpenChange,
