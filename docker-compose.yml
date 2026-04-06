@@ -13,19 +13,16 @@ services:
       - mongo_data:/data/db
     networks:
       - kanban_network
-    ports:
-      - "27017:27017"
 
   backend:
     build: ./backend
     container_name: backend_kanban
     restart: always
-    ports:
-      - "3000:3000"
     env_file:
       - .env
     environment:
       NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS}
       MONGO_USERNAME: ${MONGO_USERNAME}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_DATABASE: ${MONGO_DATABASE:-kanban_db}

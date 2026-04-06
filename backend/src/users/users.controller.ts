@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Body,
+  BadRequestException,
   UseGuards,
   Request,
   UseInterceptors,
@@ -87,7 +88,23 @@ export class UsersController {
    * @returns El perfil actualizado del usuario logueado
    */
   @Patch('me')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          cb(
+            new BadRequestException(
+              'Solo se permiten archivos de imagen para el avatar.',
+            ),
+            false,
+          );
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Actualizar perfil logueado' })
   @ApiBody({

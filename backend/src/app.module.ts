@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CaslModule } from './casl/casl.module';
 import { BoardsModule } from './boards/boards.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -43,6 +44,13 @@ import { BoardsModule } from './boards/boards.module';
         };
       },
     }),
+    // Rate limit global básico (se puede personalizar por ruta con @Throttle).
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
     TasksModule,
     AuthModule,
     UsersModule,
