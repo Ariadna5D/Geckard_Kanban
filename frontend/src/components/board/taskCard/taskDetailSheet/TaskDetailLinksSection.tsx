@@ -28,7 +28,7 @@ export function TaskDetailLinksSection({
   onRemoveLinkRow: (index: number) => void;
 }) {
   return (
-    <TaskDetailSection title="Enlaces" icon={Link2} defaultOpen>
+    <TaskDetailSection title="Enlaces" icon={Link2}>
       <div className="space-y-3">
         {!readOnly && (
           <div className="space-y-3 rounded-lg border border-dashed border-surface-300 bg-surface-50/90 p-3 dark:border-surface-600 dark:bg-surface-900/40">

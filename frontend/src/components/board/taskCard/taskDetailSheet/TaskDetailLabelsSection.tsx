@@ -38,7 +38,7 @@ export function TaskDetailLabelsSection({
   onReuseBoardLabel: (label: TaskLabel) => void;
 }) {
   return (
-    <TaskDetailSection title="Etiquetas" icon={Tag}>
+    <TaskDetailSection title="Etiquetas" icon={Tag} defaultOpen>
       <div className="space-y-2">
         <div className="flex flex-wrap gap-1.5">
           {editLabels.map((label, idx) => (

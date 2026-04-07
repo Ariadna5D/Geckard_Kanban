@@ -96,7 +96,7 @@ export function TaskDetailGeneralSection({
                 emptyLabel={
                   readOnly
                     ? 'Sin descripción.'
-                    : 'Sin texto. Pulsa o usa «Editar».'
+                    : 'Sin texto. Haz click o usa «Editar»'
                 }
               />
             </div>

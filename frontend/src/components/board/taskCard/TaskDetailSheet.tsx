@@ -1,22 +1,22 @@
-import { useEffect, useId } from 'react';
+import { useEffect, useId } from "react";
 import {
   Sheet,
   SheetContent,
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import type { TaskDetailSheetProps } from './taskDetailSheet/taskDetailSheet.types';
-import { TaskDetailUnsavedDialog } from './taskDetailSheet/TaskDetailUnsavedDialog';
-import { TaskDetailGeneralSection } from './taskDetailSheet/TaskDetailGeneralSection';
-import { TaskDetailLinksSection } from './taskDetailSheet/TaskDetailLinksSection';
-import { TaskDetailChecklistSection } from './taskDetailSheet/TaskDetailChecklistSection';
-import { TaskDetailPlanningSection } from './taskDetailSheet/TaskDetailPlanningSection';
-import { TaskDetailPersonasSection } from './taskDetailSheet/TaskDetailPersonasSection';
-import { TaskDetailLabelsSection } from './taskDetailSheet/TaskDetailLabelsSection';
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.types";
+import { TaskDetailUnsavedDialog } from "./taskDetailSheet/TaskDetailUnsavedDialog";
+import { TaskDetailGeneralSection } from "./taskDetailSheet/TaskDetailGeneralSection";
+import { TaskDetailLinksSection } from "./taskDetailSheet/TaskDetailLinksSection";
+import { TaskDetailChecklistSection } from "./taskDetailSheet/TaskDetailChecklistSection";
+import { TaskDetailPlanningSection } from "./taskDetailSheet/TaskDetailPlanningSection";
+import { TaskDetailPersonasSection } from "./taskDetailSheet/TaskDetailPersonasSection";
+import { TaskDetailLabelsSection } from "./taskDetailSheet/TaskDetailLabelsSection";
 
-export type { TaskDetailSheetProps } from './taskDetailSheet/taskDetailSheet.types';
+export type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.types";
 
 export function TaskDetailSheet(props: TaskDetailSheetProps) {
   const formBaseId = useId();
@@ -86,14 +86,14 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
   useEffect(() => {
     if (!open || readOnly) return;
     function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) return;
+      if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey)) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('[contenteditable="true"]')) return;
       event.preventDefault();
       void onSave();
     }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, readOnly, onSave]);
 
   return (
@@ -130,50 +130,6 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
               onSaveDescriptionSection={onSaveDescriptionSection}
               onCancelDescriptionEdit={onCancelDescriptionEdit}
             />
-            <TaskDetailLinksSection
-              readOnly={readOnly}
-              formBaseId={formBaseId}
-              editLinks={editLinks}
-              linkDraftUrl={linkDraftUrl}
-              linkDraftTitle={linkDraftTitle}
-              onLinkDraftUrlChange={onLinkDraftUrlChange}
-              onLinkDraftTitleChange={onLinkDraftTitleChange}
-              onSubmitLinkDraft={onSubmitLinkDraft}
-              onRemoveLinkRow={onRemoveLinkRow}
-            />
-            <TaskDetailChecklistSection
-              readOnly={readOnly}
-              open={open}
-              editChecklist={editChecklist}
-              checklistDraftText={checklistDraftText}
-              onChecklistDraftTextChange={onChecklistDraftTextChange}
-              onSubmitChecklistDraft={onSubmitChecklistDraft}
-              onRemoveChecklistRow={onRemoveChecklistRow}
-              onChecklistTextChange={onChecklistTextChange}
-              onChecklistToggle={onChecklistToggle}
-            />
-            <TaskDetailPlanningSection
-              readOnly={readOnly}
-              editPriority={editPriority}
-              onSelectPriority={onSelectPriority}
-              editDueDate={editDueDate}
-              onEditDueDateChange={onEditDueDateChange}
-              panelConsensus={panelConsensus}
-              panelVoteCount={panelVoteCount}
-              storyPointState={storyPointState}
-              votingBusy={votingBusy}
-              onStoryPointVoteSelect={onStoryPointVoteSelect}
-            />
-            <TaskDetailPersonasSection
-              readOnly={readOnly}
-              boardMembers={boardMembers}
-              editAssigneeIds={editAssigneeIds}
-              assigneeSearchQuery={assigneeSearchQuery}
-              onAssigneeSearchChange={onAssigneeSearchChange}
-              assigneePickCandidates={assigneePickCandidates}
-              onAddAssignee={onAddAssignee}
-              onRemoveAssignee={onRemoveAssignee}
-            />
             <TaskDetailLabelsSection
               readOnly={readOnly}
               editLabels={editLabels}
@@ -189,6 +145,50 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
               onAddLabel={onAddLabel}
               onCancelEditLabel={onCancelEditLabel}
               onReuseBoardLabel={onReuseBoardLabel}
+            />
+            <TaskDetailPlanningSection
+              readOnly={readOnly}
+              editPriority={editPriority}
+              onSelectPriority={onSelectPriority}
+              editDueDate={editDueDate}
+              onEditDueDateChange={onEditDueDateChange}
+              panelConsensus={panelConsensus}
+              panelVoteCount={panelVoteCount}
+              storyPointState={storyPointState}
+              votingBusy={votingBusy}
+              onStoryPointVoteSelect={onStoryPointVoteSelect}
+            />
+            <TaskDetailLinksSection
+              readOnly={readOnly}
+              formBaseId={formBaseId}
+              editLinks={editLinks}
+              linkDraftUrl={linkDraftUrl}
+              linkDraftTitle={linkDraftTitle}
+              onLinkDraftUrlChange={onLinkDraftUrlChange}
+              onLinkDraftTitleChange={onLinkDraftTitleChange}
+              onSubmitLinkDraft={onSubmitLinkDraft}
+              onRemoveLinkRow={onRemoveLinkRow}
+            />
+            <TaskDetailChecklistSection
+              open={open}
+              readOnly={readOnly}
+              editChecklist={editChecklist}
+              checklistDraftText={checklistDraftText}
+              onChecklistDraftTextChange={onChecklistDraftTextChange}
+              onSubmitChecklistDraft={onSubmitChecklistDraft}
+              onRemoveChecklistRow={onRemoveChecklistRow}
+              onChecklistTextChange={onChecklistTextChange}
+              onChecklistToggle={onChecklistToggle}
+            />
+            <TaskDetailPersonasSection
+              readOnly={readOnly}
+              boardMembers={boardMembers}
+              editAssigneeIds={editAssigneeIds}
+              assigneeSearchQuery={assigneeSearchQuery}
+              onAssigneeSearchChange={onAssigneeSearchChange}
+              assigneePickCandidates={assigneePickCandidates}
+              onAddAssignee={onAddAssignee}
+              onRemoveAssignee={onRemoveAssignee}
             />
           </div>
 

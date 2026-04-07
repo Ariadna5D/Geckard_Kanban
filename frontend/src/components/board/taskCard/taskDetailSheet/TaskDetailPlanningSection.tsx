@@ -88,14 +88,6 @@ export function TaskDetailPlanningSection({
               · {voteCountPhrase(panelVoteCount)}
             </span>
           </div>
-          <p className="text-xs text-surface-500 dark:text-surface-400">
-            {storyPointState === null && <>Cargando…</>}
-            {storyPointState != null && storyPointState.totalVotes === 0 && (
-              <>Sin votos todavía.</>
-            )}
-            {storyPointState?.myVote != null &&
-              ` Tu voto: ${storyPointState.myVote}.`}
-          </p>
           <FibonacciButtonRow
             selected={storyPointState?.myVote ?? null}
             showNone={false}

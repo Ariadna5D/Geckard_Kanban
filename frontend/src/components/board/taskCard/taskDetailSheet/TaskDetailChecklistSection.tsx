@@ -45,7 +45,7 @@ export function TaskDetailChecklistSection({
   }, [editChecklist, editingChecklistId]);
 
   return (
-    <TaskDetailSection title="Checklist" icon={ListChecks} defaultOpen>
+    <TaskDetailSection title="Checklist" icon={ListChecks}>
       <div className="space-y-3">
         {!readOnly && (
           <div className="flex gap-2">
