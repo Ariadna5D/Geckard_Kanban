@@ -205,5 +205,4 @@ export function TaskCardMetaChips({
       )}
     </>
   );
-  
 }
