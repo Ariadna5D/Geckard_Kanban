@@ -8,9 +8,60 @@ import {
   IsDateString,
   IsArray,
   MaxLength,
+  ArrayMaxSize,
+  ValidateNested,
+  IsIn,
+  IsUrl,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TaskPriority } from '../schemas/task.schema';
+import { Transform, Type } from 'class-transformer';
+
+function prependHttpUrl(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const t = value.trim();
+  if (!t) return t;
+  if (!/^https?:\/\//i.test(t)) return `https://${t}`;
+  return t;
+}
+
+class TaskLabelDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(24)
+  name: string;
+
+  @IsString()
+  @IsIn(['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'gray'])
+  color: string;
+}
+
+class TaskLinkDto {
+  @Transform(({ value }) => prependHttpUrl(value))
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: 'La URL debe ser http o https' },
+  )
+  @MaxLength(2048)
+  url: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+}
+
+class TaskChecklistItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  text: string;
+
+  @IsOptional()
+  @IsBoolean()
+  checked?: boolean;
+}
 
 export class CreateTaskDto {
   // --- CAMPOS CORE ---
@@ -99,6 +150,22 @@ export class CreateTaskDto {
   @IsOptional()
   dueDate?: string;
 
+  @ApiProperty({
+    required: false,
+    type: [Object],
+    example: [
+      { name: 'backend', color: 'blue' },
+      { name: 'bug', color: 'red' },
+    ],
+    description: 'Etiquetas (nombre + color) de la tarea',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskLabelDto)
+  @ArrayMaxSize(6, { message: 'Máximo 6 etiquetas por tarea' })
+  @IsOptional()
+  labels?: TaskLabelDto[];
+
   // Array de usuarios asignados (para que salgan sus avatares en la tarjeta)
   @ApiProperty({
     required: false,
@@ -112,4 +179,30 @@ export class CreateTaskDto {
   })
   @IsOptional()
   assigneeIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    type: [Object],
+    example: [{ url: 'https://example.com', title: 'Docs' }],
+    description: 'Enlaces relacionados con la tarea',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskLinkDto)
+  @ArrayMaxSize(20, { message: 'Máximo 20 enlaces por tarea' })
+  @IsOptional()
+  links?: TaskLinkDto[];
+
+  @ApiProperty({
+    required: false,
+    type: [Object],
+    example: [{ text: 'Paso 1', checked: false }],
+    description: 'Checklist de subtareas',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskChecklistItemDto)
+  @ArrayMaxSize(50, { message: 'Máximo 50 ítems en checklist' })
+  @IsOptional()
+  checklist?: TaskChecklistItemDto[];
 }

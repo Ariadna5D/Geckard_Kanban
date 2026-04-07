@@ -21,6 +21,19 @@ interface RegisterFormData {
   confirmPassword: string;
 }
 
+function validateRegisterPasswordStrength(value: string): true | string {
+  const ok = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{8,64}$/.test(value);
+  return (
+    ok ||
+    'Debe incluir al menos 1 minúscula, 1 mayúscula y 1 carácter especial.'
+  );
+}
+
+function buildConfirmPasswordValidator(password: string | undefined) {
+  return (value: string) =>
+    value === password || 'Las contraseñas no coinciden';
+}
+
 /**
  * RegisterPage: Este componente es la página de registro de usuarios.
  * Al enviar el formulario, hace una petición al backend para crear la cuenta.
@@ -50,8 +63,6 @@ export const RegisterPage = () => {
   const hasUpper = /[A-Z]/.test(pw);
   const hasSpecial = /[^A-Za-z0-9\s]/.test(pw);
 
-  const passwordMeetsRules = hasMinLen && hasLower && hasUpper && hasSpecial;
-
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setServerError(null);
@@ -78,6 +89,14 @@ export const RegisterPage = () => {
       setIsLoading(false);
     }
   };
+
+  function handleTogglePasswordVisibility() {
+    setShowPassword((previous) => !previous);
+  }
+
+  function handleToggleConfirmPasswordVisibility() {
+    setShowConfirmPassword((previous) => !previous);
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
@@ -156,7 +175,7 @@ export const RegisterPage = () => {
               />
               <button
                 type="button"
-                onClick={() => setShowPassword((s) => !s)}
+                onClick={handleTogglePasswordVisibility}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >
@@ -219,7 +238,7 @@ export const RegisterPage = () => {
               />
               <button
                 type="button"
-                onClick={() => setShowConfirmPassword((s) => !s)}
+                onClick={handleToggleConfirmPasswordVisibility}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-50"
                 aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >

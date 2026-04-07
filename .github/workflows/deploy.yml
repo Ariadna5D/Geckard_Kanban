@@ -12,11 +12,13 @@ jobs:
 
       # Secrets en: Repo → Settings → Secrets and variables → Actions
       # Obligatorios: MONGO_USERNAME, MONGO_PASSWORD, JWT_SECRET
+      # Obligatorios también: CORS_ORIGINS (dominios permitidos en producción)
       # Opcionales: MONGO_DATABASE (si no, el backend usa kanban_db), CLOUDINARY_*
       - name: 2. Generar .env desde secretos
         run: |
           cd ${{ github.workspace }}
           {
+            echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}"
             echo "MONGO_USERNAME=${{ secrets.MONGO_USERNAME }}"
             echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}"
             echo "MONGO_DATABASE=${{ secrets.MONGO_DATABASE }}"

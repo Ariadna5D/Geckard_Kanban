@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Body,
+  BadRequestException,
   UseGuards,
   Request,
   UseInterceptors,
@@ -27,11 +28,51 @@ import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface'
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from 'src/casl/policies.guard';
 import { CheckPolicies } from 'src/casl/policies.decorator';
-import { User } from './schemas/user.schema';
-import { Action } from 'src/casl/enums/action.enum';
-// Interfaz para definir la estructura del archivo subido, asegurando que tenga un buffer para la carga a Cloudinary
-interface UploadedFileMetadata {
+import { canManageUsers } from 'src/casl/named-policy.handlers';
+
+interface UploadedFileWithBuffer {
   buffer: Buffer;
+}
+
+type MulterFileLike = { mimetype: string };
+
+type MulterFileFilterCallback = (
+  error: Error | null,
+  acceptFile: boolean,
+) => void;
+
+/**
+ * Regla de Multer: rechaza todo lo que no sea imagen (para el avatar).
+ */
+function avatarImageFileFilter(
+  _req: unknown,
+  file: MulterFileLike,
+  next: MulterFileFilterCallback,
+) {
+  if (!file.mimetype.startsWith('image/')) {
+    next(
+      new BadRequestException(
+        'Solo se permiten archivos de imagen para el avatar.',
+      ),
+      false,
+    );
+    return;
+  }
+  next(null, true);
+}
+
+/**
+ * Si había foto antigua en Cloudinary, la borramos para no llenar la cuenta de basura.
+ */
+async function deleteCloudinaryAvatarIfPresent(
+  cloudinary: CloudinaryService,
+  avatarUrl: string | undefined | null,
+) {
+  if (!avatarUrl) return;
+  const publicId = cloudinary.extractPublicId(avatarUrl);
+  if (publicId) {
+    await cloudinary.deleteFile(publicId);
+  }
 }
 
 @ApiTags('Usuarios')
@@ -45,9 +86,7 @@ export class UsersController {
   ) {}
 
   /**
-   * Obtener el perfil del usuario logueado
-   * @param req - La solicitud autenticada que contiene la información del usuario
-   * @returns El perfil del usuario logueado
+   * Devuelve los datos del usuario que está logueado ahora mismo.
    */
   @Get('me')
   @ApiOperation({ summary: 'Obtener perfil logueado' })
@@ -56,38 +95,30 @@ export class UsersController {
   }
 
   /**
-   *  Eliminar la cuenta del usuario logueado, incluyendo la eliminación de su avatar en Cloudinary si existe
-   * @param req  - La solicitud autenticada que contiene la información del usuario
-   * @returns  Un mensaje de confirmación de que la cuenta y los datos asociados han sido eliminados correctamente
+   * Borra la cuenta del usuario actual y su foto en la nube si tenía.
    */
   @Delete('me')
   @ApiOperation({ summary: 'Eliminar cuenta del usuario logueado' })
   async deleteAccount(@Request() req: ValidatedRequest) {
     const currentUser = await this.usersService.findById(req.user.sub);
-
-    if (currentUser && currentUser.avatarUrl) {
-      const publicId = this.cloudinaryService.extractPublicId(
-        currentUser.avatarUrl,
-      );
-      if (publicId) {
-        await this.cloudinaryService.deleteFile(publicId);
-      }
-    }
-
+    await deleteCloudinaryAvatarIfPresent(
+      this.cloudinaryService,
+      currentUser?.avatarUrl,
+    );
     await this.usersService.remove(req.user.sub);
-
     return { message: 'Cuenta y datos asociados eliminados correctamente' };
   }
 
   /**
-   * Actualizar el perfil del usuario logueado, incluyendo la posibilidad de subir una nueva imagen de avatar
-   * @param req - La solicitud autenticada que contiene la información del usuario
-   * @param updateUserDto - Los datos para actualizar el perfil del usuario
-   * @param file - El archivo de imagen para el avatar (opcional)
-   * @returns El perfil actualizado del usuario logueado
+   * Cambia nombre, email, etc. Si viene archivo, sube avatar y borra el anterior.
    */
   @Patch('me')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: avatarImageFileFilter,
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Actualizar perfil logueado' })
   @ApiBody({
@@ -107,24 +138,17 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
     @UploadedFile() file?: unknown,
   ) {
-    const safeFile = file as UploadedFileMetadata | undefined;
+    const uploaded = file as UploadedFileWithBuffer | undefined;
 
-    if (safeFile?.buffer) {
+    if (uploaded?.buffer) {
       const currentUser = await this.usersService.findById(req.user.sub);
-
-      if (currentUser && currentUser.avatarUrl) {
-        const publicId = this.cloudinaryService.extractPublicId(
-          currentUser.avatarUrl,
-        );
-        if (publicId) {
-          await this.cloudinaryService.deleteFile(publicId);
-        }
-      }
-
+      await deleteCloudinaryAvatarIfPresent(
+        this.cloudinaryService,
+        currentUser?.avatarUrl,
+      );
       const uploadResult = await this.cloudinaryService.uploadFile({
-        buffer: safeFile.buffer,
+        buffer: uploaded.buffer,
       });
-
       updateUserDto.avatarUrl = uploadResult.secure_url;
     }
 
@@ -132,7 +156,7 @@ export class UsersController {
   }
 
   /**
-   * Buscar usuarios por nombre o email (invitaciones a tableros). Mínimo 2 caracteres.
+   * Autocompletar usuarios al escribir en el modal de invitar al tablero.
    */
   @Get('search')
   @ApiOperation({ summary: 'Buscar usuarios para invitar (autenticado)' })
@@ -141,55 +165,43 @@ export class UsersController {
   }
 
   /**
-   *  Obtener todos los usuarios registrados en el sistema (Solo accesible para administradores)
-   * @returns  Una lista de todos los usuarios registrados en el sistema, incluyendo sus detalles básicos (sin contraseñas)
+   * Listado global: solo para administradores de la aplicación.
    */
   @Get()
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Obtener todos los usuarios (Solo Admin)' })
   async findAllUsers() {
     return this.usersService.findAll();
   }
 
   /**
-   * Actualizar cualquier usuario por su ID
-   * @param id - El ID del usuario que el admin quiere editar
+   * Un admin puede editar a cualquier usuario desde el panel.
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Editar cualquier usuario (Solo Admin)' })
   async updateUserById(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    // Reutilizamos tu método update del servicio, pero pasándole el ID de la URL
     return this.usersService.update(id, updateUserDto);
   }
 
   /**
-   * Eliminar cualquier usuario por su ID y limpiar su foto
-   * @param id - El ID del usuario a fulminar
+   * Un admin puede borrar cuentas; también quitamos su avatar de Cloudinary.
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckPolicies((ability) => ability.can(Action.Manage, User))
+  @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Eliminar cualquier usuario (Solo Admin)' })
   async deleteUserById(@Param('id') id: string) {
     const userToDelete = await this.usersService.findById(id);
-
-    // Si el usuario tiene una foto de avatar, eliminamos esa foto de Cloudinary antes de eliminar el usuario
-    if (userToDelete && userToDelete.avatarUrl) {
-      const publicId = this.cloudinaryService.extractPublicId(
-        userToDelete.avatarUrl,
-      );
-      if (publicId) {
-        await this.cloudinaryService.deleteFile(publicId);
-      }
-    }
-
-    // Ahora sí, eliminamos el usuario del sistema
+    await deleteCloudinaryAvatarIfPresent(
+      this.cloudinaryService,
+      userToDelete?.avatarUrl,
+    );
     await this.usersService.remove(id);
     return {
       message: `Usuario con ID ${id} eliminado correctamente del sistema.`,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import {
@@ -59,7 +59,7 @@ const MANAGEABLE_ROLES: { value: BoardInviteRole; label: string }[] = [
 
 function roleLabel(role: string): string {
   if (role === "owner") return "Propietario";
-  return MANAGEABLE_ROLES.find((r) => r.value === role)?.label ?? role;
+  return MANAGEABLE_ROLES.find((roleOption) => roleOption.value === role)?.label ?? role;
 }
 
 function userInitials(username: string): string {
@@ -156,9 +156,9 @@ export function BoardSettingsSheet({
         setOwnerId(data.ownerId);
         setMembers(data.members);
         const drafts: Record<string, BoardInviteRole> = {};
-        for (const m of data.members) {
-          if (m.role !== "owner") {
-            drafts[m.userId] = m.role as BoardInviteRole;
+        for (const member of data.members) {
+          if (member.role !== "owner") {
+            drafts[member.userId] = member.role as BoardInviteRole;
           }
         }
         setRoleDraft(drafts);
@@ -215,15 +215,15 @@ export function BoardSettingsSheet({
   const handleUpdateRole = async (memberUserId: string) => {
     if (!boardDocId) return;
     const next = roleDraft[memberUserId];
-    const row = members.find((m) => m.userId === memberUserId);
+    const row = members.find((member) => member.userId === memberUserId);
     if (!next || !row || row.role === "owner") return;
     if (next === row.role) return;
     setRowBusy(memberUserId);
     try {
       await inviteMember(slug, boardDocId, { userId: memberUserId, role: next });
       setMembers((prev) =>
-        prev.map((m) =>
-          m.userId === memberUserId ? { ...m, role: next } : m,
+        prev.map((member) =>
+          member.userId === memberUserId ? { ...member, role: next } : member,
         ),
       );
     } catch (e) {
@@ -240,7 +240,7 @@ export function BoardSettingsSheet({
     setRowBusy(memberUserId);
     try {
       await removeBoardMember(slug, boardDocId, memberUserId);
-      setMembers((prev) => prev.filter((m) => m.userId !== memberUserId));
+      setMembers((prev) => prev.filter((member) => member.userId !== memberUserId));
       setRoleDraft((d) => {
         const n = { ...d };
         delete n[memberUserId];
@@ -255,14 +255,55 @@ export function BoardSettingsSheet({
     }
   };
 
+  function handleSheetOpenChange(nextOpen: boolean) {
+    if (!nextOpen) setPanel("menu");
+    onOpenChange(nextOpen);
+  }
+
+  function handleBackToMenu() {
+    setPanel("menu");
+    setListError(null);
+  }
+
+  function handleOpenEditPanel() {
+    setPanel("edit");
+  }
+
+  function handleOpenDeleteDialog() {
+    setDeleteOpen(true);
+  }
+
+  function handleOpenMembersPanel() {
+    setPanel("members");
+  }
+
+  function handleSaveBoardClick() {
+    void handleSaveBoard();
+  }
+
+  function handleInviteSuccess() {
+    void loadMembers({ showSpinner: false });
+  }
+
+  function handleExpelDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen && !expelling) setExpelTarget(null);
+  }
+
+  function handleExpelActionClick(event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    void handleConfirmExpel();
+  }
+
+  function handleDeleteActionClick(event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    void handleConfirmDelete();
+  }
+
   return (
     <>
       <Sheet
         open={open}
-        onOpenChange={(v) => {
-          if (!v) setPanel("menu");
-          onOpenChange(v);
-        }}
+        onOpenChange={handleSheetOpenChange}
       >
         <SheetContent
           className="flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-md dark:border-surface-800 dark:bg-surface-900"
@@ -277,10 +318,7 @@ export function BoardSettingsSheet({
                   size="icon-sm"
                   className="shrink-0"
                   aria-label="Volver"
-                  onClick={() => {
-                    setPanel("menu");
-                    setListError(null);
-                  }}
+                  onClick={handleBackToMenu}
                 >
                   <ArrowLeft className="size-4" />
                 </Button>
@@ -311,7 +349,7 @@ export function BoardSettingsSheet({
                   type="button"
                   variant="outline"
                   className="h-auto w-full justify-start gap-2 py-3"
-                  onClick={() => setPanel("edit")}
+                  onClick={handleOpenEditPanel}
                 >
                   <Pencil className="size-4 shrink-0 opacity-80" />
                   <span className="text-left">Editar tablero</span>
@@ -322,7 +360,7 @@ export function BoardSettingsSheet({
                   type="button"
                   variant="outline"
                   className="h-auto w-full justify-start gap-2 border-danger/30 py-3 text-danger hover:bg-danger/10 dark:border-danger/40 dark:hover:bg-danger/15"
-                  onClick={() => setDeleteOpen(true)}
+                  onClick={handleOpenDeleteDialog}
                 >
                   <Trash2 className="size-4 shrink-0 opacity-90" />
                   <span className="text-left">Eliminar tablero</span>
@@ -332,7 +370,7 @@ export function BoardSettingsSheet({
                 type="button"
                 variant="outline"
                 className="h-auto w-full justify-start gap-2 py-3"
-                onClick={() => setPanel("members")}
+                onClick={handleOpenMembersPanel}
               >
                 <Users className="size-4 shrink-0 opacity-80" />
                 <span className="text-left">Lista de participantes</span>
@@ -363,7 +401,7 @@ export function BoardSettingsSheet({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setPanel("menu")}
+                  onClick={handleBackToMenu}
                   disabled={savingBoard}
                 >
                   Cancelar
@@ -371,7 +409,7 @@ export function BoardSettingsSheet({
                 <Button
                   type="button"
                   disabled={savingBoard || !editTitle.trim()}
-                  onClick={() => void handleSaveBoard()}
+                  onClick={handleSaveBoardClick}
                 >
                   {savingBoard ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -397,7 +435,7 @@ export function BoardSettingsSheet({
                     slug={slug}
                     boardId={boardDocId}
                     enabled={open && panel === "members" && canManageParticipantsUI}
-                    onSuccess={() => void loadMembers({ showSpinner: false })}
+                    onSuccess={handleInviteSuccess}
                   />
                 </div>
               ) : null}
@@ -410,39 +448,39 @@ export function BoardSettingsSheet({
                 </div>
               ) : (
                 <ul className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 pt-2">
-                  {members.map((m) => {
+                  {members.map((member) => {
                     const isOwnerRow =
-                      m.userId === (ownerId ?? boardOwnerUserId(board));
-                    const busy = rowBusy === m.userId;
+                      member.userId === (ownerId ?? boardOwnerUserId(board));
+                    const busy = rowBusy === member.userId;
                     const draft =
-                      roleDraft[m.userId] ?? (m.role as BoardInviteRole);
+                      roleDraft[member.userId] ?? (member.role as BoardInviteRole);
                     const showManage =
                       canManageParticipantsUI && !isOwnerRow;
 
                     return (
                       <li
-                        key={m.userId}
+                        key={member.userId}
                         className="rounded-lg border border-surface-200 bg-surface-100/80 p-3 dark:border-surface-700 dark:bg-surface-950/40"
                       >
                         <div className="flex gap-3">
                           <Avatar size="default" className="mt-0.5">
-                            {m.avatarUrl ? (
+                            {member.avatarUrl ? (
                               <AvatarImage
-                                src={m.avatarUrl}
+                                src={member.avatarUrl}
                                 alt=""
                                 className="object-cover"
                               />
                             ) : null}
                             <AvatarFallback>
-                              {userInitials(m.username)}
+                              {userInitials(member.username)}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-surface-900 dark:text-surface-50">
-                              {m.username}
+                              {member.username}
                             </p>
                             <p className="text-muted-foreground truncate text-xs">
-                              {m.email}
+                              {member.email}
                             </p>
                             {isOwnerRow ? (
                               <p className="text-muted-foreground mt-2 text-sm">
@@ -460,14 +498,14 @@ export function BoardSettingsSheet({
                                     onChange={(e) =>
                                       setRoleDraft((d) => ({
                                         ...d,
-                                        [m.userId]: e.target
+                                        [member.userId]: e.target
                                           .value as BoardInviteRole,
                                       }))
                                     }
                                   >
-                                    {MANAGEABLE_ROLES.map((o) => (
-                                      <option key={o.value} value={o.value}>
-                                        {o.label}
+                                    {MANAGEABLE_ROLES.map((roleOption) => (
+                                      <option key={roleOption.value} value={roleOption.value}>
+                                        {roleOption.label}
                                       </option>
                                     ))}
                                   </select>
@@ -478,11 +516,9 @@ export function BoardSettingsSheet({
                                     size="sm"
                                     disabled={
                                       busy ||
-                                      draft === (m.role as BoardInviteRole)
+                                      draft === (member.role as BoardInviteRole)
                                     }
-                                    onClick={() =>
-                                      void handleUpdateRole(m.userId)
-                                    }
+                                    onClick={handleUpdateRole.bind(null, member.userId)}
                                   >
                                     {busy ? (
                                       <Loader2 className="size-3.5 animate-spin" />
@@ -496,7 +532,7 @@ export function BoardSettingsSheet({
                                     variant="outline"
                                     className="border-danger/40 text-danger hover:bg-danger/10 dark:hover:bg-danger/15"
                                     disabled={busy}
-                                    onClick={() => setExpelTarget(m)}
+                                    onClick={setExpelTarget.bind(null, member)}
                                   >
                                     Expulsar
                                   </Button>
@@ -505,7 +541,7 @@ export function BoardSettingsSheet({
                             ) : (
                               <p className="text-muted-foreground mt-2 text-sm">
                                 Rol:{" "}
-                                <strong>{roleLabel(m.role)}</strong>
+                                <strong>{roleLabel(member.role)}</strong>
                               </p>
                             )}
                           </div>
@@ -522,9 +558,7 @@ export function BoardSettingsSheet({
 
       <AlertDialog
         open={!!expelTarget}
-        onOpenChange={(v) => {
-          if (!v && !expelling) setExpelTarget(null);
-        }}
+        onOpenChange={handleExpelDialogOpenChange}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -545,10 +579,7 @@ export function BoardSettingsSheet({
             <AlertDialogAction
               className="bg-danger text-white hover:bg-danger/90"
               disabled={expelling}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleConfirmExpel();
-              }}
+              onClick={handleExpelActionClick}
             >
               {expelling ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -574,10 +605,7 @@ export function BoardSettingsSheet({
             <AlertDialogAction
               className="bg-danger text-white hover:bg-danger/90"
               disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleConfirmDelete();
-              }}
+              onClick={handleDeleteActionClick}
             >
               {deleting ? (
                 <Loader2 className="size-4 animate-spin" />

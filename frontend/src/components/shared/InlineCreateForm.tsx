@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +30,8 @@ export const InlineCreateForm = ({
     }
   }, [isEditing]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     if (!value.trim()) return;
     
     await onSubmit(value.trim());
@@ -39,9 +39,22 @@ export const InlineCreateForm = ({
     setIsEditing(false);
   };
 
+  function handleStartEditing() {
+    setIsEditing(true);
+  }
+
+  function handleCancelEditing() {
+    setIsEditing(false);
+    setValue('');
+  }
+
+  function handleValueChange(event: ChangeEvent<HTMLInputElement>) {
+    setValue(event.target.value);
+  }
+
   if (!isEditing) {
     return (
-      <button onClick={() => setIsEditing(true)} className={triggerClassName}>
+      <button type="button" onClick={handleStartEditing} className={triggerClassName}>
         <Plus size={16} />
         <span>{actionText}</span>
       </button>
@@ -49,11 +62,11 @@ export const InlineCreateForm = ({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={formClassName}>
+    <form onSubmit={handleFormSubmit} className={formClassName}>
       <Input
         ref={inputRef}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={handleValueChange}
         placeholder={placeholder}
         className="mb-2 h-9 bg-surface-50 text-sm dark:bg-surface-900"
       />
@@ -65,10 +78,7 @@ export const InlineCreateForm = ({
           type="button" 
           variant="ghost" 
           size="sm" 
-          onClick={() => { 
-            setIsEditing(false); 
-            setValue(''); 
-          }} 
+          onClick={handleCancelEditing}
           className="size-8 p-0 text-surface-500 hover:bg-surface-200 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-50"
         >
           <X size={16} />

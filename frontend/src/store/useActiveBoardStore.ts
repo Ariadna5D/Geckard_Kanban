@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import {
   Board,
+  Column,
   UpdateTaskPositionPayload,
   Task,
   InviteBoardMemberPayload,
+  BoardMemberSummary,
+  getBoardDocumentId,
 } from '../types/board.types';
 import {
   addColumnRequest,
@@ -13,6 +16,7 @@ import {
   updateColumnPositionRequest,
   inviteBoardMemberRequest,
   removeBoardMemberRequest,
+  getBoardMembersRequest,
 } from '../api/boards.api';
 import {
   updateTaskPosition,
@@ -22,8 +26,24 @@ import {
 } from '../api/tasks.api';
 import { compareOrderKey } from '../utils/boardMath';
 
+function mergeServerColumnsWithLocalTasks(
+  previousColumns: Column[],
+  serverColumns: Column[],
+): Column[] {
+  const merged = serverColumns.map((serverCol) => {
+    const local = previousColumns.find((col) => col._id === serverCol._id);
+    return {
+      ...serverCol,
+      tasks: local?.tasks && local.tasks.length > 0 ? local.tasks : [],
+    };
+  });
+  merged.sort((a, b) => compareOrderKey(a.order, b.order));
+  return merged;
+}
+
 interface ActiveBoardState {
   board: Board | null;
+  boardMembers: BoardMemberSummary[];
   isLoading: boolean;
   error: string | null;
 
@@ -46,13 +66,13 @@ interface ActiveBoardState {
     apiPayload: UpdateTaskPositionPayload
   ) => Promise<void>;
   
-  // CRUD Columnas
+  // --- CRUD de columnas ---
   addColumn: (boardId: string, title: string, order: string) => Promise<void>;
   editColumn: (boardId: string, columnId: string, title: string) => Promise<void>;
   deleteColumn: (boardId: string, columnId: string) => Promise<void>;
   moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
   
-  // CRUD Tareas
+  // --- CRUD de tareas ---
   addTask: (boardId: string, columnId: string, title: string, order: string) => Promise<void>;
   deleteTask: (taskId: string, columnId: string) => Promise<void>;
   updateTask: (taskId: string, columnId: string, data: Partial<Task>) => Promise<void>;
@@ -60,16 +80,15 @@ interface ActiveBoardState {
 
 export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   board: null,
+  boardMembers: [],
   isLoading: false,
   error: null,
 
-  /**
-   * Carga el tablero y ordena tanto las columnas como las tareas por su Fractional Index.
-   */
+  // Carga tablero; silent = sin poner isLoading (refrescos)
   fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
     if (!silent) {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, boardMembers: [] });
     }
     try {
       const board = await getBoardBySlugRequest(slug);
@@ -82,17 +101,32 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
         }));
 
+      const boardPayload = { ...board, columns: sortedColumns };
+      const boardDocId = getBoardDocumentId(boardPayload);
+
       set({
-        board: { ...board, columns: sortedColumns },
+        board: boardPayload,
         isLoading: false,
         error: null,
       });
+
+      if (boardDocId) {
+        try {
+          const { members } = await getBoardMembersRequest(boardDocId);
+          set({ boardMembers: members });
+        } catch {
+          set({ boardMembers: [] });
+        }
+      } else {
+        set({ boardMembers: [] });
+      }
     } catch {
       if (!silent) {
         set({
           error: 'Error al cargar el tablero.',
           isLoading: false,
           board: null,
+          boardMembers: [],
         });
       } else {
         set({ isLoading: false });
@@ -111,7 +145,8 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Mueve una tarea en 0ms en el frontend clonando el estado.
+   * UI optimista al mover una tarea: actualiza primero la UI y luego sincroniza API.
+   * Si falla, hace rollback al estado anterior.
    */
   moveTaskOptimistic: async (taskId, oldColumnId, newColumnId, newOrder, apiPayload) => {
     const previousBoard = get().board;
@@ -144,57 +179,45 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Reordena las columnas visualmente al instante y sincroniza con el servidor.
+   * UI optimista para mover columnas con rollback si la API falla.
    */
   moveColumnOptimistic: async (boardId, columnId, newOrder) => {
     const previousBoard = get().board;
     if (!previousBoard) return;
 
-    // 1. Clonamos el estado anterior para UI optimista
+    // Clonamos estado para aplicar el cambio al instante sin esperar al backend.
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
     const colIndex = newBoard.columns.findIndex(c => c._id === columnId);
     
     if (colIndex !== -1) {
       newBoard.columns[colIndex].order = newOrder;
-      // Reordenamos las columnas basándonos en el nuevo index
+      // Reorden visual por order.
       newBoard.columns.sort((a, b) => compareOrderKey(a.order, b.order));
     }
 
     set({ board: newBoard });
 
     try {
-      // 2. Mandamos el cambio al backend
       await updateColumnPositionRequest(boardId, columnId, newOrder);
     } catch (error) {
       console.error("Error al mover la columna, revirtiendo...", error);
-      set({ board: previousBoard }); // 3. Rollback si falla
+      set({ board: previousBoard });
     }
   },
 
-  /**
-   * Añade una nueva columna al tablero manteniendo las tareas locales intactas.
-   */
   /**
    * Añade una nueva columna al tablero al final de la lista.
    */
   addColumn: async (boardId: string, title: string, order: string) => {
     try {
-      // 1. Petición a la API incluyendo el order calculado
       const updatedBoard = await addColumnRequest(boardId, title, order);
       
       set((state) => {
         if (!state.board) return state;
-
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol?.tasks || []
-          };
-        });
-
-        // 2. Ordenamos para que la nueva columna aparezca a la derecha
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -211,14 +234,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       set((state) => {
         if (!state.board) return state;
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
-          };
-        });
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -235,14 +254,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
       
       set((state) => {
         if (!state.board) return state;
-        const mergedColumns = updatedBoard.columns.map((backendCol) => {
-          const existingFrontendCol = state.board!.columns.find(c => c._id === backendCol._id);
-          return {
-            ...backendCol,
-            tasks: existingFrontendCol && existingFrontendCol.tasks ? existingFrontendCol.tasks : []
-          };
-        });
-        mergedColumns.sort((a, b) => compareOrderKey(a.order, b.order));
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
         return { board: { ...updatedBoard, columns: mergedColumns } };
       });
     } catch (error) {
@@ -251,7 +266,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Crea una tarea esperando la respuesta del servidor para obtener su _id.
+   * Crea una tarea y la inserta en estado local al recibir _id real del backend.
    */
   addTask: async (boardId, columnId, title, order) => {
     try {
@@ -300,7 +315,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Actualiza el contenido de una tarea (título, descripción, etc.)
+   * Actualiza campos de una tarea (título, descripción, etiquetas, etc.).
    */
   updateTask: async (taskId, columnId, data) => {
     try {
@@ -315,7 +330,15 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         if (column && column.tasks) {
           const taskIndex = column.tasks.findIndex(t => t._id === taskId);
           if (taskIndex !== -1) {
-            column.tasks[taskIndex] = { ...column.tasks[taskIndex], ...updatedTask };
+            const prev = column.tasks[taskIndex];
+            const next: Task = { ...prev, ...updatedTask };
+            if (!Array.isArray(next.links)) {
+              next.links = prev.links ?? [];
+            }
+            if (!Array.isArray(next.checklist)) {
+              next.checklist = prev.checklist ?? [];
+            }
+            column.tasks[taskIndex] = next;
           }
         }
         

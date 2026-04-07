@@ -5,6 +5,10 @@ COMPOSE_FILE=
 # Puerto del servidor
 PORT=
 
+# Orígenes permitidos por CORS (separados por coma).
+# Ejemplo: https://tu-dominio.com,https://www.tu-dominio.com
+CORS_ORIGINS=
+
 # Credenciales de Base de Datos
 MONGO_USERNAME=
 MONGO_PASSWORD=

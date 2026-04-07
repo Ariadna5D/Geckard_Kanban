@@ -16,31 +16,23 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   /**
-   * Crea un nuevo usuario a partir del RegisterDto.
-   * @param registerDto
-   * @returns El usuario creado.
-   * @throws ConflictException si el email o el username ya están en uso.
+   * Guarda un usuario nuevo: comprueba que email y nombre no estén cogidos
+   * y guarda la contraseña ya encriptada.
    */
   async create(registerDto: RegisterDto): Promise<User> {
-    // Extraemos los campos del DTO
     const { username, password } = registerDto;
-    // Aseguramos consistencia: el correo siempre se guarda en minúsculas.
     const email = registerDto.email.toLowerCase().trim();
 
-    // Validamos que el email y el username sean únicos
     const existingEmail = await this.userModel.findOne({ email });
     if (existingEmail)
       throw new ConflictException('El email ya está registrado');
 
-    // Validamos que el username sea único
     const existingUser = await this.userModel.findOne({ username });
     if (existingUser)
       throw new ConflictException('El nombre de usuario ya está en uso');
 
-    // Hasheamos la contraseña antes de guardarla
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Creamos el nuevo usuario con el password hasheado
     const newUser = new this.userModel({
       email,
       username,
@@ -51,33 +43,29 @@ export class UsersService {
   }
 
   /**
-   * Busca un usuario por su email.
-   * @param email
-   * @returns El usuario encontrado o null si no existe.
+   * Busca por email ignorando mayúsculas para que el login sea menos estricto.
    */
   async findByEmail(email: string): Promise<User | null> {
-    // Aseguramos que las búsquedas coincidan aunque el usuario escriba mayúsculas.
     return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
   }
 
   /**
-   * Busca un usuario por su ID.
-   * @param id
-   * @returns El usuario encontrado o null si no existe.
+   * Carga un usuario por su id de Mongo.
    */
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id).exec();
   }
 
   /**
-   * Obtiene todos los usuarios de la plataforma
+   * Lista todos (la contraseña nunca sale en la respuesta).
    */
   async findAll() {
     return this.userModel.find().select('-passwordHash').exec();
   }
 
   /**
-   * Búsqueda acotada para invitar a tableros (username o email, sin datos sensibles).
+   * Buscador para invitar gente al tablero: por nombre o email, sin datos sensibles.
+   * El texto debe tener al menos 2 letras. Se excluye al usuario que está buscando.
    */
   async searchForInvite(
     q: string,
@@ -87,8 +75,9 @@ export class UsersService {
     const trimmed = q?.trim() ?? '';
     if (trimmed.length < 2) return [];
 
-    const esc = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(esc, 'i');
+    // Escapamos caracteres raros para que la búsqueda no se rompa (p. ej. un punto suelto).
+    const escapedForRegex = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedForRegex, 'i');
 
     const filter: Record<string, unknown> = {
       $or: [{ username: regex }, { email: regex }],
@@ -97,51 +86,46 @@ export class UsersService {
       filter._id = { $ne: new Types.ObjectId(excludeUserId) };
     }
 
+    const cappedLimit = Math.min(Math.max(limit, 1), 30);
     const docs = await this.userModel
       .find(filter)
       .select('username email')
-      .limit(Math.min(Math.max(limit, 1), 30))
+      .limit(cappedLimit)
       .lean()
       .exec();
 
-    return docs.map((d) => ({
-      id: d._id.toString(),
-      username: d.username,
-      email: d.email,
-    }));
+    const out: { id: string; username: string; email: string }[] = [];
+    for (const d of docs) {
+      out.push({
+        id: d._id.toString(),
+        username: d.username,
+        email: d.email,
+      });
+    }
+    return out;
   }
 
   /**
-   * Compara una contraseña sin hash con su versión hasheada.
-   * @param password
-   * @param hash
-   * @returns true si la contraseña coincide con el hash, false en caso contrario.
+   * Comprueba la contraseña del formulario contra el hash guardado en base de datos.
    */
   async comparePassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
   /**
-   * Actualiza la información de un usuario. Solo se pueden actualizar email, username y bio.
-   * @param userId ID del usuario a actualizar
-   * @param updateDto DTO con los campos a actualizar (email, username, bio)
-   * @returns El usuario actualizado, o null si no se encontró el usuario.
-   * @throws BadRequestException si el usuario no existe.
-   * @throws ConflictException si el nuevo email o username ya están en uso por otro usuario.
+   * Cambia datos del perfil comprobando otra vez que email y username no estén duplicados.
    */
   async update(userId: string, updateDto: UpdateUserDto) {
     const user = await this.userModel.findById(userId);
 
     if (!user) throw new BadRequestException('Usuario no encontrado');
 
-    // Validar email único solo si lo está cambiando
     if (updateDto.email && updateDto.email !== user.email) {
       const isTaken = await this.userModel.findOne({ email: updateDto.email });
       if (isTaken)
         throw new ConflictException('Este email ya lo usa otra persona');
     }
 
-    // Validar username único solo si lo está cambiando
     if (updateDto.username && updateDto.username !== user.username) {
       const isTaken = await this.userModel.findOne({
         username: updateDto.username,
@@ -155,6 +139,9 @@ export class UsersService {
       .exec();
   }
 
+  /**
+   * Devuelve un usuario para mostrar en pantalla (sin contraseña ni campos internos raros).
+   */
   async findOne(id: string) {
     const doc = await this.userModel
       .findById(id)
@@ -174,9 +161,7 @@ export class UsersService {
   }
 
   /**
-   * Elimina un usuario por su ID de la base de datos.
-   * @param id ID del usuario a eliminar
-   * @returns El usuario eliminado (para poder leer su avatar y borrarlo luego)
+   * Borra la cuenta por completo.
    */
   async remove(id: string) {
     const deletedUser = await this.userModel.findByIdAndDelete(id).exec();

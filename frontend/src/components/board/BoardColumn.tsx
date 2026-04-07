@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Column } from '../../types/board.types';
@@ -39,12 +47,13 @@ export const BoardColumn = ({
 }: BoardColumnProps) => {
   const { addTask, editColumn, deleteColumn } = useActiveBoardStore();
   
+  // Estado local para edición inline del título y confirmación de borrado.
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(column.title);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  const taskIds = column.tasks?.map((t) => t._id) || [];
+  const taskIds = column.tasks?.map((task) => task._id) || [];
 
   const { 
     setNodeRef,
@@ -68,6 +77,9 @@ export const BoardColumn = ({
     if (isEditingTitle && inputRef.current) inputRef.current.focus();
   }, [isEditingTitle]);
 
+  /**
+   * Guarda el nuevo título de columna si cambió y no está vacío.
+   */
   const handleUpdateTitle = async () => {
     if (!titleValue.trim() || titleValue === column.title) {
       setIsEditingTitle(false);
@@ -77,6 +89,10 @@ export const BoardColumn = ({
     setIsEditingTitle(false);
   };
 
+  /**
+   * Crea tarea al final de la columna usando order calculado.
+   * @param title título de la nueva tarea
+   */
   const handleCreateTask = async (title: string) => {
     const tasks = column.tasks || [];
     const lastTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
@@ -84,12 +100,42 @@ export const BoardColumn = ({
     await addTask(boardId, column._id, title, newOrder);
   };
 
+  function handleStartTitleEdit() {
+    if (!canEdit) return;
+    setIsEditingTitle(true);
+  }
+
+  function handleTitleClick(event: MouseEvent<HTMLElement>) {
+    event.stopPropagation();
+    handleStartTitleEdit();
+  }
+
+  function handlePointerDownStop(event: PointerEvent<HTMLElement>) {
+    event.stopPropagation();
+  }
+
+  function handleTitleInputChange(event: ChangeEvent<HTMLInputElement>) {
+    setTitleValue(event.target.value);
+  }
+
+  function handleTitleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') void handleUpdateTitle();
+  }
+
+  function handleOpenDeleteAlert() {
+    setShowDeleteAlert(true);
+  }
+
+  function handleConfirmDeleteColumn() {
+    deleteColumn(boardId, column._id);
+  }
+
   return (
     <>
-      <div 
+      <div
         ref={setNodeRef} 
         style={style}
-        // Feedback visual al arrastrar la columna entera
+        // Feedback visual de "columna en arrastre".
         className={`kanban-column-width flex max-h-full flex-col rounded-xl border shadow-sm transition-colors ${
           isDragging
             ? 'border-dashed border-surface-400 bg-surface-200/60 opacity-60 dark:border-surface-600 dark:bg-surface-800/40'
@@ -107,26 +153,23 @@ export const BoardColumn = ({
             <Input
               ref={inputRef}
               value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
+              onChange={handleTitleInputChange}
               onBlur={handleUpdateTitle}
-              onKeyDown={(e) => e.key === 'Enter' && handleUpdateTitle()}
+              onKeyDown={handleTitleKeyDown}
               className="h-7 bg-surface-50 text-sm font-semibold dark:bg-surface-900"
-              onPointerDown={(e) => e.stopPropagation()} 
+              onPointerDown={handlePointerDownStop}
             />
           ) : (
             <h3 
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canEdit) setIsEditingTitle(true);
-              }}
+              onClick={handleTitleClick}
               className={`flex-1 text-sm font-semibold text-surface-800 dark:text-surface-100 ${canEdit ? 'cursor-text' : ''}`}
-              onPointerDown={(e) => e.stopPropagation()} 
+              onPointerDown={handlePointerDownStop}
             >
               {column.title}
             </h3>
           )}
 
-          <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2" onPointerDown={handlePointerDownStop}>
             <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-300">
               {column.tasks?.length || 0}
             </span>
@@ -136,8 +179,8 @@ export const BoardColumn = ({
                 <button className="rounded-md p-0.5 text-surface-500 outline-none hover:bg-primary-500/10 hover:text-primary-700 dark:text-surface-400 dark:hover:bg-primary-500/15 dark:hover:text-primary-300"><MoreHorizontal size={18} /></button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => setIsEditingTitle(true)}><Pencil size={14} className="mr-2" /> Rename</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowDeleteAlert(true)} className="text-danger focus:bg-danger/10 focus:text-danger">
+                <DropdownMenuItem onClick={handleStartTitleEdit}><Pencil size={14} className="mr-2" /> Rename</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenDeleteAlert} className="text-danger focus:bg-danger/10 focus:text-danger">
                   <Trash2 size={14} className="mr-2" /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -155,7 +198,7 @@ export const BoardColumn = ({
         </div>
 
         {canEdit && (
-        <div className="p-3 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="p-3 shrink-0" onPointerDown={handlePointerDownStop}>
           <InlineCreateForm actionText="Add task" onSubmit={handleCreateTask} />
         </div>
         )}
@@ -172,7 +215,7 @@ export const BoardColumn = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-secondary">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteColumn(boardId, column._id)} className="bg-danger text-white hover:bg-danger/90">Delete Column</AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmDeleteColumn} className="bg-danger text-white hover:bg-danger/90">Delete Column</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

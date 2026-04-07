@@ -1,4 +1,33 @@
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+/** Colores permitidos para etiquetas de tarea (estilo Trello simplificado). */
+export type TaskLabelColor =
+  | 'green'
+  | 'yellow'
+  | 'orange'
+  | 'red'
+  | 'purple'
+  | 'blue'
+  | 'sky'
+  | 'gray';
+
+export interface TaskLabel {
+  /** Texto corto de etiqueta (ej. "bug", "backend"). */
+  name: string;
+  /** Color de la etiqueta para render visual rápido. */
+  color: TaskLabelColor;
+}
+
+/** Enlace adjunto en el detalle de la tarea. */
+export interface TaskLink {
+  url: string;
+  title?: string;
+}
+
+/** Ítem de checklist persistido en la tarea. */
+export interface TaskChecklistItem {
+  text: string;
+  checked: boolean;
+}
 
 export interface Task {
   _id: string;
@@ -8,11 +37,39 @@ export interface Task {
   columnId: string;
   order: string;
   priority: TaskPriority;
+  labels?: TaskLabel[];
+  /** Enlaces http(s) con título opcional. */
+  links?: TaskLink[];
+  /** Checklist de subtareas. */
+  checklist?: TaskChecklistItem[];
   storyPoints?: number;
   dueDate?: string;
   assigneeIds: string[];
+  /** Estado de ronda de planning poker en backend. */
+  storyPointVotingStatus?: StoryPointVotingStatus;
+  /** Votos crudos (pueden venir ocultos por API de resumen). */
+  storyPointVotes?: { userId: string; value: number }[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** Legacy en documentos Mongo; la UI ya no cierra rondas. */
+export type StoryPointVotingStatus = "idle" | "voting" | "revealed" | "locked";
+
+export interface StoryPointVoteSummary {
+  userId: string;
+  value: number;
+}
+
+/**
+ * Respuesta GET /tasks/:id/story-points.
+ * `average` es el valor de la escala (1,2,3,5,8,13) más cercano a la media aritmética.
+ */
+export interface StoryPointVotingState {
+  totalVotes: number;
+  myVote: number | null;
+  average: number | null;
+  votes: StoryPointVoteSummary[];
 }
 
 export interface Column {
@@ -124,8 +181,10 @@ export function getCurrentUserBoardRole(
 ): BoardRole | null {
   if (!userId) return null;
   if (boardOwnerUserId(board) === userId) return "owner";
-  const m = board.members.find((x) => memberUserId(x) === userId);
-  return m?.role ?? null;
+  const member = board.members.find(
+    (entry) => memberUserId(entry) === userId,
+  );
+  return member?.role ?? null;
 }
 
 export function boardRoleAtLeast(

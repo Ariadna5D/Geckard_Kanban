@@ -7,10 +7,10 @@ export interface UserInviteSearchResult {
 }
 
 export const searchUsersForInviteRequest = async (
-  q: string,
+  queryText: string,
 ): Promise<UserInviteSearchResult[]> => {
   const response = await api.get<UserInviteSearchResult[]>('/users/search', {
-    params: { q },
+    params: { q: queryText },
   });
   return response.data;
 };

@@ -20,11 +20,8 @@ import { BoardsService } from './boards.service';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Action } from '../casl/enums/action.enum';
-import { Board } from './schemas/board.schema';
 import { PoliciesGuard } from '../casl/policies.guard';
 import { CheckPolicies } from '../casl/policies.decorator';
-import { BoardSubject } from '../casl/casl-ability.factory';
 import { BoardPolicyGuard } from './board-policy.guard';
 import {
   BoardIdFrom,
@@ -36,6 +33,14 @@ import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { CreateColumnDto } from './dto/create-column.dto';
 import { InviteBoardMemberDto } from './dto/invite-board-member.dto';
+import {
+  canCreateBoard,
+  canReadBoard,
+  canUpdateBoardSettings,
+  canDeleteBoard,
+  canManageBoardMembers,
+  canEditBoardColumns,
+} from '../casl/named-policy.handlers';
 
 @ApiTags('Boards')
 @ApiBearerAuth()
@@ -45,11 +50,11 @@ export class BoardsController {
   constructor(private readonly boardsService: BoardsService) {}
 
   /**
-   * Handles the creation of a new board.
+   * Crea un tablero vacío; el usuario que llama queda como dueño.
    */
   @Post()
   @UseGuards(PoliciesGuard)
-  @CheckPolicies((ability) => ability.can(Action.Create, Board))
+  @CheckPolicies(canCreateBoard)
   @ApiOperation({ summary: 'Create a new board' })
   @ApiResponse({ status: 201, description: 'Board successfully created.' })
   create(
@@ -60,25 +65,22 @@ export class BoardsController {
   }
 
   /**
-   * Retrieves all boards accessible by the authenticated user.
+   * Lista los tableros en los que participas (propios o donde te invitaron).
    */
   @Get()
-  @CheckPolicies((ability) => ability.can(Action.Read, Board))
+  @CheckPolicies(canReadBoard)
   @ApiOperation({ summary: 'Get all boards for the authenticated user' })
   findAll(@Request() req: ValidatedRequest) {
     return this.boardsService.findAll(req.user.sub);
   }
 
   /**
-   * Updates basic information of a board (ObjectId en la URL).
-   * Debe ir antes de GET by-slug para no competir con rutas dinámicas genéricas.
+   * Cambia datos básicos del tablero (nombre, descripción…).
    */
   @Patch(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Settings),
-  )
+  @CheckBoardPolicies(canUpdateBoardSettings)
   update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() updateBoardDto: UpdateBoardDto,
@@ -93,12 +95,12 @@ export class BoardsController {
   }
 
   /**
-   * Deletes a board permanently (ObjectId en la URL).
+   * Borra el tablero entero y sus tareas (solo con permisos fuertes).
    */
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Delete, Board))
+  @CheckBoardPolicies(canDeleteBoard)
   remove(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
@@ -113,14 +115,12 @@ export class BoardsController {
   // --- MIEMBROS E INVITACIONES ---
 
   /**
-   * Invita un usuario al tablero o actualiza su rol (admin / editor / viewer).
+   * Invita a alguien por id o le cambia el rol si ya estaba.
    */
   @Post(':id/members')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Members),
-  )
+  @CheckBoardPolicies(canManageBoardMembers)
   @ApiOperation({ summary: 'Invitar o actualizar miembro del tablero' })
   inviteMember(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
@@ -136,12 +136,12 @@ export class BoardsController {
   }
 
   /**
-   * Lista miembros con nombre y email (todos los que tienen acceso al tablero).
+   * Lista personas del tablero con nombre y avatar para la interfaz.
    */
   @Get(':id/members')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) => ability.can(Action.Read, Board))
+  @CheckBoardPolicies(canReadBoard)
   @ApiOperation({ summary: 'Listar miembros del tablero (con perfil)' })
   listMembers(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
@@ -155,14 +155,12 @@ export class BoardsController {
   }
 
   /**
-   * Expulsa a un miembro (no al propietario).
+   * Quita a un miembro del tablero (no al dueño).
    */
   @Delete(':id/members/:memberUserId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Members),
-  )
+  @CheckBoardPolicies(canManageBoardMembers)
   @ApiOperation({ summary: 'Expulsar miembro del tablero' })
   @HttpCode(204)
   async removeMember(
@@ -180,12 +178,13 @@ export class BoardsController {
 
   // --- COLUMNAS ---
 
+  /**
+   * Añade una columna nueva (título y posición inicial).
+   */
   @Post(':id/columns')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Columns),
-  )
+  @CheckBoardPolicies(canEditBoardColumns)
   @ApiOperation({ summary: 'Añadir una columna al tablero' })
   addColumn(
     @Param('id') boardId: string,
@@ -201,14 +200,12 @@ export class BoardsController {
   }
 
   /**
-   * Updates the title of an existing column.
+   * Renombra una columna existente.
    */
   @Patch(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Columns),
-  )
+  @CheckBoardPolicies(canEditBoardColumns)
   @ApiOperation({ summary: 'Editar título de una columna' })
   updateColumn(
     @Param('id') boardId: string,
@@ -226,14 +223,12 @@ export class BoardsController {
   }
 
   /**
-   * Deletes a column and initiates a cascade delete for all its tasks.
+   * Borra la columna y todas las tarjetas que llevaba dentro.
    */
   @Delete(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Columns),
-  )
+  @CheckBoardPolicies(canEditBoardColumns)
   @ApiOperation({ summary: 'Eliminar una columna y sus tareas (Cascada)' })
   removeColumn(
     @Param('id') boardId: string,
@@ -249,14 +244,12 @@ export class BoardsController {
   }
 
   /**
-   * Actualiza la posición de una columna (arrastrar y soltar)
+   * Guarda el orden al arrastrar columnas en el tablero.
    */
   @Patch(':id/columns/:columnId/position')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
-  @CheckBoardPolicies((ability) =>
-    ability.can(Action.Update, BoardSubject.Columns),
-  )
+  @CheckBoardPolicies(canEditBoardColumns)
   @ApiOperation({ summary: 'Actualizar orden de la columna' })
   updateColumnPosition(
     @Param('id') boardId: string,
@@ -274,12 +267,12 @@ export class BoardsController {
   }
 
   /**
-   * Tablero por slug (ruta explícita; evita colisión con PATCH/DELETE /boards/:id).
+   * Carga un tablero por la parte amigable de la URL (el slug).
    */
   @Get('by-slug/:slug')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamSlug)
-  @CheckBoardPolicies((ability) => ability.can(Action.Read, Board))
+  @CheckBoardPolicies(canReadBoard)
   @ApiOperation({ summary: 'Get a specific board by slug' })
   findOneBySlug(@Param('slug') slug: string, @Request() req: ValidatedRequest) {
     return this.boardsService.findOneBySlug(slug, req.user.sub);

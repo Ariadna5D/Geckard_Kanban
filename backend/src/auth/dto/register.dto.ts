@@ -8,6 +8,7 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
+  /** Username visible en la app (único). */
   @ApiProperty({ example: 'Usuario', description: 'Nombre de usuario único' })
   @IsString({ message: 'El nombre debe ser un texto' })
   @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
@@ -18,6 +19,7 @@ export class RegisterDto {
   })
   username: string;
 
+  /** Email de acceso/login. */
   @ApiProperty({
     example: 'usuario@mail.com',
     description: 'Correo electrónico válido',
@@ -25,6 +27,7 @@ export class RegisterDto {
   @IsEmail({}, { message: 'El formato del email no es válido' })
   email: string;
 
+  /** Contraseña con reglas mínimas de seguridad. */
   @ApiProperty({
     example: 'usuario',
     description: 'Contraseña del usuario',

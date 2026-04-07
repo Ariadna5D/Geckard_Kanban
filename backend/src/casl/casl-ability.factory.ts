@@ -11,7 +11,9 @@ import { Board, BoardRole } from '../boards/schemas/board.schema';
 import { Action } from './enums/action.enum';
 import { Task } from '../tasks/schemas/task.schema';
 
-/** Sub-recursos del tablero para permisos finos (metadata, miembros, columnas). */
+/**
+ * Partes del tablero que se pueden permisar por separado (ajustes, miembros, columnas).
+ */
 export const BoardSubject = {
   Settings: 'BoardSettings',
   Members: 'BoardMembers',
@@ -27,7 +29,6 @@ type Subjects =
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
-/** `req.user` inyectado por la estrategia JWT */
 export type JwtAuthUser = {
   userId: string;
   role: string;
@@ -35,7 +36,30 @@ export type JwtAuthUser = {
 
 @Injectable()
 export class CaslAbilityFactory {
-  /** Listar / crear tableros (sin contexto de un tablero concreto). */
+  private readonly detectSubjectTypeFn = (
+    item: unknown,
+  ): ExtractSubjectType<Subjects> => {
+    if (item === null || item === undefined) {
+      return 'all' as ExtractSubjectType<Subjects>;
+    }
+    if (typeof item === 'string') {
+      return item as ExtractSubjectType<Subjects>;
+    }
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'constructor' in item &&
+      (item as { constructor: unknown }).constructor
+    ) {
+      return (item as { constructor: ExtractSubjectType<Subjects> })
+        .constructor;
+    }
+    return 'all' as ExtractSubjectType<Subjects>;
+  };
+
+  /**
+   * Reglas “generales” del usuario (listar tableros, crear tablero, etc.).
+   */
   createForUser(user: JwtAuthUser) {
     const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
@@ -54,13 +78,12 @@ export class CaslAbilityFactory {
     }
 
     return build({
-      detectSubjectType: (item) => this.detectSubjectType(item),
+      detectSubjectType: this.detectSubjectTypeFn,
     });
   }
 
   /**
-   * Permisos dentro de un tablero según rol de miembro (owner / admin / editor / viewer).
-   * No usar para rutas globales de listado.
+   * Reglas cuando ya sabemos el rol de la persona dentro de un tablero concreto.
    */
   createForBoardMember(user: JwtAuthUser, roleOnBoard: BoardRole) {
     const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
@@ -68,7 +91,7 @@ export class CaslAbilityFactory {
     if (user.role === 'admin') {
       can(Action.Manage, 'all');
       return build({
-        detectSubjectType: (item) => this.detectSubjectType(item),
+        detectSubjectType: this.detectSubjectTypeFn,
       });
     }
 
@@ -77,7 +100,7 @@ export class CaslAbilityFactory {
 
     if (roleOnBoard === BoardRole.VIEWER) {
       return build({
-        detectSubjectType: (item) => this.detectSubjectType(item),
+        detectSubjectType: this.detectSubjectTypeFn,
       });
     }
 
@@ -102,26 +125,7 @@ export class CaslAbilityFactory {
     }
 
     return build({
-      detectSubjectType: (item) => this.detectSubjectType(item),
+      detectSubjectType: this.detectSubjectTypeFn,
     });
-  }
-
-  private detectSubjectType(item: unknown): ExtractSubjectType<Subjects> {
-    if (item === null || item === undefined) {
-      return 'all' as ExtractSubjectType<Subjects>;
-    }
-    if (typeof item === 'string') {
-      return item as ExtractSubjectType<Subjects>;
-    }
-    if (
-      typeof item === 'object' &&
-      item !== null &&
-      'constructor' in item &&
-      (item as { constructor: unknown }).constructor
-    ) {
-      return (item as { constructor: ExtractSubjectType<Subjects> })
-        .constructor;
-    }
-    return 'all' as ExtractSubjectType<Subjects>;
   }
 }

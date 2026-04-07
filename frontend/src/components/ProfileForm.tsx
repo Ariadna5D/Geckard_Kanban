@@ -30,6 +30,12 @@ interface ProfileFormData {
   bio: string;
 }
 
+/**
+ * Formulario de perfil:
+ * - edición de username/bio
+ * - avatar con compresión previa en cliente
+ * - borrado de cuenta con confirmación
+ */
 export const ProfileForm = () => {
   const { user, updateUser, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -47,6 +53,7 @@ export const ProfileForm = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /** Iniciales para fallback de avatar cuando no hay imagen. */
   const getInitials = (name: string) => {
     if (!name) return 'U';
     const matches = name.match(/[A-Z]/g);
@@ -59,6 +66,7 @@ export const ProfileForm = () => {
   const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // Máximo 5MB (coherente con el texto de la UI)
   const AVATAR_SIZE = 400; // Cloudinary redimensiona a 400x400; así reducimos payload antes de subir
 
+  /** Convierte canvas a Blob con calidad controlada. */
   const canvasToBlob = (
     canvas: HTMLCanvasElement,
     mime: string,
@@ -72,6 +80,10 @@ export const ProfileForm = () => {
       );
     });
 
+  /**
+   * Reduce imagen para que normalmente cumpla límite de 5MB antes de subir.
+   * Mantiene formato de salida JPEG y recorte 1:1.
+   */
   const compressImageForUpload = async (file: File): Promise<File> => {
     if (file.size <= MAX_AVATAR_BYTES) return file;
 
@@ -157,6 +169,7 @@ export const ProfileForm = () => {
     }
   }, [user, reset]);
 
+  /** Valida tipo de archivo, comprime y genera previsualización local. */
   const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setMessage({ type: 'error', text: 'Por favor, sube solo archivos de imagen.' });
@@ -203,6 +216,7 @@ export const ProfileForm = () => {
     if (file) void processFile(file);
   };
 
+  /** Envía actualización de perfil (campos + avatar opcional). */
   const onSubmit = async (data: ProfileFormData) => {
     setIsLoading(true);
     setMessage(null);
@@ -229,21 +243,26 @@ export const ProfileForm = () => {
     }
   };
 
-  // Lógica para borrar cuenta limpia, sin el window.confirm nativo
+  /** Elimina la cuenta del usuario y cierra sesión local. */
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
     try {
       await api.delete('/users/me');
       logout();
       navigate('/login');
-    } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Error al eliminar la cuenta' 
+    } catch (error: unknown) {
+      setMessage({
+        type: 'error',
+        text: apiErrorMessage(error, 'Error al eliminar la cuenta'),
       });
+    } finally {
       setIsDeleting(false);
     }
   };
+
+  function handleAvatarZoneClick() {
+    fileInputRef.current?.click();
+  }
 
   return (
     <Card className="mx-auto mt-8 max-w-xl border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
@@ -259,7 +278,7 @@ export const ProfileForm = () => {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleAvatarZoneClick}
             className={`group/avatar-zone relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors
               ${isDragging ? 'border-primary-500 bg-primary-500/10 dark:border-primary-400 dark:bg-primary-500/15' : 'border-surface-300 hover:border-primary-500/45 hover:bg-primary-500/10 dark:border-surface-600 dark:hover:border-primary-400/40 dark:hover:bg-primary-500/10'}`}
           >
