@@ -3,6 +3,7 @@ import {
   v2 as cloudinary,
   UploadApiResponse,
   UploadApiErrorResponse,
+  UploadResponseCallback,
 } from 'cloudinary';
 import * as streamifier from 'streamifier';
 import { Readable } from 'stream';
@@ -14,13 +15,18 @@ interface MulterFile {
 
 @Injectable()
 export class CloudinaryService {
-  constructor(@Inject(CLOUDINARY) private cloudinaryConfig: any) {}
+  constructor(@Inject(CLOUDINARY) private readonly cloudinaryConfig: unknown) {
+    void this.cloudinaryConfig;
+  }
 
   /**
    * Sube la imagen del avatar: la recorta cuadrada y la deja en la carpeta “avatars”.
    */
   async uploadFile(file: MulterFile): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {
+      const uploadCallback: UploadResponseCallback = (error, result) => {
+        this.handleUploadStreamResult(resolve, reject, error, result);
+      };
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'avatars',
@@ -29,12 +35,14 @@ export class CloudinaryService {
             { quality: 'auto', fetch_format: 'auto' },
           ],
         },
-        this.handleUploadStreamResult.bind(this, resolve, reject),
+        uploadCallback,
       );
       const streamService = streamifier as {
         createReadStream: (b: Buffer) => Readable;
       };
-      streamService.createReadStream(Buffer.from(file.buffer)).pipe(uploadStream);
+      streamService
+        .createReadStream(Buffer.from(file.buffer))
+        .pipe(uploadStream);
     });
   }
 

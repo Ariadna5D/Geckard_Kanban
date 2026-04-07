@@ -36,7 +36,10 @@ interface UploadedFileWithBuffer {
 
 type MulterFileLike = { mimetype: string };
 
-type MulterFileFilterCallback = (error: Error | null, acceptFile: boolean) => void;
+type MulterFileFilterCallback = (
+  error: Error | null,
+  acceptFile: boolean,
+) => void;
 
 /**
  * Regla de Multer: rechaza todo lo que no sea imagen (para el avatar).

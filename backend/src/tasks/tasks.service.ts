@@ -91,7 +91,8 @@ export class TasksService {
       let storedUrl: string;
       try {
         const parsed = new URL(trimmed);
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+          continue;
         hrefKey = parsed.href;
         storedUrl = parsed.href.slice(0, 2048);
       } catch {

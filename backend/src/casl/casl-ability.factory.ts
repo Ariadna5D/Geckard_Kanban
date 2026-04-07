@@ -36,6 +36,27 @@ export type JwtAuthUser = {
 
 @Injectable()
 export class CaslAbilityFactory {
+  private readonly detectSubjectTypeFn = (
+    item: unknown,
+  ): ExtractSubjectType<Subjects> => {
+    if (item === null || item === undefined) {
+      return 'all' as ExtractSubjectType<Subjects>;
+    }
+    if (typeof item === 'string') {
+      return item as ExtractSubjectType<Subjects>;
+    }
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'constructor' in item &&
+      (item as { constructor: unknown }).constructor
+    ) {
+      return (item as { constructor: ExtractSubjectType<Subjects> })
+        .constructor;
+    }
+    return 'all' as ExtractSubjectType<Subjects>;
+  };
+
   /**
    * Reglas “generales” del usuario (listar tableros, crear tablero, etc.).
    */
@@ -57,7 +78,7 @@ export class CaslAbilityFactory {
     }
 
     return build({
-      detectSubjectType: this.detectSubjectType.bind(this),
+      detectSubjectType: this.detectSubjectTypeFn,
     });
   }
 
@@ -70,7 +91,7 @@ export class CaslAbilityFactory {
     if (user.role === 'admin') {
       can(Action.Manage, 'all');
       return build({
-        detectSubjectType: this.detectSubjectType.bind(this),
+        detectSubjectType: this.detectSubjectTypeFn,
       });
     }
 
@@ -79,7 +100,7 @@ export class CaslAbilityFactory {
 
     if (roleOnBoard === BoardRole.VIEWER) {
       return build({
-        detectSubjectType: this.detectSubjectType.bind(this),
+        detectSubjectType: this.detectSubjectTypeFn,
       });
     }
 
@@ -104,29 +125,7 @@ export class CaslAbilityFactory {
     }
 
     return build({
-      detectSubjectType: this.detectSubjectType.bind(this),
+      detectSubjectType: this.detectSubjectTypeFn,
     });
-  }
-
-  /**
-   * CASL pregunta de qué tipo es cada cosa para aplicar las reglas bien.
-   */
-  private detectSubjectType(item: unknown): ExtractSubjectType<Subjects> {
-    if (item === null || item === undefined) {
-      return 'all' as ExtractSubjectType<Subjects>;
-    }
-    if (typeof item === 'string') {
-      return item as ExtractSubjectType<Subjects>;
-    }
-    if (
-      typeof item === 'object' &&
-      item !== null &&
-      'constructor' in item &&
-      (item as { constructor: unknown }).constructor
-    ) {
-      return (item as { constructor: ExtractSubjectType<Subjects> })
-        .constructor;
-    }
-    return 'all' as ExtractSubjectType<Subjects>;
   }
 }

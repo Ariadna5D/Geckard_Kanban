@@ -312,11 +312,11 @@ export class BoardsService {
         return {
           ...column,
           tasks: tasks
-            .filter(
-              (task) => task.columnId.toString() === col._id.toString(),
-            )
+            .filter((task) => task.columnId.toString() === col._id.toString())
             .map((task) =>
-              this.mapTaskForBoardClient(task as unknown as Record<string, unknown>),
+              this.mapTaskForBoardClient(
+                task as unknown as Record<string, unknown>,
+              ),
             ),
         };
       }),
@@ -650,10 +650,7 @@ export class BoardsService {
     const byId: Record<string, MemberRow> = {};
     for (const r of rawRows) {
       const prev = byId[r.userId];
-      if (
-        !prev ||
-        this.boardRoleRank(r.role) > this.boardRoleRank(prev.role)
-      ) {
+      if (!prev || this.boardRoleRank(r.role) > this.boardRoleRank(prev.role)) {
         byId[r.userId] = r;
       }
     }
