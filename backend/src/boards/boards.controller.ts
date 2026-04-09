@@ -49,9 +49,7 @@ import {
 export class BoardsController {
   constructor(private readonly boardsService: BoardsService) {}
 
-  /**
-   * Crea un tablero vacío; el usuario que llama queda como dueño.
-   */
+  // CREAR TABLERO
   @Post()
   @UseGuards(PoliciesGuard)
   @CheckPolicies(canCreateBoard)
@@ -59,24 +57,24 @@ export class BoardsController {
   @ApiResponse({ status: 201, description: 'Board successfully created.' })
   create(
     @Body() createBoardDto: CreateBoardDto,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
-    return this.boardsService.create(createBoardDto, req.user.sub);
+    return this.boardsService.create(
+      createBoardDto,
+      authenticatedRequest.user.sub,
+    );
   }
 
-  /**
-   * Lista los tableros en los que participas (propios o donde te invitaron).
-   */
+  // LISTAR TABLEROS DEL USUARIO
   @Get()
+  @UseGuards(PoliciesGuard)
   @CheckPolicies(canReadBoard)
   @ApiOperation({ summary: 'Get all boards for the authenticated user' })
-  findAll(@Request() req: ValidatedRequest) {
-    return this.boardsService.findAll(req.user.sub);
+  findAll(@Request() authenticatedRequest: ValidatedRequest) {
+    return this.boardsService.findAll(authenticatedRequest.user.sub);
   }
 
-  /**
-   * Cambia datos básicos del tablero (nombre, descripción…).
-   */
+  // ACTUALIZAR CONFIGURACIÓN DEL TABLERO
   @Patch(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -84,39 +82,35 @@ export class BoardsController {
   update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() updateBoardDto: UpdateBoardDto,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.update(
       id.toString(),
       updateBoardDto,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Borra el tablero entero y sus tareas (solo con permisos fuertes).
-   */
+  // ELIMINAR TABLERO
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
   @CheckBoardPolicies(canDeleteBoard)
   remove(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.remove(
       id.toString(),
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
   // --- MIEMBROS E INVITACIONES ---
 
-  /**
-   * Invita a alguien por id o le cambia el rol si ya estaba.
-   */
+  // INVITAR A USUARIO
   @Post(':id/members')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -125,19 +119,17 @@ export class BoardsController {
   inviteMember(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() dto: InviteBoardMemberDto,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.inviteMember(
       id.toString(),
       dto,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Lista personas del tablero con nombre y avatar para la interfaz.
-   */
+  // LISTAR MIEMBROS DEL TABLERO
   @Get(':id/members')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -145,18 +137,16 @@ export class BoardsController {
   @ApiOperation({ summary: 'Listar miembros del tablero (con perfil)' })
   listMembers(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.listMembers(
       id.toString(),
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Quita a un miembro del tablero (no al dueño).
-   */
+  // ELIMINAR MIEMBRO DEL TABLERO
   @Delete(':id/members/:memberUserId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -166,21 +156,19 @@ export class BoardsController {
   async removeMember(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Param('memberUserId', ParseObjectIdPipe) memberUserId: Types.ObjectId,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     await this.boardsService.removeMember(
       id.toString(),
       memberUserId.toString(),
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
   // --- COLUMNAS ---
 
-  /**
-   * Añade una columna nueva (título y posición inicial).
-   */
+  // CREAR COLUMNA
   @Post(':id/columns')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -189,19 +177,17 @@ export class BoardsController {
   addColumn(
     @Param('id') boardId: string,
     @Body() createColumnDto: CreateColumnDto,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.addColumn(
       boardId,
       createColumnDto,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Renombra una columna existente.
-   */
+  // EDITAR TÍTULO DE COLUMNA
   @Patch(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -211,20 +197,18 @@ export class BoardsController {
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
     @Body('title') title: string,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.updateColumn(
       boardId,
       columnId,
       title,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Borra la columna y todas las tarjetas que llevaba dentro.
-   */
+  // BORRAR COLUMNA
   @Delete(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -233,19 +217,17 @@ export class BoardsController {
   removeColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.removeColumn(
       boardId,
       columnId,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Guarda el orden al arrastrar columnas en el tablero.
-   */
+  // POSICION COLUMNA
   @Patch(':id/columns/:columnId/position')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
@@ -255,26 +237,30 @@ export class BoardsController {
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
     @Body('order') order: string,
-    @Request() req: ValidatedRequest,
+    @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.updateColumnPosition(
       boardId,
       columnId,
       order,
-      req.user.sub,
-      req.user.role === 'admin',
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
     );
   }
 
-  /**
-   * Carga un tablero por la parte amigable de la URL (el slug).
-   */
+  // OBTENER TABLERO POR SLUG
   @Get('by-slug/:slug')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamSlug)
   @CheckBoardPolicies(canReadBoard)
   @ApiOperation({ summary: 'Get a specific board by slug' })
-  findOneBySlug(@Param('slug') slug: string, @Request() req: ValidatedRequest) {
-    return this.boardsService.findOneBySlug(slug, req.user.sub);
+  findOneBySlug(
+    @Param('slug') slug: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.findOneBySlug(
+      slug,
+      authenticatedRequest.user.sub,
+    );
   }
 }

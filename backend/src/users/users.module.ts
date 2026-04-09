@@ -3,8 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
-import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
-import { CaslModule } from 'src/casl/casl.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { CaslModule } from '../casl/casl.module';
 
 @Module({
   imports: [

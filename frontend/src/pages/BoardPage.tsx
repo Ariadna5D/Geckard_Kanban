@@ -1,8 +1,18 @@
-import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { BoardColumn } from '../components/board/BoardColumn';
+import {
+  BoardSprintBar,
+  type SprintFilterValue,
+} from '../components/board/BoardSprintBar';
 import { BoardShareDialog } from '../components/board/BoardShareDialog';
 import { BoardSettingsSheet } from '../components/board/BoardSettingsSheet';
 import { InlineCreateForm } from '../components/shared/InlineCreateForm';
@@ -14,12 +24,18 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Settings, UserPlus } from 'lucide-react';
 import { calculateNewOrder } from '../utils/boardMath';
 import {
+  computeTaskDropOrderInScope,
   createBoardCollisionDetection,
   destinationColumnIdFromDroppable,
   type ColumnDropPayload,
   type TaskDropPayload,
 } from '../utils/boardDnd';
 import { Task, Column } from '../types/board.types';
+import {
+  getStoredWorkingSprintId,
+  resolveDefaultSprintFilter,
+  setStoredWorkingSprintId,
+} from '../utils/boardWorkingSprint';
 
 // DND-KIT
 import {
@@ -34,23 +50,46 @@ import {
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from '../components/board/TaskCard';
 
+function taskMatchesBoardFilter(
+  task: Task,
+  sprintFilter: SprintFilterValue,
+): boolean {
+  if (sprintFilter === 'all') return true;
+  const sid = task.sprintId ?? null;
+  if (sprintFilter === 'backlog') return sid == null;
+  return sid === sprintFilter;
+}
+
+function columnIndexById(columns: Column[], id: string): number {
+  for (let i = 0; i < columns.length; i++) {
+    if (columns[i]._id === id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 export const BoardPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const user = useAuthStore((s) => s.user);
-  const { 
-    board, 
-    isLoading, 
-    error, 
-    fetchBoard, 
-    addColumn, 
-    moveTaskOptimistic, 
-    moveColumnOptimistic 
+  const user = useAuthStore(function selectUser(s) {
+    return s.user;
+  });
+  const {
+    board,
+    isLoading,
+    error,
+    fetchBoard,
+    addColumn,
+    moveTaskOptimistic,
+    moveColumnOptimistic,
   } = useActiveBoardStore();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Filtro de vista Scrum: todo, backlog o un sprint concreto. */
+  const [sprintFilter, setSprintFilter] = useState<SprintFilterValue>('all');
 
   /**
    * El primer render ocurre ANTES de useLayoutEffect/useEffect. Sin esto, con
@@ -58,10 +97,14 @@ export const BoardPage = () => {
    * redirige al dashboard en F5 o recarga directa en /boards/:slug.
    */
   const [fetchSettled, setFetchSettled] = useState(false);
+  /** Evita sobrescribir el filtro al usuario tras aplicar el default por tablero. */
+  const defaultSprintAppliedRef = useRef(false);
 
   useLayoutEffect(() => {
     if (!slug) return;
     setFetchSettled(false);
+    defaultSprintAppliedRef.current = false;
+    setSprintFilter('all');
     useActiveBoardStore.setState({
       isLoading: true,
       error: null,
@@ -81,16 +124,79 @@ export const BoardPage = () => {
     };
   }, [slug, fetchBoard]);
 
+  useLayoutEffect(() => {
+    if (!board?._id || !fetchSettled || !slug) return;
+    if (defaultSprintAppliedRef.current) return;
+    defaultSprintAppliedRef.current = true;
+    setSprintFilter(resolveDefaultSprintFilter(board._id, board.sprints ?? []));
+  }, [board?._id, board?.sprints, fetchSettled, slug]);
+
+  function handlePinWorkingSprint() {
+    if (!board || !board._id) return;
+    if (sprintFilter === 'all' || sprintFilter === 'backlog') return;
+    setStoredWorkingSprintId(board._id, sprintFilter);
+  }
+
+  const storedWorkingSprintId = board?._id
+    ? getStoredWorkingSprintId(board._id)
+    : null;
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const columnIds = board?.columns.map((col) => col._id) || [];
+  const columnIds = useMemo(() => {
+    if (!board) return [];
+    const ids: string[] = [];
+    for (let i = 0; i < board.columns.length; i++) {
+      ids.push(board.columns[i]._id);
+    }
+    return ids;
+  }, [board]);
 
   const collisionDetection = useMemo(
     () => createBoardCollisionDetection(board),
     [board],
   );
+
+  /**
+   * Columnas con tareas filtradas solo para pintar.
+   * El arrastre de tareas con orden fiable solo en «Solo backlog» o un sprint concreto;
+   * en «Todo el tablero» las tarjetas no se arrastran (evita confusiones y orden global).
+   */
+  const columnsForView = useMemo(() => {
+    if (!board) return [];
+    const result: Column[] = [];
+    for (let ci = 0; ci < board.columns.length; ci++) {
+      const col = board.columns[ci];
+      const filtered: Task[] = [];
+      const rawTasks = col.tasks || [];
+      for (let ti = 0; ti < rawTasks.length; ti++) {
+        if (taskMatchesBoardFilter(rawTasks[ti], sprintFilter)) {
+          filtered.push(rawTasks[ti]);
+        }
+      }
+      result.push({ ...col, tasks: filtered });
+    }
+    return result;
+  }, [board, sprintFilter]);
+
+  const tasksDraggable = sprintFilter !== 'all';
+  const newTaskSprintId =
+    sprintFilter === 'all' || sprintFilter === 'backlog'
+      ? undefined
+      : sprintFilter;
+
+  async function handleSprintsMutated() {
+    if (slug) await fetchBoard(slug, { silent: true });
+  }
+
+  function handleAfterSprintCompleted() {
+    const b = useActiveBoardStore.getState().board;
+    if (b && b._id) {
+      setSprintFilter(resolveDefaultSprintFilter(b._id, b.sprints ?? []));
+    }
+  }
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -118,6 +224,10 @@ export const BoardPage = () => {
     if (activeId === overId) return;
 
     const activeType = active.data.current?.type;
+    if (activeType === 'Task' && sprintFilter === 'all') {
+      return;
+    }
+
     const overData = over.data.current as
       | ColumnDropPayload
       | TaskDropPayload
@@ -125,8 +235,8 @@ export const BoardPage = () => {
 
     // --- Reorden de columnas ---
     if (activeType === 'Column') {
-      const oldIndex = board.columns.findIndex((col) => col._id === activeId);
-      const newIndex = board.columns.findIndex((col) => col._id === overId);
+      const oldIndex = columnIndexById(board.columns, activeId);
+      const newIndex = columnIndexById(board.columns, overId);
 
       if (oldIndex === -1 || newIndex === -1) return;
 
@@ -149,43 +259,32 @@ export const BoardPage = () => {
     // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
       const sourceColumnId = active.data.current?.task?.columnId;
+      const activeTask = active.data.current?.task as Task | undefined;
       const destColumnId = destinationColumnIdFromDroppable(overData);
 
-      if (!sourceColumnId || !destColumnId) return;
+      if (!sourceColumnId || !destColumnId || !activeTask) return;
 
-      const destCol = board.columns.find((col) => col._id === destColumnId);
-      if (!destCol) return;
-      const destTasks = destCol.tasks || [];
+      const isBelowOver = Boolean(
+        over &&
+          active.rect.current.translated &&
+          active.rect.current.translated.top >
+            over.rect.top + over.rect.height / 2,
+      );
 
-      let newOrder = '';
+      const scoped = computeTaskDropOrderInScope(board, sprintFilter, {
+        activeTask,
+        activeId,
+        destColumnId,
+        overId,
+        overData,
+        isBelowOver,
+      });
+      if (scoped == null) return;
 
-      // Índices de referencia en la columna destino.
-      const oldIndexInDest = destTasks.findIndex((task) => task._id === activeId);
-      const overIndex = destTasks.findIndex((task) => task._id === overId);
-
-      // Si el puntero cae en la mitad inferior, inserta debajo.
-      const isBelow = over && active.rect.current.translated && 
-                      active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
-
-      let tempTasks = [...destTasks];
-      if (oldIndexInDest !== -1) tempTasks.splice(oldIndexInDest, 1);
-
-      // Cálculo final del punto de inserción.
-      let insertIndex = overIndex === -1 ? tempTasks.length : overIndex;
-      if (isBelow && overIndex !== -1) insertIndex++;
-
-      tempTasks.splice(insertIndex, 0, active.data.current?.task);
-
-      const prev = insertIndex > 0 ? tempTasks[insertIndex - 1] : null;
-      const next = insertIndex < tempTasks.length - 1 ? tempTasks[insertIndex + 1] : null;
-
-      // Evita order duplicado consecutivo.
-      const prevOrder = prev?.order;
-      const nextOrder = (next?.order === prevOrder) ? null : next?.order;
-
-      newOrder = calculateNewOrder(prevOrder || null, nextOrder || null);
-      
-      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, newOrder, { newColumnId: destColumnId, newOrder });
+      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, scoped, {
+        newColumnId: destColumnId,
+        newOrder: scoped,
+      });
     }
   };
 
@@ -277,6 +376,18 @@ export const BoardPage = () => {
         </div>
       </header>
 
+      <BoardSprintBar
+        boardId={board._id}
+        sprints={board.sprints ?? []}
+        canEdit={canEdit}
+        value={sprintFilter}
+        onChange={setSprintFilter}
+        onSprintsMutated={handleSprintsMutated}
+        onAfterSprintCompleted={handleAfterSprintCompleted}
+        onPinWorkingSprint={handlePinWorkingSprint}
+        storedWorkingSprintId={storedWorkingSprintId}
+      />
+
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-100 dark:bg-surface-950">
         <DndContext
           sensors={sensors}
@@ -287,12 +398,14 @@ export const BoardPage = () => {
           <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             <div className="flex h-full min-h-0 min-w-min items-stretch gap-4 sm:gap-6">
               <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-                {board.columns.map((column) => (
+                {columnsForView.map((column) => (
                   <BoardColumn
                     key={column._id}
                     column={column}
                     boardId={board._id}
                     canEdit={canEdit}
+                    newTaskSprintId={newTaskSprintId}
+                    disableTaskDrag={!tasksDraggable}
                   />
                 ))}
               </SortableContext>

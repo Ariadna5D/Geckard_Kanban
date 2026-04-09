@@ -6,6 +6,7 @@ import {
   Task,
   InviteBoardMemberPayload,
   BoardMemberSummary,
+  BoardSprint,
   getBoardDocumentId,
 } from '../types/board.types';
 import {
@@ -24,24 +25,83 @@ import {
   deleteTaskRequest,
   updateTaskRequest,
 } from '../api/tasks.api';
-import { compareOrderKey } from '../utils/boardMath';
+import { compareOrderKey, sortTasksInColumn } from '../utils/boardMath';
+
+function findColumnById(
+  columns: Column[],
+  columnId: string,
+): Column | undefined {
+  for (let i = 0; i < columns.length; i++) {
+    if (columns[i]._id === columnId) {
+      return columns[i];
+    }
+  }
+  return undefined;
+}
+
+function findTaskIndex(tasks: Task[], taskId: string): number {
+  for (let i = 0; i < tasks.length; i++) {
+    if (tasks[i]._id === taskId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function tasksWithoutTaskId(tasks: Task[], taskId: string): Task[] {
+  const out: Task[] = [];
+  for (let i = 0; i < tasks.length; i++) {
+    if (tasks[i]._id !== taskId) {
+      out.push(tasks[i]);
+    }
+  }
+  return out;
+}
+
+function findColumnIndex(columns: Column[], columnId: string): number {
+  for (let i = 0; i < columns.length; i++) {
+    if (columns[i]._id === columnId) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 function mergeServerColumnsWithLocalTasks(
   previousColumns: Column[],
   serverColumns: Column[],
+  sprints: BoardSprint[],
 ): Column[] {
-  const merged = serverColumns.map((serverCol) => {
-    const local = previousColumns.find((col) => col._id === serverCol._id);
-    return {
-      ...serverCol,
-      tasks: local?.tasks && local.tasks.length > 0 ? local.tasks : [],
-    };
+  const merged: Column[] = [];
+  for (let i = 0; i < serverColumns.length; i++) {
+    const serverCol = serverColumns[i];
+    let tasks: Task[] = [];
+    for (let j = 0; j < previousColumns.length; j++) {
+      if (previousColumns[j]._id === serverCol._id) {
+        const local = previousColumns[j];
+        if (local.tasks && local.tasks.length > 0) {
+          tasks = local.tasks;
+        }
+        break;
+      }
+    }
+    merged.push({ ...serverCol, tasks });
+  }
+  merged.sort(function (a, b) {
+    return compareOrderKey(a.order, b.order);
   });
-  merged.sort((a, b) => compareOrderKey(a.order, b.order));
-  return merged;
+  const out: Column[] = [];
+  for (let i = 0; i < merged.length; i++) {
+    const col = merged[i];
+    out.push({
+      ...col,
+      tasks: sortTasksInColumn(col.tasks, sprints),
+    });
+  }
+  return out;
 }
 
-interface ActiveBoardState {
+export interface ActiveBoardState {
   board: Board | null;
   boardMembers: BoardMemberSummary[];
   isLoading: boolean;
@@ -73,7 +133,13 @@ interface ActiveBoardState {
   moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
   
   // --- CRUD de tareas ---
-  addTask: (boardId: string, columnId: string, title: string, order: string) => Promise<void>;
+  addTask: (
+    boardId: string,
+    columnId: string,
+    title: string,
+    order: string,
+    sprintId?: string,
+  ) => Promise<void>;
   deleteTask: (taskId: string, columnId: string) => Promise<void>;
   updateTask: (taskId: string, columnId: string, data: Partial<Task>) => Promise<void>;
 }
@@ -93,15 +159,25 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const board = await getBoardBySlugRequest(slug);
 
-      const sortedColumns = board.columns
-        .sort((a, b) => compareOrderKey(a.order, b.order))
-        .map((col) => ({
+      const sprintList = board.sprints ?? [];
+      const cols = board.columns.slice();
+      cols.sort(function (a, b) {
+        return compareOrderKey(a.order, b.order);
+      });
+      const sortedColumns: typeof board.columns = [];
+      for (let i = 0; i < cols.length; i++) {
+        const col = cols[i];
+        sortedColumns.push({
           ...col,
-          tasks:
-            col.tasks?.sort((a, b) => compareOrderKey(a.order, b.order)) || [],
-        }));
+          tasks: sortTasksInColumn(col.tasks, sprintList),
+        });
+      }
 
-      const boardPayload = { ...board, columns: sortedColumns };
+      const boardPayload = {
+        ...board,
+        columns: sortedColumns,
+        sprints: board.sprints ?? [],
+      };
       const boardDocId = getBoardDocumentId(boardPayload);
 
       set({
@@ -153,12 +229,12 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     if (!previousBoard) return;
 
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
-    const sourceCol = newBoard.columns.find(c => c._id === oldColumnId);
-    const destCol = newBoard.columns.find(c => c._id === newColumnId);
+    const sourceCol = findColumnById(newBoard.columns, oldColumnId);
+    const destCol = findColumnById(newBoard.columns, newColumnId);
 
     if (!sourceCol || !destCol) return;
 
-    const taskIndex = sourceCol.tasks!.findIndex(t => t._id === taskId);
+    const taskIndex = findTaskIndex(sourceCol.tasks!, taskId);
     if (taskIndex === -1) return;
     
     const [taskToMove] = sourceCol.tasks!.splice(taskIndex, 1);
@@ -166,7 +242,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     taskToMove.columnId = newColumnId;
     taskToMove.order = newOrder;
     destCol.tasks!.push(taskToMove);
-    destCol.tasks!.sort((a, b) => compareOrderKey(a.order, b.order));
+    destCol.tasks = sortTasksInColumn(destCol.tasks, newBoard.sprints ?? []);
 
     set({ board: newBoard });
 
@@ -187,12 +263,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
 
     // Clonamos estado para aplicar el cambio al instante sin esperar al backend.
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
-    const colIndex = newBoard.columns.findIndex(c => c._id === columnId);
-    
+    const colIndex = findColumnIndex(newBoard.columns, columnId);
+
     if (colIndex !== -1) {
       newBoard.columns[colIndex].order = newOrder;
-      // Reorden visual por order.
-      newBoard.columns.sort((a, b) => compareOrderKey(a.order, b.order));
+      newBoard.columns.sort(function (a, b) {
+        return compareOrderKey(a.order, b.order);
+      });
     }
 
     set({ board: newBoard });
@@ -212,13 +289,20 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const updatedBoard = await addColumnRequest(boardId, title, order);
       
-      set((state) => {
+      set(function mergeAddColumn(state) {
         if (!state.board) return state;
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
+          state.board.sprints ?? [],
         );
-        return { board: { ...updatedBoard, columns: mergedColumns } };
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+            sprints: state.board.sprints ?? [],
+          },
+        };
       });
     } catch (error) {
       console.error("Error al crear la columna:", error);
@@ -232,13 +316,20 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const updatedBoard = await updateColumnRequest(boardId, columnId, title);
       
-      set((state) => {
+      set(function mergeEditColumn(state) {
         if (!state.board) return state;
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
+          state.board.sprints ?? [],
         );
-        return { board: { ...updatedBoard, columns: mergedColumns } };
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+            sprints: state.board.sprints ?? [],
+          },
+        };
       });
     } catch (error) {
       console.error("Error al editar la columna:", error);
@@ -252,13 +343,20 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const updatedBoard = await deleteColumnRequest(boardId, columnId);
       
-      set((state) => {
+      set(function mergeDeleteColumn(state) {
         if (!state.board) return state;
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
+          state.board.sprints ?? [],
         );
-        return { board: { ...updatedBoard, columns: mergedColumns } };
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+            sprints: state.board.sprints ?? [],
+          },
+        };
       });
     } catch (error) {
       console.error("Error al borrar la columna:", error);
@@ -268,21 +366,32 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   /**
    * Crea una tarea y la inserta en estado local al recibir _id real del backend.
    */
-  addTask: async (boardId, columnId, title, order) => {
+  addTask: async (boardId, columnId, title, order, sprintId) => {
     try {
-      const newTask = await createTaskRequest({ boardId, columnId, title, order });
+      const newTask = await createTaskRequest({
+        boardId,
+        columnId,
+        title,
+        order,
+        ...(sprintId ? { sprintId } : {}),
+      });
       
-      set((state) => {
+      set(function applyNewTask(state) {
         if (!state.board) return state;
-        
+
         const newBoard = { ...state.board };
-        const column = newBoard.columns.find(c => c._id === columnId);
-        
+        const column = findColumnById(newBoard.columns, columnId);
+
         if (column) {
-          column.tasks = [...(column.tasks || []), newTask];
-          column.tasks.sort((a, b) => compareOrderKey(a.order, b.order));
+          const withNew: Task[] = [];
+          const existing = column.tasks || [];
+          for (let i = 0; i < existing.length; i++) {
+            withNew.push(existing[i]);
+          }
+          withNew.push(newTask);
+          column.tasks = sortTasksInColumn(withNew, newBoard.sprints ?? []);
         }
-        
+
         return { board: newBoard };
       });
     } catch (error) {
@@ -298,10 +407,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     if (!previousBoard) return;
 
     const newBoard: Board = JSON.parse(JSON.stringify(previousBoard));
-    const column = newBoard.columns.find(c => c._id === columnId);
-    
+    const column = findColumnById(newBoard.columns, columnId);
+
     if (column && column.tasks) {
-      column.tasks = column.tasks.filter(t => t._id !== taskId);
+      column.tasks = tasksWithoutTaskId(column.tasks, taskId);
     }
 
     set({ board: newBoard });
@@ -321,17 +430,21 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const updatedTask = await updateTaskRequest(taskId, data);
       
-      set((state) => {
+      set(function applyTaskUpdate(state) {
         if (!state.board) return state;
-        
+
         const newBoard = { ...state.board };
-        const column = newBoard.columns.find(c => c._id === columnId);
-        
+        const column = findColumnById(newBoard.columns, columnId);
+
         if (column && column.tasks) {
-          const taskIndex = column.tasks.findIndex(t => t._id === taskId);
+          const taskIndex = findTaskIndex(column.tasks, taskId);
           if (taskIndex !== -1) {
             const prev = column.tasks[taskIndex];
             const next: Task = { ...prev, ...updatedTask };
+            next.sprintId =
+              updatedTask.sprintId !== undefined
+                ? updatedTask.sprintId
+                : (prev.sprintId ?? null);
             if (!Array.isArray(next.links)) {
               next.links = prev.links ?? [];
             }
@@ -339,9 +452,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
               next.checklist = prev.checklist ?? [];
             }
             column.tasks[taskIndex] = next;
+            column.tasks = sortTasksInColumn(
+              column.tasks,
+              newBoard.sprints ?? [],
+            );
           }
         }
-        
+
         return { board: newBoard };
       });
     } catch (error) {

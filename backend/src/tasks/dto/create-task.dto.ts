@@ -119,6 +119,15 @@ export class CreateTaskDto {
   })
   order: string;
 
+  @ApiProperty({
+    required: false,
+    description: 'Sprint (debe pertenecer al mismo tablero). Vacío = backlog.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  sprintId?: string;
+
   // --- CAMPOS SCRUM  ---
 
   // Prioridad de la tarea (baja, media, alta, urgente)

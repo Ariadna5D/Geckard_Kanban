@@ -29,6 +29,21 @@ export interface TaskChecklistItem {
   checked: boolean;
 }
 
+/** Sprint Scrum ligero por tablero (`null` en tarea = backlog). */
+export interface BoardSprint {
+  _id: string;
+  boardId: string;
+  name: string;
+  goal?: string;
+  startsAt?: string;
+  endsAt?: string;
+  status: 'active' | 'completed';
+  /** Orden en el desplegable (menor = más arriba). */
+  displayOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Task {
   _id: string;
   title: string;
@@ -36,6 +51,8 @@ export interface Task {
   boardId: string;
   columnId: string;
   order: string;
+  /** Sprint asignado; `null` o ausente = product backlog. */
+  sprintId?: string | null;
   priority: TaskPriority;
   labels?: TaskLabel[];
   /** Enlaces http(s) con título opcional. */
@@ -92,6 +109,8 @@ export interface Board {
   owner: string;
   members: BoardMember[];
   columns: Column[];
+  /** Incluido en GET por slug; vacío si aún no hay sprints. */
+  sprints?: BoardSprint[];
   createdAt: string;
   updatedAt: string;
 }
@@ -102,11 +121,25 @@ export interface CreateTaskPayload {
   title: string;
   boardId: string;
   columnId: string;
+  order: string;
+  /** Si se omite en vista «todo el tablero» / backlog, la tarea queda en backlog. */
+  sprintId?: string;
 }
 
 export interface UpdateTaskPositionPayload {
   newColumnId: string;
   newOrder: string;
+}
+
+export interface CreateSprintPayload {
+  name: string;
+  goal?: string;
+  startsAt?: string;
+  endsAt?: string;
+  /** Por defecto true en backend: cierra otros sprints `active`. */
+  closePreviousActive?: boolean;
+  /** Si es false, se crea como cerrado (solo aparece en la lista). */
+  makeActive?: boolean;
 }
 
 export interface CreateBoardPayload {

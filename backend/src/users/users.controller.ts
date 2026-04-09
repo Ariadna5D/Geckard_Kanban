@@ -19,21 +19,22 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import type { ValidatedRequest } from '../auth/interfaces/jwt-payload.interface';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { PoliciesGuard } from 'src/casl/policies.guard';
-import { CheckPolicies } from 'src/casl/policies.decorator';
-import { canManageUsers } from 'src/casl/named-policy.handlers';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from '../casl/policies.guard';
+import { CheckPolicies } from '../casl/policies.decorator';
+import { canManageUsers } from '../casl/named-policy.handlers';
 
 interface UploadedFileWithBuffer {
   buffer: Buffer;
 }
 
+// Para validar que el archivo subido es una imagen, evitando que se suban otros tipos de archivos
 type MulterFileLike = { mimetype: string };
 
 type MulterFileFilterCallback = (
@@ -41,9 +42,7 @@ type MulterFileFilterCallback = (
   acceptFile: boolean,
 ) => void;
 
-/**
- * Regla de Multer: rechaza todo lo que no sea imagen (para el avatar).
- */
+// Filtro para multer que solo acepta archivos de imagen para el avatar
 function avatarImageFileFilter(
   _req: unknown,
   file: MulterFileLike,
@@ -61,23 +60,29 @@ function avatarImageFileFilter(
   next(null, true);
 }
 
-/**
- * Si había foto antigua en Cloudinary, la borramos para no llenar la cuenta de basura.
- */
+// Función auxiliar para eliminar el avatar anterior de Cloudinary si existe, evitando acumular archivos no usados
 async function deleteCloudinaryAvatarIfPresent(
-  cloudinary: CloudinaryService,
+  cloudinary: CloudinaryService, // Inyectamos el servicio de Cloudinary para poder eliminar el archivo
   avatarUrl: string | undefined | null,
 ) {
-  if (!avatarUrl) return;
+  if (avatarUrl === undefined || avatarUrl === null) {
+    return;
+  }
+  if (avatarUrl === '') {
+    return;
+  }
   const publicId = cloudinary.extractPublicId(avatarUrl);
-  if (publicId) {
-    await cloudinary.deleteFile(publicId);
+  if (publicId !== null && publicId !== '') {
+    await cloudinary.deleteFile(publicId); // Elimina el archivo de Cloudinary usando su public ID
   }
 }
 
+/**
+ * Controlador para gestionar usuarios. Rutas protegidas con JWT y algunas solo para Admin.
+ */
 @ApiTags('Usuarios')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(
@@ -85,37 +90,32 @@ export class UsersController {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  /**
-   * Devuelve los datos del usuario que está logueado ahora mismo.
-   */
+  // GET del usuario logueado
   @Get('me')
   @ApiOperation({ summary: 'Obtener perfil logueado' })
   async getProfile(@Request() req: ValidatedRequest) {
-    return this.usersService.findOne(req.user.sub);
+    return this.usersService.findOne(req.user.sub); // req.user.sub es el id del usuario logueado, extraído del token JWT por JwtStrategy
   }
 
-  /**
-   * Borra la cuenta del usuario actual y su foto en la nube si tenía.
-   */
+  // DELETE usuario logueado
   @Delete('me')
   @ApiOperation({ summary: 'Eliminar cuenta del usuario logueado' })
   async deleteAccount(@Request() req: ValidatedRequest) {
     const currentUser = await this.usersService.findById(req.user.sub);
-    await deleteCloudinaryAvatarIfPresent(
-      this.cloudinaryService,
-      currentUser?.avatarUrl,
-    );
+    let oldAvatar: string | undefined;
+    if (currentUser !== null) {
+      oldAvatar = currentUser.avatarUrl;
+    }
+    await deleteCloudinaryAvatarIfPresent(this.cloudinaryService, oldAvatar);
     await this.usersService.remove(req.user.sub);
     return { message: 'Cuenta y datos asociados eliminados correctamente' };
   }
 
-  /**
-   * Cambia nombre, email, etc. Si viene archivo, sube avatar y borra el anterior.
-   */
+  // PATCH usuario logueado
   @Patch('me')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 5 * 1024 * 1024 },
+      limits: { fileSize: 5 * 1024 * 1024 }, // Limite de 5MB para el archivo
       fileFilter: avatarImageFileFilter,
     }),
   )
@@ -140,12 +140,14 @@ export class UsersController {
   ) {
     const uploaded = file as UploadedFileWithBuffer | undefined;
 
-    if (uploaded?.buffer) {
+    // Si se subió un nuevo avatar, lo subimos a Cloudinary y actualizamos el avatarUrl del usuario
+    if (uploaded !== undefined && uploaded.buffer !== undefined) {
       const currentUser = await this.usersService.findById(req.user.sub);
-      await deleteCloudinaryAvatarIfPresent(
-        this.cloudinaryService,
-        currentUser?.avatarUrl,
-      );
+      let oldAvatar: string | undefined;
+      if (currentUser !== null) {
+        oldAvatar = currentUser.avatarUrl;
+      }
+      await deleteCloudinaryAvatarIfPresent(this.cloudinaryService, oldAvatar); // Elimina el avatar anterior de Cloudinary si existía
       const uploadResult = await this.cloudinaryService.uploadFile({
         buffer: uploaded.buffer,
       });
@@ -156,30 +158,44 @@ export class UsersController {
   }
 
   /**
-   * Autocompletar usuarios al escribir en el modal de invitar al tablero.
+   * Busca usuarios por texto en nombre de usuario o email, para invitar a tableros. Excluye al usuario que hace la búsqueda
    */
   @Get('search')
   @ApiOperation({ summary: 'Buscar usuarios para invitar (autenticado)' })
-  async searchUsers(@Query('q') q: string, @Request() req: ValidatedRequest) {
-    return this.usersService.searchForInvite(q ?? '', req.user.sub);
+  @ApiQuery({
+    name: 'text',
+    required: false,
+    description:
+      'Texto a buscar en nombre de usuario o email (mínimo 2 caracteres en el servicio)',
+  })
+  async searchUsers(
+    @Query('text') searchTextFromQuery: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    let searchTextForInvite = '';
+    if (searchTextFromQuery !== undefined && searchTextFromQuery !== null) {
+      searchTextForInvite = searchTextFromQuery;
+    }
+    const currentUserId = authenticatedRequest.user.sub;
+    return this.usersService.searchForInvite(
+      searchTextForInvite,
+      currentUserId,
+    );
   }
 
   /**
-   * Listado global: solo para administradores de la aplicación.
+   * RUTAS DE ADNIMINSTRACION DE USUARIOS - SOLO PARA ADMINISTRADORES
    */
   @Get()
-  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @UseGuards(PoliciesGuard) // Protegemos esta ruta con el guard de políticas de CASL
   @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Obtener todos los usuarios (Solo Admin)' })
   async findAllUsers() {
     return this.usersService.findAll();
   }
 
-  /**
-   * Un admin puede editar a cualquier usuario desde el panel.
-   */
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @UseGuards(PoliciesGuard)
   @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Editar cualquier usuario (Solo Admin)' })
   async updateUserById(
@@ -189,22 +205,20 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
-  /**
-   * Un admin puede borrar cuentas; también quitamos su avatar de Cloudinary.
-   */
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @UseGuards(PoliciesGuard)
   @CheckPolicies(canManageUsers)
   @ApiOperation({ summary: 'Eliminar cualquier usuario (Solo Admin)' })
   async deleteUserById(@Param('id') id: string) {
     const userToDelete = await this.usersService.findById(id);
-    await deleteCloudinaryAvatarIfPresent(
-      this.cloudinaryService,
-      userToDelete?.avatarUrl,
-    );
+    let oldAvatar: string | undefined;
+    if (userToDelete !== null) {
+      oldAvatar = userToDelete.avatarUrl;
+    }
+    await deleteCloudinaryAvatarIfPresent(this.cloudinaryService, oldAvatar);
     await this.usersService.remove(id);
     return {
-      message: `Usuario con ID ${id} eliminado correctamente del sistema.`,
+      message: 'Usuario con ID ' + id + ' eliminado correctamente del sistema.',
     };
   }
 }

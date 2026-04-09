@@ -1,8 +1,11 @@
 import { SetMetadata } from '@nestjs/common';
-import { AppAbility } from '../casl/casl-ability.factory';
+import { AppAbility } from './casl-ability.factory';
 
 export type PolicyHandlerCallback = (ability: AppAbility) => boolean;
 
 export const CHECK_POLICIES_KEY = 'check_policy';
-export const CheckPolicies = (...handlers: PolicyHandlerCallback[]) =>
-  SetMetadata(CHECK_POLICIES_KEY, handlers);
+
+// Decorador para aplicar políticas de autorización a rutas o controladores.
+export function CheckPolicies(...handlers: PolicyHandlerCallback[]) {
+  return SetMetadata(CHECK_POLICIES_KEY, handlers);
+}

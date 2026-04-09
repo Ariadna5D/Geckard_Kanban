@@ -13,24 +13,35 @@ export class PoliciesGuard implements CanActivate {
     private caslAbilityFactory: CaslAbilityFactory,
   ) {}
 
-  /**
-   * Comprueba las reglas que pusimos con @CheckPolicies (por ejemplo “solo admin”).
-   */
+  // Ejecuta los handlers de políticas definidos en el decorador @CheckPolicies.
   canActivate(context: ExecutionContext): boolean {
-    const policyHandlers =
-      this.reflector.get<PolicyHandlerCallback[]>(
-        CHECK_POLICIES_KEY,
-        context.getHandler(),
-      ) || [];
+    const handlersFromDecorator = this.reflector.get<
+      PolicyHandlerCallback[] | undefined
+    >(CHECK_POLICIES_KEY, context.getHandler()); // Primero miramos si hay handlers en el método
 
-    const { user } = context.switchToHttp().getRequest<{ user: JwtAuthUser }>();
-    const ability = this.caslAbilityFactory.createForUser(user);
+    // Si no hay handlers en el método, miramos si hay en el controlador
+    let policyHandlers: PolicyHandlerCallback[] = [];
+    if (handlersFromDecorator !== undefined && handlersFromDecorator !== null) {
+      policyHandlers = handlersFromDecorator;
+    }
 
-    for (const handler of policyHandlers) {
-      if (!handler(ability)) {
+    // Si no hay handlers, dejamos pasar
+    const httpRequest = context
+      .switchToHttp()
+      .getRequest<{ user: JwtAuthUser }>();
+    const authenticatedUser = httpRequest.user;
+    const userAbility =
+      this.caslAbilityFactory.createForUser(authenticatedUser);
+
+    // Ejecutamos cada handler de política. Si alguno falla, denegamos el acceso
+    for (let index = 0; index < policyHandlers.length; index++) {
+      const singlePolicyCheck = policyHandlers[index];
+      const policyAllows = singlePolicyCheck(userAbility);
+      if (!policyAllows) {
         return false;
       }
     }
+
     return true;
   }
 }

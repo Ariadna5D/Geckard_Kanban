@@ -1,9 +1,6 @@
 import { generateKeyBetween } from 'fractional-indexing';
+import type { BoardSprint, Task } from '../types/board.types';
 
-/**
- * Comprueba si `key` es válida para fractional-indexing (misma regla que generateKeyBetween).
- * Claves inválidas típicas: "", "a" (sin sufijo), "1" (empieza en dígito), etc.
- */
 function isValidOrderKey(key: string): boolean {
   try {
     generateKeyBetween(key, null);
@@ -13,16 +10,12 @@ function isValidOrderKey(key: string): boolean {
   }
 }
 
-/** Convierte valores legacy / corruptos en null para que generateKeyBetween pueda rellenar. */
 export function normalizeOrderKey(key: string | null | undefined): string | null {
   if (key == null || key === '') return null;
-  return isValidOrderKey(key) ? key : null;
+  if (isValidOrderKey(key)) return key;
+  return null;
 }
 
-/**
- * Orden lexicográfico de claves (el que usa la librería en `a >= b`).
- * Sustituye a localeCompare para listas ordenadas por fractional index.
- */
 export function compareOrderKey(
   a: string | null | undefined,
   b: string | null | undefined,
@@ -30,13 +23,10 @@ export function compareOrderKey(
   const sa = a ?? '';
   const sb = b ?? '';
   if (sa === sb) return 0;
-  return sa < sb ? -1 : 1;
+  if (sa < sb) return -1;
+  return 1;
 }
 
-/**
- * Calcula una clave entre dos índices fraccionarios existentes.
- * Pasa null si no hay anterior o siguiente.
- */
 export function calculateNewOrder(
   prevOrder: string | null | undefined,
   nextOrder: string | null | undefined,
@@ -63,4 +53,54 @@ export function calculateNewOrder(
   } catch {
     return generateKeyBetween(null, null);
   }
+}
+
+/** Posición del sprint en la lista del tablero (backlog = -1). */
+function sprintOrderRank(sprintIdStr: string, sprintIdsInOrder: string[]): number {
+  if (sprintIdStr === '') return -1;
+  for (let i = 0; i < sprintIdsInOrder.length; i++) {
+    if (sprintIdsInOrder[i] === sprintIdStr) return i;
+  }
+  return 10000;
+}
+
+/**
+ * Orden en columna: primero backlog, luego sprints como en el tablero, luego `order` dentro del grupo.
+ */
+export function compareTasksInColumn(
+  a: Task,
+  b: Task,
+  sprintIdsInOrder: string[],
+): number {
+  const sa = a.sprintId && String(a.sprintId).trim() !== '' ? String(a.sprintId).trim() : '';
+  const sb = b.sprintId && String(b.sprintId).trim() !== '' ? String(b.sprintId).trim() : '';
+  if (sa === sb) {
+    return compareOrderKey(a.order, b.order);
+  }
+
+  const ra = sprintOrderRank(sa, sprintIdsInOrder);
+  const rb = sprintOrderRank(sb, sprintIdsInOrder);
+  if (ra !== rb) {
+    return ra - rb;
+  }
+  return sa.localeCompare(sb);
+}
+
+export function sortTasksInColumn(
+  tasks: Task[] | undefined,
+  sprints: BoardSprint[] | undefined,
+): Task[] {
+  if (!tasks || tasks.length === 0) return [];
+
+  const list = tasks.slice();
+  const sprintIds: string[] = [];
+  const s = sprints ?? [];
+  for (let i = 0; i < s.length; i++) {
+    sprintIds.push(s[i]._id);
+  }
+
+  list.sort(function (a, b) {
+    return compareTasksInColumn(a, b, sprintIds);
+  });
+  return list;
 }

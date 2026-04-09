@@ -12,7 +12,7 @@ import { Action } from './enums/action.enum';
 import { Task } from '../tasks/schemas/task.schema';
 
 /**
- * Partes del tablero que se pueden permisar por separado (ajustes, miembros, columnas).
+ * Objetos que revisar permisos
  */
 export const BoardSubject = {
   Settings: 'BoardSettings',
@@ -20,8 +20,10 @@ export const BoardSubject = {
   Columns: 'BoardColumns',
 } as const;
 
+// Tipo que representa los usuarios relacionados con tableros
 export type BoardFineSubject = (typeof BoardSubject)[keyof typeof BoardSubject];
 
+// Tipo de usuarios para CASL
 type Subjects =
   | InferSubjects<typeof User | typeof Board | typeof Task>
   | BoardFineSubject
@@ -29,103 +31,119 @@ type Subjects =
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
+// Sacar info de JWT para CASL
 export type JwtAuthUser = {
   userId: string;
   role: string;
 };
 
+/**
+ * Detecta el tipo de sujeto para la capacidad de CASL
+ */
+function detectSubjectTypeForAbility(
+  item: unknown,
+): ExtractSubjectType<Subjects> {
+  if (item === null || item === undefined) {
+    return 'all' as ExtractSubjectType<Subjects>;
+  }
+
+  if (typeof item === 'string') {
+    return item as ExtractSubjectType<Subjects>;
+  }
+
+  if (typeof item === 'object') {
+    const record = item as { constructor?: unknown };
+    if (record.constructor !== undefined && record.constructor !== null) {
+      return record.constructor as ExtractSubjectType<Subjects>;
+    }
+  }
+
+  return 'all' as ExtractSubjectType<Subjects>;
+}
+
+// Fábrica de habilidades de CASL para generar permisos según el rol del usuario
 @Injectable()
 export class CaslAbilityFactory {
-  private readonly detectSubjectTypeFn = (
-    item: unknown,
-  ): ExtractSubjectType<Subjects> => {
-    if (item === null || item === undefined) {
-      return 'all' as ExtractSubjectType<Subjects>;
-    }
-    if (typeof item === 'string') {
-      return item as ExtractSubjectType<Subjects>;
-    }
-    if (
-      typeof item === 'object' &&
-      item !== null &&
-      'constructor' in item &&
-      (item as { constructor: unknown }).constructor
-    ) {
-      return (item as { constructor: ExtractSubjectType<Subjects> })
-        .constructor;
-    }
-    return 'all' as ExtractSubjectType<Subjects>;
-  };
-
   /**
-   * Reglas “generales” del usuario (listar tableros, crear tablero, etc.).
+   * PERMISOS GENERALES
    */
-  createForUser(user: JwtAuthUser) {
-    const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
+  createForUser(user: JwtAuthUser): AppAbility {
+    const abilityBuilder = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    if (user.role === 'admin') {
-      can(Action.Manage, 'all');
+    const isApplicationAdmin = user.role === 'admin'; // Si el usuario es admin a nivel de aplicación, le damos permiso total
+
+    if (isApplicationAdmin) {
+      abilityBuilder.can(Action.Manage, 'all');
     } else {
-      can(Action.Read, Board);
-      can(Action.Create, Board);
-      can(Action.Update, Board, { owner: user.userId });
-      can(Action.Delete, Board, { owner: user.userId });
+      //TABLEROS
+      abilityBuilder.can(Action.Read, Board);
+      abilityBuilder.can(Action.Create, Board);
+      abilityBuilder.can(Action.Update, Board, { owner: user.userId }); // Solo puede actualizar tableros que posea
+      abilityBuilder.can(Action.Delete, Board, { owner: user.userId }); // Solo puede eliminar tableros que posea
 
-      can(Action.Read, Task);
-      can(Action.Create, Task);
-      can(Action.Update, Task);
-      can(Action.Delete, Task);
+      //TAREAS
+      abilityBuilder.can(Action.Read, Task);
+      abilityBuilder.can(Action.Create, Task);
+      abilityBuilder.can(Action.Update, Task);
+      abilityBuilder.can(Action.Delete, Task);
     }
 
-    return build({
-      detectSubjectType: this.detectSubjectTypeFn,
+    return abilityBuilder.build({
+      detectSubjectType: detectSubjectTypeForAbility,
     });
   }
 
-  /**
-   * Reglas cuando ya sabemos el rol de la persona dentro de un tablero concreto.
-   */
-  createForBoardMember(user: JwtAuthUser, roleOnBoard: BoardRole) {
-    const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
+  // PERMISOS EN TABLERO SEGÚN ROL
+  createForBoardMember(user: JwtAuthUser, roleOnBoard: BoardRole): AppAbility {
+    const abilityBuilder = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    if (user.role === 'admin') {
-      can(Action.Manage, 'all');
-      return build({
-        detectSubjectType: this.detectSubjectTypeFn,
+    const isApplicationAdmin = user.role === 'admin'; // Si el usuario es admin a nivel de aplicación, le damos permiso total
+    if (isApplicationAdmin) {
+      abilityBuilder.can(Action.Manage, 'all');
+      return abilityBuilder.build({
+        detectSubjectType: detectSubjectTypeForAbility,
       });
     }
 
-    can(Action.Read, Board);
-    can(Action.Read, Task);
+    abilityBuilder.can(Action.Read, Board);
+    abilityBuilder.can(Action.Read, Task);
 
-    if (roleOnBoard === BoardRole.VIEWER) {
-      return build({
-        detectSubjectType: this.detectSubjectTypeFn,
+    const isViewerOnly = roleOnBoard === BoardRole.VIEWER; // Si el rol en el tablero es solo viewer, no le damos permisos de edición
+    if (isViewerOnly) {
+      return abilityBuilder.build({
+        detectSubjectType: detectSubjectTypeForAbility,
       });
     }
 
-    if (
+    // DAMOS PERMISOS PARA EDITAR
+    const canEditContent =
       roleOnBoard === BoardRole.EDITOR ||
       roleOnBoard === BoardRole.ADMIN ||
-      roleOnBoard === BoardRole.OWNER
-    ) {
-      can(Action.Update, BoardSubject.Columns);
-      can(Action.Create, Task);
-      can(Action.Update, Task);
-      can(Action.Delete, Task);
+      roleOnBoard === BoardRole.OWNER;
+
+    if (canEditContent) {
+      abilityBuilder.can(Action.Update, BoardSubject.Columns);
+      abilityBuilder.can(Action.Create, Task);
+      abilityBuilder.can(Action.Update, Task);
+      abilityBuilder.can(Action.Delete, Task);
     }
 
-    if (roleOnBoard === BoardRole.ADMIN || roleOnBoard === BoardRole.OWNER) {
-      can(Action.Update, BoardSubject.Settings);
-      can(Action.Update, BoardSubject.Members);
+    // DAMOS PERMISOS DE ADMINISTRACIÓN DE TABLERO SOLO A ADMIN Y OWNER
+    const isBoardAdminOrOwner =
+      roleOnBoard === BoardRole.ADMIN || roleOnBoard === BoardRole.OWNER;
+
+    if (isBoardAdminOrOwner) {
+      abilityBuilder.can(Action.Update, BoardSubject.Settings);
+      abilityBuilder.can(Action.Update, BoardSubject.Members);
     }
 
-    if (roleOnBoard === BoardRole.OWNER) {
-      can(Action.Delete, Board);
+    const isBoardOwner = roleOnBoard === BoardRole.OWNER;
+    if (isBoardOwner) {
+      abilityBuilder.can(Action.Delete, Board);
     }
 
-    return build({
-      detectSubjectType: this.detectSubjectTypeFn,
+    return abilityBuilder.build({
+      detectSubjectType: detectSubjectTypeForAbility,
     });
   }
 }

@@ -15,6 +15,7 @@ import { TaskDetailChecklistSection } from "./taskDetailSheet/TaskDetailChecklis
 import { TaskDetailPlanningSection } from "./taskDetailSheet/TaskDetailPlanningSection";
 import { TaskDetailPersonasSection } from "./taskDetailSheet/TaskDetailPersonasSection";
 import { TaskDetailLabelsSection } from "./taskDetailSheet/TaskDetailLabelsSection";
+import { TaskDetailSprintSection } from "./taskDetailSheet/TaskDetailSprintSection";
 
 export type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.types";
 
@@ -81,6 +82,9 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
     onRemoveChecklistRow,
     onChecklistTextChange,
     onChecklistToggle,
+    boardSprints,
+    editSprintId,
+    onEditSprintIdChange,
   } = props;
 
   useEffect(() => {
@@ -129,6 +133,12 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
               onStartDescriptionEdit={onStartDescriptionEdit}
               onSaveDescriptionSection={onSaveDescriptionSection}
               onCancelDescriptionEdit={onCancelDescriptionEdit}
+            />
+            <TaskDetailSprintSection
+              readOnly={readOnly}
+              boardSprints={boardSprints}
+              editSprintId={editSprintId}
+              onEditSprintIdChange={onEditSprintIdChange}
             />
             <TaskDetailLabelsSection
               readOnly={readOnly}
