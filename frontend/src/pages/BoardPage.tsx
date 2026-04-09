@@ -1,4 +1,10 @@
-import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,7 +17,9 @@ import {
   canInviteToBoard,
 } from '../types/board.types';
 import { Button } from '@/components/ui/button';
-import { Loader2, Settings, UserPlus } from 'lucide-react';
+import { Loader2, RefreshCw, Settings, UserPlus } from 'lucide-react';
+import { useRefetchBoardWhenTabVisible } from '../hooks/useRefetchBoardWhenTabVisible';
+import { BOARD_SILENT_POLL_INTERVAL_MS } from '../constants/boardRefetch';
 import { calculateNewOrder } from '../utils/boardMath';
 import {
   createBoardCollisionDetection,
@@ -51,6 +59,8 @@ export const BoardPage = () => {
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Evita doble clic mientras termina el refetch manual. */
+  const [refreshBusy, setRefreshBusy] = useState(false);
 
   /**
    * El primer render ocurre ANTES de useLayoutEffect/useEffect. Sin esto, con
@@ -80,6 +90,30 @@ export const BoardPage = () => {
       isMounted = false;
     };
   }, [slug, fetchBoard]);
+
+  /**
+   * Pide otra vez el tablero y la lista de miembros al API en segundo plano.
+   * No activa `isLoading` del store (modo `silent`), así no tapas el tablero con el spinner grande.
+   */
+  const handleRefreshBoard = useCallback(async () => {
+    if (!slug) return;
+    setRefreshBusy(true);
+    try {
+      await fetchBoard(slug, { silent: true });
+    } finally {
+      setRefreshBusy(false);
+    }
+  }, [slug, fetchBoard]);
+
+  /**
+   * Cuando vuelves a esta pestaña, alineamos datos con el servidor (otro usuario, otro dispositivo).
+   */
+  useRefetchBoardWhenTabVisible({
+    slug,
+    fetchBoard,
+    enabled: fetchSettled && Boolean(slug),
+    pollIntervalMs: BOARD_SILENT_POLL_INTERVAL_MS,
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -233,6 +267,22 @@ export const BoardPage = () => {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+            onClick={() => void handleRefreshBoard()}
+            disabled={refreshBusy}
+            aria-label="Actualizar tablero desde el servidor"
+            title="Actualizar tablero"
+          >
+            {refreshBusy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-4" aria-hidden />
+            )}
+          </Button>
           {user && slug && (
             <>
               <Button
