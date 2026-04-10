@@ -6,7 +6,6 @@ import {
   Task,
   InviteBoardMemberPayload,
   BoardMemberSummary,
-  BoardSprint,
   getBoardDocumentId,
 } from '../types/board.types';
 import {
@@ -70,7 +69,6 @@ function findColumnIndex(columns: Column[], columnId: string): number {
 function mergeServerColumnsWithLocalTasks(
   previousColumns: Column[],
   serverColumns: Column[],
-  sprints: BoardSprint[],
 ): Column[] {
   const merged: Column[] = [];
   for (let i = 0; i < serverColumns.length; i++) {
@@ -95,7 +93,7 @@ function mergeServerColumnsWithLocalTasks(
     const col = merged[i];
     out.push({
       ...col,
-      tasks: sortTasksInColumn(col.tasks, sprints),
+      tasks: sortTasksInColumn(col.tasks),
     });
   }
   return out;
@@ -138,7 +136,6 @@ export interface ActiveBoardState {
     columnId: string,
     title: string,
     order: string,
-    sprintId?: string,
   ) => Promise<void>;
   deleteTask: (taskId: string, columnId: string) => Promise<void>;
   updateTask: (taskId: string, columnId: string, data: Partial<Task>) => Promise<void>;
@@ -159,7 +156,6 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       const board = await getBoardBySlugRequest(slug);
 
-      const sprintList = board.sprints ?? [];
       const cols = board.columns.slice();
       cols.sort(function (a, b) {
         return compareOrderKey(a.order, b.order);
@@ -169,14 +165,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         const col = cols[i];
         sortedColumns.push({
           ...col,
-          tasks: sortTasksInColumn(col.tasks, sprintList),
+          tasks: sortTasksInColumn(col.tasks),
         });
       }
 
       const boardPayload = {
         ...board,
         columns: sortedColumns,
-        sprints: board.sprints ?? [],
       };
       const boardDocId = getBoardDocumentId(boardPayload);
 
@@ -242,7 +237,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     taskToMove.columnId = newColumnId;
     taskToMove.order = newOrder;
     destCol.tasks!.push(taskToMove);
-    destCol.tasks = sortTasksInColumn(destCol.tasks, newBoard.sprints ?? []);
+    destCol.tasks = sortTasksInColumn(destCol.tasks);
 
     set({ board: newBoard });
 
@@ -294,13 +289,11 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
-          state.board.sprints ?? [],
         );
         return {
           board: {
             ...updatedBoard,
             columns: mergedColumns,
-            sprints: state.board.sprints ?? [],
           },
         };
       });
@@ -321,13 +314,11 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
-          state.board.sprints ?? [],
         );
         return {
           board: {
             ...updatedBoard,
             columns: mergedColumns,
-            sprints: state.board.sprints ?? [],
           },
         };
       });
@@ -348,13 +339,11 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
           updatedBoard.columns,
-          state.board.sprints ?? [],
         );
         return {
           board: {
             ...updatedBoard,
             columns: mergedColumns,
-            sprints: state.board.sprints ?? [],
           },
         };
       });
@@ -366,14 +355,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   /**
    * Crea una tarea y la inserta en estado local al recibir _id real del backend.
    */
-  addTask: async (boardId, columnId, title, order, sprintId) => {
+  addTask: async (boardId, columnId, title, order) => {
     try {
       const newTask = await createTaskRequest({
         boardId,
         columnId,
         title,
         order,
-        ...(sprintId ? { sprintId } : {}),
       });
       
       set(function applyNewTask(state) {
@@ -389,7 +377,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
             withNew.push(existing[i]);
           }
           withNew.push(newTask);
-          column.tasks = sortTasksInColumn(withNew, newBoard.sprints ?? []);
+          column.tasks = sortTasksInColumn(withNew);
         }
 
         return { board: newBoard };
@@ -441,10 +429,6 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           if (taskIndex !== -1) {
             const prev = column.tasks[taskIndex];
             const next: Task = { ...prev, ...updatedTask };
-            next.sprintId =
-              updatedTask.sprintId !== undefined
-                ? updatedTask.sprintId
-                : (prev.sprintId ?? null);
             if (!Array.isArray(next.links)) {
               next.links = prev.links ?? [];
             }
@@ -452,10 +436,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
               next.checklist = prev.checklist ?? [];
             }
             column.tasks[taskIndex] = next;
-            column.tasks = sortTasksInColumn(
-              column.tasks,
-              newBoard.sprints ?? [],
-            );
+            column.tasks = sortTasksInColumn(column.tasks);
           }
         }
 

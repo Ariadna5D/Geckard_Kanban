@@ -2,8 +2,6 @@ import { closestCorners, type CollisionDetection } from '@dnd-kit/core';
 import type { Board, Column, Task } from '../types/board.types';
 import { calculateNewOrder, compareOrderKey } from './boardMath';
 
-export type SprintScopeFilter = 'all' | 'backlog' | string;
-
 export function createBoardCollisionDetection(
   board: Board | null | undefined,
 ): CollisionDetection {
@@ -41,16 +39,6 @@ export function destinationColumnIdFromDroppable(
   return overData.task.columnId;
 }
 
-type ScopeFilter = Exclude<SprintScopeFilter, 'all'>;
-
-function taskMatchesSprintScope(task: Task, sprintFilter: ScopeFilter): boolean {
-  const sid = task.sprintId ?? null;
-  if (sprintFilter === 'backlog') {
-    return sid == null;
-  }
-  return sid === sprintFilter;
-}
-
 function sortTasksByOrderKey(tasks: Task[]): Task[] {
   const copy = tasks.slice();
   copy.sort(function (a, b) {
@@ -59,12 +47,9 @@ function sortTasksByOrderKey(tasks: Task[]): Task[] {
   return copy;
 }
 
-/**
- * Nuevo `order` al soltar en backlog o sprint: solo entre tareas del mismo ámbito.
- */
-export function computeTaskDropOrderInScope(
+/** Nuevo `order` al soltar una tarea dentro de una columna (orden fraccionario entre vecinos). */
+export function computeTaskDropOrder(
   board: Board,
-  sprintFilter: SprintScopeFilter,
   args: {
     activeTask: Task;
     activeId: string;
@@ -74,9 +59,6 @@ export function computeTaskDropOrderInScope(
     isBelowOver: boolean;
   },
 ): string | null {
-  if (sprintFilter === 'all') return null;
-  if (!taskMatchesSprintScope(args.activeTask, sprintFilter)) return null;
-
   let destCol: (typeof board.columns)[0] | undefined;
   for (let i = 0; i < board.columns.length; i++) {
     if (board.columns[i]._id === args.destColumnId) {
@@ -87,14 +69,7 @@ export function computeTaskDropOrderInScope(
   if (!destCol) return null;
 
   const fullTasks = destCol.tasks || [];
-  const inScope: Task[] = [];
-  for (let i = 0; i < fullTasks.length; i++) {
-    const t = fullTasks[i];
-    if (taskMatchesSprintScope(t, sprintFilter)) {
-      inScope.push(t);
-    }
-  }
-  const scopedSorted = sortTasksByOrderKey(inScope);
+  const scopedSorted = sortTasksByOrderKey(fullTasks);
 
   const withoutActive: Task[] = [];
   for (let i = 0; i < scopedSorted.length; i++) {
@@ -106,7 +81,6 @@ export function computeTaskDropOrderInScope(
   let insertIndex: number;
 
   if (args.overData && args.overData.type === 'Task') {
-    if (!taskMatchesSprintScope(args.overData.task, sprintFilter)) return null;
     let overIndex = -1;
     for (let i = 0; i < withoutActive.length; i++) {
       if (withoutActive[i]._id === args.overId) {

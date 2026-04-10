@@ -1,7 +1,6 @@
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import type {
   BoardMemberSummary,
-  BoardSprint,
   StoryPointVotingState,
   Task,
   TaskLabel,
@@ -70,7 +69,4 @@ export interface TaskDetailSheetProps {
   onRemoveChecklistRow: (id: string) => void;
   onChecklistTextChange: (id: string, text: string) => void;
   onChecklistToggle: (id: string, checked: boolean) => void;
-  boardSprints: BoardSprint[];
-  editSprintId: string;
-  onEditSprintIdChange: (e: ChangeEvent<HTMLSelectElement>) => void;
 }

@@ -9,17 +9,14 @@ interface TaskCardProps {
   isOverlay?: boolean;
   /** Solo lectura: sin arrastrar ni editar (rol viewer). */
   readOnly?: boolean;
-  /** Desactiva DnD (p. ej. vista filtrada por sprint: el orden debe calcularse con todas las tareas). */
-  disableDrag?: boolean;
 }
 
 export const TaskCard = ({
   task,
   isOverlay,
   readOnly = false,
-  disableDrag = false,
 }: TaskCardProps) => {
-  const vm = useTaskCardViewModel(task, readOnly, { disableDrag });
+  const vm = useTaskCardViewModel(task, readOnly);
 
   if (isOverlay) {
     return (

@@ -20,14 +20,12 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { BoardsService } from '../boards/boards.service';
 import { BoardRole } from '../boards/schemas/board.schema';
-import { SprintsService } from '../sprints/sprints.service';
 
 @Injectable()
 export class TasksService {
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     private readonly boardsService: BoardsService,
-    private readonly sprintsService: SprintsService,
   ) {}
 
   /**
@@ -187,25 +185,11 @@ export class TasksService {
         checklist: rawChecklist,
         boardId,
         columnId,
-        sprintId: sprintIdRaw,
         ...rest
       } = createTaskDto;
       const labels = this.normalizeLabels(rawLabels) ?? [];
       const links = this.normalizeLinks(rawLinks) ?? [];
       const checklist = this.normalizeChecklist(rawChecklist) ?? [];
-
-      let sprintId: Types.ObjectId | undefined;
-      const sprintTrim = sprintIdRaw?.trim();
-      if (sprintTrim) {
-        if (!Types.ObjectId.isValid(sprintTrim)) {
-          throw new BadRequestException('sprintId no válido.');
-        }
-        await this.sprintsService.assertSprintBelongsToBoard(
-          sprintTrim,
-          boardId,
-        );
-        sprintId = new Types.ObjectId(sprintTrim);
-      }
 
       const newTask = await this.taskModel.create({
         ...rest,
@@ -214,7 +198,6 @@ export class TasksService {
         checklist,
         boardId: new Types.ObjectId(boardId),
         columnId: new Types.ObjectId(columnId),
-        sprintId,
       });
 
       return newTask;
@@ -271,7 +254,7 @@ export class TasksService {
     const updatePayload: Record<string, unknown> = {};
     const keys = Object.keys(updateTaskDto) as (keyof UpdateTaskDto)[];
     for (const key of keys) {
-      if (key === 'boardId' || key === 'columnId' || key === 'sprintId') {
+      if (key === 'boardId' || key === 'columnId') {
         continue;
       }
       if (key === 'labels' || key === 'links' || key === 'checklist') {
@@ -280,23 +263,6 @@ export class TasksService {
       updatePayload[key as string] = updateTaskDto[key];
     }
 
-    if (updateTaskDto.sprintId !== undefined) {
-      const raw = updateTaskDto.sprintId;
-      const boardIdStr = task.boardId.toString();
-      if (raw == null || (typeof raw === 'string' && raw.trim() === '')) {
-        updatePayload.sprintId = null;
-      } else {
-        const sprintTrim = String(raw).trim();
-        if (!Types.ObjectId.isValid(sprintTrim)) {
-          throw new BadRequestException('sprintId no válido.');
-        }
-        await this.sprintsService.assertSprintBelongsToBoard(
-          sprintTrim,
-          boardIdStr,
-        );
-        updatePayload.sprintId = new Types.ObjectId(sprintTrim);
-      }
-    }
     const cleanedLabels = this.normalizeLabels(updateTaskDto.labels);
     if (cleanedLabels !== undefined) {
       updatePayload.labels = cleanedLabels;

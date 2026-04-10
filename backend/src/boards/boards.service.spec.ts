@@ -3,7 +3,6 @@ import { getModelToken } from '@nestjs/mongoose';
 import { BoardsService } from './boards.service';
 import { Board } from './schemas/board.schema';
 import { Task } from '../tasks/schemas/task.schema';
-import { Sprint } from '../sprints/schemas/sprint.schema';
 import { UsersService } from '../users/users.service';
 
 describe('BoardsService', () => {
@@ -15,7 +14,6 @@ describe('BoardsService', () => {
         BoardsService,
         { provide: getModelToken(Board.name), useValue: {} },
         { provide: getModelToken(Task.name), useValue: {} },
-        { provide: getModelToken(Sprint.name), useValue: {} },
         { provide: UsersService, useValue: {} },
       ],
     }).compile();

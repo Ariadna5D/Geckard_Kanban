@@ -21,7 +21,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UpdateTaskPositionDto } from './dto/update-task-position.dto';
 import { StoryPointVoteDto } from './dto/story-point-vote.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BoardPolicyGuard } from '../boards/board-policy.guard';
 import {
   BoardIdFrom,

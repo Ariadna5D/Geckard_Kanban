@@ -38,18 +38,12 @@ interface BoardColumnProps {
   boardId: string;
   /** Si es false, la columna es solo lectura (rol viewer en el tablero). */
   canEdit?: boolean;
-  /** Sprint asignado a tareas nuevas (solo si el filtro del tablero es un sprint concreto). */
-  newTaskSprintId?: string;
-  /** Desactiva arrastre de tarjetas (vista filtrada por sprint/backlog). */
-  disableTaskDrag?: boolean;
 }
 
 export const BoardColumn = ({
   column,
   boardId,
   canEdit = true,
-  newTaskSprintId,
-  disableTaskDrag = false,
 }: BoardColumnProps) => {
   const { addTask, editColumn, deleteColumn } = useActiveBoardStore();
   
@@ -103,7 +97,7 @@ export const BoardColumn = ({
     const tasks = column.tasks || [];
     const lastTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
     const newOrder = calculateNewOrder(lastTask ? lastTask.order : null, null);
-    await addTask(boardId, column._id, title, newOrder, newTaskSprintId);
+    await addTask(boardId, column._id, title, newOrder);
   };
 
   function handleStartTitleEdit() {
@@ -202,7 +196,6 @@ export const BoardColumn = ({
                 key={task._id}
                 task={task}
                 readOnly={!canEdit}
-                disableDrag={disableTaskDrag}
               />
             ))}
           </SortableContext>

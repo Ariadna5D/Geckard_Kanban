@@ -3,16 +3,11 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
 } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { BoardColumn } from '../components/board/BoardColumn';
-import {
-  BoardSprintBar,
-  type SprintFilterValue,
-} from '../components/board/BoardSprintBar';
 import { BoardShareDialog } from '../components/board/BoardShareDialog';
 import { BoardSettingsSheet } from '../components/board/BoardSettingsSheet';
 import { InlineCreateForm } from '../components/shared/InlineCreateForm';
@@ -24,18 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Settings, UserPlus } from 'lucide-react';
 import { calculateNewOrder } from '../utils/boardMath';
 import {
-  computeTaskDropOrderInScope,
+  computeTaskDropOrder,
   createBoardCollisionDetection,
   destinationColumnIdFromDroppable,
   type ColumnDropPayload,
   type TaskDropPayload,
 } from '../utils/boardDnd';
-import { Task, Column } from '../types/board.types';
-import {
-  getStoredWorkingSprintId,
-  resolveDefaultSprintFilter,
-  setStoredWorkingSprintId,
-} from '../utils/boardWorkingSprint';
+import { Column } from '../types/board.types';
 
 // DND-KIT
 import {
@@ -49,16 +39,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from '../components/board/TaskCard';
-
-function taskMatchesBoardFilter(
-  task: Task,
-  sprintFilter: SprintFilterValue,
-): boolean {
-  if (sprintFilter === 'all') return true;
-  const sid = task.sprintId ?? null;
-  if (sprintFilter === 'backlog') return sid == null;
-  return sid === sprintFilter;
-}
+import type { Task } from '../types/board.types';
 
 function columnIndexById(columns: Column[], id: string): number {
   for (let i = 0; i < columns.length; i++) {
@@ -88,8 +69,6 @@ export const BoardPage = () => {
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** Filtro de vista Scrum: todo, backlog o un sprint concreto. */
-  const [sprintFilter, setSprintFilter] = useState<SprintFilterValue>('all');
 
   /**
    * El primer render ocurre ANTES de useLayoutEffect/useEffect. Sin esto, con
@@ -97,14 +76,10 @@ export const BoardPage = () => {
    * redirige al dashboard en F5 o recarga directa en /boards/:slug.
    */
   const [fetchSettled, setFetchSettled] = useState(false);
-  /** Evita sobrescribir el filtro al usuario tras aplicar el default por tablero. */
-  const defaultSprintAppliedRef = useRef(false);
 
   useLayoutEffect(() => {
     if (!slug) return;
     setFetchSettled(false);
-    defaultSprintAppliedRef.current = false;
-    setSprintFilter('all');
     useActiveBoardStore.setState({
       isLoading: true,
       error: null,
@@ -124,23 +99,6 @@ export const BoardPage = () => {
     };
   }, [slug, fetchBoard]);
 
-  useLayoutEffect(() => {
-    if (!board?._id || !fetchSettled || !slug) return;
-    if (defaultSprintAppliedRef.current) return;
-    defaultSprintAppliedRef.current = true;
-    setSprintFilter(resolveDefaultSprintFilter(board._id, board.sprints ?? []));
-  }, [board?._id, board?.sprints, fetchSettled, slug]);
-
-  function handlePinWorkingSprint() {
-    if (!board || !board._id) return;
-    if (sprintFilter === 'all' || sprintFilter === 'backlog') return;
-    setStoredWorkingSprintId(board._id, sprintFilter);
-  }
-
-  const storedWorkingSprintId = board?._id
-    ? getStoredWorkingSprintId(board._id)
-    : null;
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
@@ -158,45 +116,6 @@ export const BoardPage = () => {
     () => createBoardCollisionDetection(board),
     [board],
   );
-
-  /**
-   * Columnas con tareas filtradas solo para pintar.
-   * El arrastre de tareas con orden fiable solo en «Solo backlog» o un sprint concreto;
-   * en «Todo el tablero» las tarjetas no se arrastran (evita confusiones y orden global).
-   */
-  const columnsForView = useMemo(() => {
-    if (!board) return [];
-    const result: Column[] = [];
-    for (let ci = 0; ci < board.columns.length; ci++) {
-      const col = board.columns[ci];
-      const filtered: Task[] = [];
-      const rawTasks = col.tasks || [];
-      for (let ti = 0; ti < rawTasks.length; ti++) {
-        if (taskMatchesBoardFilter(rawTasks[ti], sprintFilter)) {
-          filtered.push(rawTasks[ti]);
-        }
-      }
-      result.push({ ...col, tasks: filtered });
-    }
-    return result;
-  }, [board, sprintFilter]);
-
-  const tasksDraggable = sprintFilter !== 'all';
-  const newTaskSprintId =
-    sprintFilter === 'all' || sprintFilter === 'backlog'
-      ? undefined
-      : sprintFilter;
-
-  async function handleSprintsMutated() {
-    if (slug) await fetchBoard(slug, { silent: true });
-  }
-
-  function handleAfterSprintCompleted() {
-    const b = useActiveBoardStore.getState().board;
-    if (b && b._id) {
-      setSprintFilter(resolveDefaultSprintFilter(b._id, b.sprints ?? []));
-    }
-  }
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -224,9 +143,6 @@ export const BoardPage = () => {
     if (activeId === overId) return;
 
     const activeType = active.data.current?.type;
-    if (activeType === 'Task' && sprintFilter === 'all') {
-      return;
-    }
 
     const overData = over.data.current as
       | ColumnDropPayload
@@ -271,7 +187,7 @@ export const BoardPage = () => {
             over.rect.top + over.rect.height / 2,
       );
 
-      const scoped = computeTaskDropOrderInScope(board, sprintFilter, {
+      const nextOrder = computeTaskDropOrder(board, {
         activeTask,
         activeId,
         destColumnId,
@@ -279,11 +195,11 @@ export const BoardPage = () => {
         overData,
         isBelowOver,
       });
-      if (scoped == null) return;
+      if (nextOrder == null) return;
 
-      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, scoped, {
+      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, nextOrder, {
         newColumnId: destColumnId,
-        newOrder: scoped,
+        newOrder: nextOrder,
       });
     }
   };
@@ -376,18 +292,6 @@ export const BoardPage = () => {
         </div>
       </header>
 
-      <BoardSprintBar
-        boardId={board._id}
-        sprints={board.sprints ?? []}
-        canEdit={canEdit}
-        value={sprintFilter}
-        onChange={setSprintFilter}
-        onSprintsMutated={handleSprintsMutated}
-        onAfterSprintCompleted={handleAfterSprintCompleted}
-        onPinWorkingSprint={handlePinWorkingSprint}
-        storedWorkingSprintId={storedWorkingSprintId}
-      />
-
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-100 dark:bg-surface-950">
         <DndContext
           sensors={sensors}
@@ -398,14 +302,12 @@ export const BoardPage = () => {
           <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             <div className="flex h-full min-h-0 min-w-min items-stretch gap-4 sm:gap-6">
               <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-                {columnsForView.map((column) => (
+                {board.columns.map((column) => (
                   <BoardColumn
                     key={column._id}
                     column={column}
                     boardId={board._id}
                     canEdit={canEdit}
-                    newTaskSprintId={newTaskSprintId}
-                    disableTaskDrag={!tasksDraggable}
                   />
                 ))}
               </SortableContext>

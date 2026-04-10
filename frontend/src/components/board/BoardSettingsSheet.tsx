@@ -3,13 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import {
   ArrowLeft,
-  ArrowDown,
-  ArrowUp,
   Loader2,
-  ListOrdered,
   Pencil,
-  PlayCircle,
-  RotateCcw,
   Trash2,
   Users,
 } from "lucide-react";
@@ -40,22 +35,15 @@ import {
   type Board,
   type BoardInviteRole,
   type BoardMemberSummary,
-  type BoardSprint,
   boardOwnerUserId,
   canDeleteBoard,
-  canEditBoardContent,
   canEditBoardSettings,
   canManageBoardMembers,
   getBoardDocumentId,
 } from "@/types/board.types";
 import {
-  createSprintRequest,
   deleteBoardRequest,
-  deleteSprintRequest,
   getBoardMembersRequest,
-  reorderSprintsRequest,
-  reopenSprintRequest,
-  setActiveSprintRequest,
   updateBoardRequest,
 } from "@/api/boards.api";
 import {
@@ -63,9 +51,8 @@ import {
   type ActiveBoardState,
 } from "@/store/useActiveBoardStore";
 import { BoardInviteBlock } from "./BoardInviteBlock";
-import { formatSprintDateRange } from "@/utils/sprintDisplay";
 
-type Panel = "menu" | "edit" | "members" | "sprints";
+type Panel = "menu" | "edit" | "members";
 
 const MANAGEABLE_ROLES: { value: BoardInviteRole; label: string }[] = [
   { value: "admin", label: "Administrador" },
@@ -124,28 +111,6 @@ function apiErr(e: unknown): string {
   return "Algo salió mal. Inténtalo de nuevo.";
 }
 
-/** Orden del desplegable: displayOrder y luego más reciente primero. */
-function sortSprintsForSettingsPanel(sprints: BoardSprint[]): BoardSprint[] {
-  const copy = sprints.slice();
-  copy.sort(function (a, b) {
-    const da = a.displayOrder ?? 0;
-    const db = b.displayOrder ?? 0;
-    if (da !== db) return da - db;
-    const ca = a.createdAt ?? "";
-    const cb = b.createdAt ?? "";
-    return cb.localeCompare(ca);
-  });
-  return copy;
-}
-
-function countActiveSprintsInList(sprints: BoardSprint[]): number {
-  let n = 0;
-  for (let i = 0; i < sprints.length; i++) {
-    if (sprints[i].status === "active") n += 1;
-  }
-  return n;
-}
-
 type Props = {
   board: Board;
   slug: string;
@@ -187,21 +152,8 @@ export function BoardSettingsSheet({
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
-  const [sprintPanelError, setSprintPanelError] = useState<string | null>(null);
-  const [sprintRowBusy, setSprintRowBusy] = useState<string | null>(null);
-  const [sprintDeleteTarget, setSprintDeleteTarget] =
-    useState<BoardSprint | null>(null);
-  const [deletingSprint, setDeletingSprint] = useState(false);
-  const [newSprintName, setNewSprintName] = useState("");
-  const [newSprintGoal, setNewSprintGoal] = useState("");
-  const [newSprintStartsAt, setNewSprintStartsAt] = useState("");
-  const [newSprintEndsAt, setNewSprintEndsAt] = useState("");
-  const [newSprintMakeActive, setNewSprintMakeActive] = useState(true);
-  const [creatingSprint, setCreatingSprint] = useState(false);
-
   const canSettings = canEditBoardSettings(board, user);
   const canDelete = canDeleteBoard(board, user);
-  const canManageSprints = canEditBoardContent(board, user);
   /** Invitar / roles / expulsar: propietario, admin del tablero o admin de la app — no editores ni lectores. */
   const canManageParticipantsUI = canManageBoardMembers(board, user);
 
@@ -212,13 +164,6 @@ export function BoardSettingsSheet({
       setPanel("menu");
       setListError(null);
       setExpelTarget(null);
-      setSprintPanelError(null);
-      setSprintDeleteTarget(null);
-      setNewSprintName("");
-      setNewSprintGoal("");
-      setNewSprintStartsAt("");
-      setNewSprintEndsAt("");
-      setNewSprintMakeActive(true);
     }
   }, [open]);
 
@@ -389,106 +334,6 @@ export function BoardSettingsSheet({
     setPanel("members");
   }
 
-  function handleOpenSprintsPanel() {
-    setSprintPanelError(null);
-    setPanel("sprints");
-  }
-
-  const orderedSprints = sortSprintsForSettingsPanel(board.sprints ?? []);
-  const activeSprintCount = countActiveSprintsInList(orderedSprints);
-
-  async function persistSprintOrder(nextOrder: BoardSprint[]) {
-    if (!boardDocId) return;
-    setSprintPanelError(null);
-    try {
-      const ids: string[] = [];
-      for (let i = 0; i < nextOrder.length; i++) {
-        ids.push(nextOrder[i]._id);
-      }
-      await reorderSprintsRequest(boardDocId, ids);
-      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
-    } catch (e) {
-      setSprintPanelError(apiErr(e));
-    }
-  }
-
-  function handleSprintMove(index: number, dir: "up" | "down") {
-    const next = [...orderedSprints];
-    const j = dir === "up" ? index - 1 : index + 1;
-    if (j < 0 || j >= next.length) return;
-    [next[index], next[j]] = [next[j], next[index]];
-    void persistSprintOrder(next);
-  }
-
-  async function handleSprintSetActive(sprintId: string) {
-    if (!boardDocId) return;
-    setSprintRowBusy(sprintId);
-    setSprintPanelError(null);
-    try {
-      await setActiveSprintRequest(boardDocId, sprintId);
-      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
-    } catch (e) {
-      setSprintPanelError(apiErr(e));
-    } finally {
-      setSprintRowBusy(null);
-    }
-  }
-
-  async function handleSprintReopen(sprintId: string) {
-    if (!boardDocId) return;
-    setSprintRowBusy(sprintId);
-    setSprintPanelError(null);
-    try {
-      await reopenSprintRequest(boardDocId, sprintId);
-      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
-    } catch (e) {
-      setSprintPanelError(apiErr(e));
-    } finally {
-      setSprintRowBusy(null);
-    }
-  }
-
-  async function handleConfirmDeleteSprint() {
-    if (!boardDocId || !sprintDeleteTarget) return;
-    setDeletingSprint(true);
-    setSprintPanelError(null);
-    try {
-      await deleteSprintRequest(boardDocId, sprintDeleteTarget._id);
-      setSprintDeleteTarget(null);
-      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
-    } catch (e) {
-      setSprintPanelError(apiErr(e));
-    } finally {
-      setDeletingSprint(false);
-    }
-  }
-
-  async function handleCreateSprintFromSettings() {
-    if (!boardDocId || !newSprintName.trim()) return;
-    setCreatingSprint(true);
-    setSprintPanelError(null);
-    try {
-      await createSprintRequest(boardDocId, {
-        name: newSprintName.trim(),
-        goal: newSprintGoal.trim() || undefined,
-        startsAt: newSprintStartsAt.trim() || undefined,
-        endsAt: newSprintEndsAt.trim() || undefined,
-        closePreviousActive: newSprintMakeActive,
-        makeActive: newSprintMakeActive,
-      });
-      setNewSprintName("");
-      setNewSprintGoal("");
-      setNewSprintStartsAt("");
-      setNewSprintEndsAt("");
-      setNewSprintMakeActive(true);
-      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
-    } catch (e) {
-      setSprintPanelError(apiErr(e));
-    } finally {
-      setCreatingSprint(false);
-    }
-  }
-
   function handleSaveBoardClick() {
     void handleSaveBoard();
   }
@@ -539,7 +384,6 @@ export function BoardSettingsSheet({
                 {panel === "menu" && "Configuración del tablero"}
                 {panel === "edit" && "Editar tablero"}
                 {panel === "members" && "Participantes"}
-                {panel === "sprints" && "Sprints"}
               </SheetTitle>
             </div>
             {panel === "menu" && (
@@ -588,17 +432,6 @@ export function BoardSettingsSheet({
                 <Users className="size-4 shrink-0 opacity-80" />
                 <span className="text-left">Lista de participantes</span>
               </Button>
-              {canManageSprints && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-auto w-full justify-start gap-2 py-3"
-                  onClick={handleOpenSprintsPanel}
-                >
-                  <ListOrdered className="size-4 shrink-0 opacity-80" />
-                  <span className="text-left">Sprints</span>
-                </Button>
-              )}
             </div>
           )}
 
@@ -642,230 +475,6 @@ export function BoardSettingsSheet({
                   )}
                 </Button>
               </SheetFooter>
-            </div>
-          )}
-
-          {panel === "sprints" && (
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-              <p className="text-muted-foreground text-sm">
-                Orden en el desplegable del tablero (no afecta a «Todo el tablero»
-                ni «Solo backlog»). Solo puede haber un sprint activo; reabrir un
-                cerrado lo permite un administrador del tablero.
-              </p>
-              {sprintPanelError && (
-                <p className="text-destructive text-sm">{sprintPanelError}</p>
-              )}
-              {orderedSprints.length > 0 &&
-                activeSprintCount === 0 &&
-                canSettings && (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                    No hay sprint activo. Puedes reabrir uno cerrado con el botón
-                    «Reabrir».
-                  </p>
-                )}
-              <ul className="space-y-2">
-                {orderedSprints.length === 0 ? (
-                  <li className="text-muted-foreground text-sm">
-                    Aún no hay sprints. Crea uno abajo.
-                  </li>
-                ) : (
-                  orderedSprints.map((sp, index) => {
-                    const busy = sprintRowBusy === sp._id;
-                    const isActive = sp.status === "active";
-                    const sprintRangeLabel = formatSprintDateRange(
-                      sp.startsAt,
-                      sp.endsAt,
-                    );
-                    return (
-                      <li
-                        key={sp._id}
-                        className="flex flex-col gap-2 rounded-lg border border-surface-200 bg-surface-100/80 p-3 dark:border-surface-700 dark:bg-surface-950/40"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-surface-900 dark:text-surface-50">
-                              {sp.name}
-                            </p>
-                            {sp.goal ? (
-                              <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
-                                {sp.goal}
-                              </p>
-                            ) : null}
-                            {sprintRangeLabel ? (
-                              <p className="text-muted-foreground mt-0.5 text-xs">
-                                {sprintRangeLabel}
-                              </p>
-                            ) : null}
-                            <p className="text-muted-foreground mt-1 text-xs">
-                              {isActive ? (
-                                <span className="text-emerald-600 dark:text-emerald-400">
-                                  Activo
-                                </span>
-                              ) : (
-                                <span>Cerrado</span>
-                              )}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 shrink-0"
-                              disabled={index === 0 || busy}
-                              aria-label="Subir en la lista"
-                              onClick={() => handleSprintMove(index, "up")}
-                            >
-                              <ArrowUp className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 shrink-0"
-                              disabled={
-                                index === orderedSprints.length - 1 || busy
-                              }
-                              aria-label="Bajar en la lista"
-                              onClick={() => handleSprintMove(index, "down")}
-                            >
-                              <ArrowDown className="size-4" />
-                            </Button>
-                            {isActive && activeSprintCount > 1 ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                disabled={busy}
-                                className="gap-1"
-                                onClick={() =>
-                                  void handleSprintSetActive(sp._id)
-                                }
-                              >
-                                {busy ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <PlayCircle className="size-3.5" />
-                                )}
-                                Único activo
-                              </Button>
-                            ) : null}
-                            {isActive && activeSprintCount <= 1 ? (
-                              <span className="text-muted-foreground px-1 text-xs">
-                                Sprint en curso
-                              </span>
-                            ) : null}
-                            {!isActive && canSettings ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={busy}
-                                className="gap-1"
-                                onClick={() =>
-                                  void handleSprintReopen(sp._id)
-                                }
-                              >
-                                {busy ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3.5" />
-                                )}
-                                Reabrir
-                              </Button>
-                            ) : null}
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 shrink-0 border-danger/40 text-danger hover:bg-danger/10"
-                              disabled={busy}
-                              aria-label="Eliminar sprint"
-                              onClick={() => setSprintDeleteTarget(sp)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-              <div className="border-t border-surface-200 pt-4 dark:border-surface-800">
-                <p className="mb-3 text-sm font-medium text-surface-900 dark:text-surface-50">
-                  Nuevo sprint
-                </p>
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="settings-new-sprint-name">Nombre</Label>
-                    <Input
-                      id="settings-new-sprint-name"
-                      value={newSprintName}
-                      onChange={(e) => setNewSprintName(e.target.value)}
-                      placeholder="Ej. Sprint 4"
-                      maxLength={120}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="settings-new-sprint-goal">
-                      Objetivo (opcional)
-                    </Label>
-                    <Input
-                      id="settings-new-sprint-goal"
-                      value={newSprintGoal}
-                      onChange={(e) => setNewSprintGoal(e.target.value)}
-                      maxLength={500}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="settings-new-sprint-starts">
-                        Inicio (opcional)
-                      </Label>
-                      <Input
-                        id="settings-new-sprint-starts"
-                        type="date"
-                        value={newSprintStartsAt}
-                        onChange={(e) => setNewSprintStartsAt(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="settings-new-sprint-ends">
-                        Fin (opcional)
-                      </Label>
-                      <Input
-                        id="settings-new-sprint-ends"
-                        type="date"
-                        value={newSprintEndsAt}
-                        onChange={(e) => setNewSprintEndsAt(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="rounded border-surface-300 dark:border-surface-600"
-                      checked={newSprintMakeActive}
-                      onChange={(e) =>
-                        setNewSprintMakeActive(e.target.checked)
-                      }
-                    />
-                    Activar al crear y archivar el sprint activo anterior
-                  </label>
-                  <Button
-                    type="button"
-                    disabled={creatingSprint || !newSprintName.trim()}
-                    onClick={() => void handleCreateSprintFromSettings()}
-                  >
-                    {creatingSprint ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      "Crear sprint"
-                    )}
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -1033,46 +642,6 @@ export function BoardSettingsSheet({
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 "Expulsar"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={!!sprintDeleteTarget}
-        onOpenChange={(next) => {
-          if (!next && !deletingSprint) setSprintDeleteTarget(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este sprint?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {sprintDeleteTarget ? (
-                <>
-                  Se eliminará <strong>{sprintDeleteTarget.name}</strong>. Las
-                  tareas asociadas pasarán al backlog (sin sprint).
-                </>
-              ) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingSprint}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-danger text-white hover:bg-danger/90"
-              disabled={deletingSprint}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleConfirmDeleteSprint();
-              }}
-            >
-              {deletingSprint ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                "Eliminar sprint"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

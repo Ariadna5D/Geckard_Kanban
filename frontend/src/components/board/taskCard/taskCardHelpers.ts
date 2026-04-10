@@ -206,8 +206,6 @@ export type TaskDetailEditSlice = {
   editDescription: string;
   editPriority: Task['priority'];
   editDueDate: string;
-  /** Id de sprint; vacío = backlog. */
-  editSprintId: string;
   editAssigneeIds: string[];
   editLabels: TaskLabel[];
   editLinks: { url: string; title: string }[];
@@ -232,7 +230,6 @@ export function fingerprintTaskDetailForm(slice: TaskDetailEditSlice): string {
     description: slice.editDescription,
     priority: slice.editPriority,
     dueDate: slice.editDueDate,
-    sprintId: slice.editSprintId.trim(),
     assigneeIds: [...slice.editAssigneeIds].sort().join(','),
     labelsKey,
     linksKey,
@@ -252,7 +249,6 @@ export function fingerprintTaskDetailBaseline(task: Task): string {
     editDescription: task.description || '',
     editPriority: task.priority || 'medium',
     editDueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
-    editSprintId: task.sprintId ?? '',
     editAssigneeIds: [...(task.assigneeIds || [])],
     editLabels: normalizeTaskLabelsInput(task.labels),
     editLinks: (task.links ?? []).map((l) => ({

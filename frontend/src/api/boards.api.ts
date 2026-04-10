@@ -1,9 +1,7 @@
 // Fíjate que ahora importamos CreateBoardPayload
 import {
   Board,
-  BoardSprint,
   CreateBoardPayload,
-  CreateSprintPayload,
   UpdateBoardPayload,
   InviteBoardMemberPayload,
   BoardMemberSummary,
@@ -114,68 +112,4 @@ export const removeBoardMemberRequest = async (
   memberUserId: string,
 ): Promise<void> => {
   await api.delete(`/boards/${boardId}/members/${memberUserId}`);
-};
-
-/** Crea sprint activo (por defecto archiva el activo anterior del mismo tablero). */
-export const createSprintRequest = async (
-  boardId: string,
-  payload: CreateSprintPayload,
-): Promise<BoardSprint> => {
-  const response = await api.post<BoardSprint>(
-    `/boards/${boardId}/sprints`,
-    payload,
-  );
-  return response.data;
-};
-
-/** Marca un sprint como completado. */
-export const completeSprintRequest = async (
-  boardId: string,
-  sprintId: string,
-): Promise<BoardSprint> => {
-  const response = await api.patch<BoardSprint>(
-    `/boards/${boardId}/sprints/${sprintId}/complete`,
-  );
-  return response.data;
-};
-
-/** Orden del desplegable: todos los ids del tablero en el orden deseado. */
-export const reorderSprintsRequest = async (
-  boardId: string,
-  sprintIds: string[],
-): Promise<BoardSprint[]> => {
-  const response = await api.patch<BoardSprint[]>(
-    `/boards/${boardId}/sprints/reorder`,
-    { sprintIds },
-  );
-  return response.data;
-};
-
-/** Un único sprint activo; no reabre cerrados. */
-export const setActiveSprintRequest = async (
-  boardId: string,
-  sprintId: string,
-): Promise<BoardSprint> => {
-  const response = await api.patch<BoardSprint>(
-    `/boards/${boardId}/sprints/${sprintId}/set-active`,
-  );
-  return response.data;
-};
-
-/** Reabrir sprint cerrado (admin del tablero o superior). */
-export const reopenSprintRequest = async (
-  boardId: string,
-  sprintId: string,
-): Promise<BoardSprint> => {
-  const response = await api.patch<BoardSprint>(
-    `/boards/${boardId}/sprints/${sprintId}/reopen`,
-  );
-  return response.data;
-};
-
-export const deleteSprintRequest = async (
-  boardId: string,
-  sprintId: string,
-): Promise<void> => {
-  await api.delete(`/boards/${boardId}/sprints/${sprintId}`);
 };

@@ -100,15 +100,6 @@ export class Task {
   @Prop({ type: String, required: true })
   order: string;
 
-  /** Sprint al que está comprometida la tarea; ausente o null = product backlog. */
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'Sprint',
-    required: false,
-    index: true,
-  })
-  sprintId?: Types.ObjectId | null;
-
   // --- CAMPOS SCRUM  ---
 
   @Prop({ type: String, enum: TaskPriority, default: TaskPriority.MEDIUM })

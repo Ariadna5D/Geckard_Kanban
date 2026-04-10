@@ -32,11 +32,9 @@ export class BoardPolicyGuard implements CanActivate {
    * Resuelve el tablero, el rol del usuario en él y aplica las políticas CASL de la ruta.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const handlersFromMetadata =
-      this.reflector.getAllAndOverride<BoardPolicyHandler[]>(
-        BOARD_POLICY_HANDLERS_KEY,
-        [context.getHandler(), context.getClass()],
-      );
+    const handlersFromMetadata = this.reflector.getAllAndOverride<
+      BoardPolicyHandler[]
+    >(BOARD_POLICY_HANDLERS_KEY, [context.getHandler(), context.getClass()]);
 
     let boardPolicyHandlers: BoardPolicyHandler[] = [];
     if (handlersFromMetadata !== undefined && handlersFromMetadata !== null) {

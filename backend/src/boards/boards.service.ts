@@ -16,7 +16,6 @@ import {
   BoardRole,
 } from './schemas/board.schema';
 import { Task, TaskDocument } from '../tasks/schemas/task.schema';
-import { Sprint, SprintDocument } from '../sprints/schemas/sprint.schema';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import slugify from 'slugify';
@@ -51,8 +50,6 @@ export class BoardsService {
   constructor(
     @InjectModel(Board.name) private readonly boardModel: Model<BoardDocument>,
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
-    @InjectModel(Sprint.name)
-    private readonly sprintModel: Model<SprintDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -297,46 +294,11 @@ export class BoardsService {
   }
 
   // Devuelve un tablero con sus columnas y tareas, asegurando que el usuario tenga acceso. PARA RUTAS CON SLUG
-  private sprintRankForSort(sid: string, sprintIdsInOrder: string[]): number {
-    if (sid === '') return -1;
-    for (let i = 0; i < sprintIdsInOrder.length; i++) {
-      if (sprintIdsInOrder[i] === sid) return i;
-    }
-    return 10000;
-  }
-
-  private compareTasksForColumnOrder(
-    firstTask: { sprintId?: Types.ObjectId | null; order: string },
-    secondTask: { sprintId?: Types.ObjectId | null; order: string },
-    sprintIdsInOrder: string[],
-  ): number {
-    const sprintIdFirst = firstTask.sprintId
-      ? firstTask.sprintId.toString()
-      : '';
-    const sprintIdSecond = secondTask.sprintId
-      ? secondTask.sprintId.toString()
-      : '';
-    if (sprintIdFirst === sprintIdSecond) {
-      if (firstTask.order === secondTask.order) {
-        return 0;
-      }
-      return firstTask.order < secondTask.order ? -1 : 1;
-    }
-    const rankFirst = this.sprintRankForSort(sprintIdFirst, sprintIdsInOrder);
-    const rankSecond = this.sprintRankForSort(sprintIdSecond, sprintIdsInOrder);
-    if (rankFirst !== rankSecond) {
-      return rankFirst - rankSecond;
-    }
-    return sprintIdFirst.localeCompare(sprintIdSecond);
-  }
-
-  // Devuelve un tablero con sus columnas y tareas, asegurando que el usuario tenga acceso. PARA RUTAS CON SLUG
   private mapTaskForBoardClient(task: Record<string, unknown>) {
     const t = task as {
       _id: Types.ObjectId;
       boardId: Types.ObjectId;
       columnId: Types.ObjectId;
-      sprintId?: Types.ObjectId | null;
       assigneeIds?: Types.ObjectId[];
       storyPointVotes?: { userId: Types.ObjectId; value: number }[];
       [key: string]: unknown;
@@ -359,17 +321,18 @@ export class BoardsService {
         value: vote.value,
       });
     }
-    return {
+    const mapped: Record<string, unknown> = {
       ...task,
       _id: t._id.toString(),
       boardId: t.boardId.toString(),
       columnId: t.columnId.toString(),
-      sprintId: t.sprintId ? t.sprintId.toString() : null,
       assigneeIds,
       storyPointVotes: storyPointVotesOut,
       links: this.normalizeTaskLinksForClient(t.links),
       checklist: this.normalizeTaskChecklistForClient(t.checklist),
     };
+    delete mapped.sprintId;
+    return mapped;
   }
 
   // Devuelve un tablero con sus columnas y tareas, asegurando que el usuario tenga acceso. PARA RUTAS CON SLUG
@@ -392,49 +355,7 @@ export class BoardsService {
       .lean()
       .exec();
 
-    const sprintDocs = await this.sprintModel
-      .find({ boardId: boardDoc._id })
-      .sort({ displayOrder: 1, createdAt: -1 })
-      .lean()
-      .exec();
-
-    const sprints: {
-      _id: string;
-      boardId: string;
-      name: string;
-      goal?: string;
-      startsAt?: string;
-      endsAt?: string;
-      status: string;
-      displayOrder: number;
-      createdAt?: string;
-      updatedAt?: string;
-    }[] = [];
-    for (let sprintIndex = 0; sprintIndex < sprintDocs.length; sprintIndex++) {
-      const sprintDoc = sprintDocs[sprintIndex];
-      sprints.push({
-        _id: sprintDoc._id.toString(),
-        boardId: sprintDoc.boardId.toString(),
-        name: sprintDoc.name,
-        goal: sprintDoc.goal,
-        startsAt: sprintDoc.startsAt
-          ? sprintDoc.startsAt.toISOString()
-          : undefined,
-        endsAt: sprintDoc.endsAt ? sprintDoc.endsAt.toISOString() : undefined,
-        status: sprintDoc.status,
-        displayOrder:
-          (sprintDoc as { displayOrder?: number }).displayOrder ?? 0,
-        createdAt: (sprintDoc as { createdAt?: Date }).createdAt?.toISOString(),
-        updatedAt: (sprintDoc as { updatedAt?: Date }).updatedAt?.toISOString(),
-      });
-    }
-
     type ColumnWithId = BoardColumn & { _id: Types.ObjectId };
-
-    const sprintIdsInOrder: string[] = [];
-    for (let sprintIndex = 0; sprintIndex < sprintDocs.length; sprintIndex++) {
-      sprintIdsInOrder.push(sprintDocs[sprintIndex]._id.toString());
-    }
 
     const columnsOut: unknown[] = [];
     const rawColumns = boardDoc.columns;
@@ -449,9 +370,10 @@ export class BoardsService {
           columnTasksRaw.push(taskRow);
         }
       }
-      columnTasksRaw.sort((first, second) =>
-        this.compareTasksForColumnOrder(first, second, sprintIdsInOrder),
-      );
+      columnTasksRaw.sort((first, second) => {
+        if (first.order === second.order) return 0;
+        return first.order < second.order ? -1 : 1;
+      });
       const mappedTasks: unknown[] = [];
       for (
         let mappedIndex = 0;
@@ -472,7 +394,6 @@ export class BoardsService {
 
     return {
       ...boardDoc,
-      sprints,
       columns: columnsOut,
     };
   }
@@ -509,9 +430,6 @@ export class BoardsService {
     if (!board) throw new NotFoundException('No se pudo eliminar el tablero.');
 
     await this.taskModel.deleteMany({ boardId: new Types.ObjectId(id) }).exec();
-    await this.sprintModel
-      .deleteMany({ boardId: new Types.ObjectId(id) })
-      .exec();
     await this.boardModel.deleteOne({ _id: new Types.ObjectId(id) }).exec();
   }
 

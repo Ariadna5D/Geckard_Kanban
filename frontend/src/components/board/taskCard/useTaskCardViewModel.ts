@@ -45,12 +45,7 @@ async function fetchStoryPointVotingForTask(
   }
 }
 
-export function useTaskCardViewModel(
-  task: Task,
-  readOnly: boolean,
-  options?: { disableDrag?: boolean },
-) {
-  const disableDrag = options?.disableDrag === true;
+export function useTaskCardViewModel(task: Task, readOnly: boolean) {
   const { board, boardMembers, deleteTask, updateTask, fetchBoard } =
     useActiveBoardStore();
 
@@ -89,8 +84,6 @@ export function useTaskCardViewModel(
   const [linkDraftUrl, setLinkDraftUrl] = useState('');
   const [linkDraftTitle, setLinkDraftTitle] = useState('');
   const [checklistDraftText, setChecklistDraftText] = useState('');
-  /** Sprint seleccionado en el panel; vacío = backlog. */
-  const [editSprintId, setEditSprintId] = useState('');
   const [descriptionEditMode, setDescriptionEditMode] = useState(false);
   const descriptionSnapshotRef = useRef('');
   const [baselineFingerprint, setBaselineFingerprint] = useState<string | null>(
@@ -173,10 +166,9 @@ export function useTaskCardViewModel(
     setLinkDraftUrl('');
     setLinkDraftTitle('');
     setChecklistDraftText('');
-    setEditSprintId(task.sprintId ?? '');
     setDescriptionEditMode(false);
     setBaselineFingerprint(fingerprintTaskDetailBaseline(task));
-  }, [isPanelOpen, task._id, task.updatedAt, task.sprintId]);
+  }, [isPanelOpen, task._id, task.updatedAt]);
 
   const isDirty = useMemo(() => {
     if (!isPanelOpen || readOnly || baselineFingerprint === null) return false;
@@ -185,7 +177,6 @@ export function useTaskCardViewModel(
       editDescription,
       editPriority,
       editDueDate,
-      editSprintId,
       editAssigneeIds,
       editLabels,
       editLinks,
@@ -208,7 +199,6 @@ export function useTaskCardViewModel(
     editChecklist,
     editDescription,
     editDueDate,
-    editSprintId,
     editLabels,
     editLinks,
     editPriority,
@@ -299,7 +289,6 @@ export function useTaskCardViewModel(
       labels: editLabels.slice(0, 6),
       links: linksPayload,
       checklist: checklistPayload,
-      sprintId: editSprintId.trim() ? editSprintId.trim() : null,
     });
     closePanelCleanup();
     setIsPanelOpen(false);
@@ -309,7 +298,6 @@ export function useTaskCardViewModel(
     editChecklist,
     editDescription,
     editDueDate,
-    editSprintId,
     editLabels,
     editLinks,
     editPriority,
@@ -412,7 +400,7 @@ export function useTaskCardViewModel(
   } = useSortable({
     id: task._id,
     data: { type: 'Task', task },
-    disabled: readOnly || disableDrag,
+    disabled: readOnly,
   });
 
   const style = useMemo(
@@ -590,10 +578,6 @@ export function useTaskCardViewModel(
     onRemoveChecklistRow: handleRemoveChecklistRow,
     onChecklistTextChange: handleChecklistTextChange,
     onChecklistToggle: handleChecklistToggle,
-    boardSprints: board?.sprints ?? [],
-    editSprintId,
-    onEditSprintIdChange: (e: ChangeEvent<HTMLSelectElement>) =>
-      setEditSprintId(e.target.value),
   };
 
   return {

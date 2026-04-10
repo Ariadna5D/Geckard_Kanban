@@ -8,7 +8,6 @@ import { UsersModule } from './users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CaslModule } from './casl/casl.module';
 import { BoardsModule } from './boards/boards.module';
-import { SprintsModule } from './sprints/sprints.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 /**
@@ -75,7 +74,6 @@ function createMongooseOptions(configService: ConfigService) {
     UsersModule,
     CaslModule,
     BoardsModule,
-    SprintsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
