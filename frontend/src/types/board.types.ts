@@ -102,6 +102,7 @@ export interface CreateTaskPayload {
   title: string;
   boardId: string;
   columnId: string;
+  order: string;
 }
 
 export interface UpdateTaskPositionPayload {

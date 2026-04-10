@@ -8,18 +8,17 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
-  /** Username visible en la app (único). */
+  /** Nombre de usuario*/
   @ApiProperty({ example: 'Usuario', description: 'Nombre de usuario único' })
   @IsString({ message: 'El nombre debe ser un texto' })
   @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
   @MaxLength(20, { message: 'El nombre no puede tener más de 20 caracteres' })
-  // Evita caracteres típicos de inyección/XSS (p.ej. tags HTML con < o >).
   @Matches(/^[A-Za-z0-9_]+$/, {
     message: 'El nombre de usuario solo puede contener letras, números y _.',
   })
   username: string;
 
-  /** Email de acceso/login. */
+  /** Email*/
   @ApiProperty({
     example: 'usuario@mail.com',
     description: 'Correo electrónico válido',
@@ -27,7 +26,7 @@ export class RegisterDto {
   @IsEmail({}, { message: 'El formato del email no es válido' })
   email: string;
 
-  /** Contraseña con reglas mínimas de seguridad. */
+  /** Contraseña */
   @ApiProperty({
     example: 'usuario',
     description: 'Contraseña del usuario',
@@ -39,11 +38,6 @@ export class RegisterDto {
   @MaxLength(64, {
     message: 'La contraseña no puede tener más de 64 caracteres',
   })
-  // Complejidad equilibrada y segura:
-  // - 1 minúscula
-  // - 1 mayúscula
-  // - 1 carácter especial
-  // Sin forzar muchos símbolos distintos para que sea usable en móvil.
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\\s]).{8,64}$/, {
     message:
       'La contraseña debe tener al menos 8 caracteres e incluir 1 minúscula, 1 mayúscula y 1 carácter especial.',

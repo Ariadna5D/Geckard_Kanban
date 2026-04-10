@@ -190,6 +190,7 @@ export class TasksService {
       const labels = this.normalizeLabels(rawLabels) ?? [];
       const links = this.normalizeLinks(rawLinks) ?? [];
       const checklist = this.normalizeChecklist(rawChecklist) ?? [];
+
       const newTask = await this.taskModel.create({
         ...rest,
         labels,
@@ -261,6 +262,7 @@ export class TasksService {
       }
       updatePayload[key as string] = updateTaskDto[key];
     }
+
     const cleanedLabels = this.normalizeLabels(updateTaskDto.labels);
     if (cleanedLabels !== undefined) {
       updatePayload.labels = cleanedLabels;

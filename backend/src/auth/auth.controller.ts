@@ -23,7 +23,9 @@ export class AuthController {
   ) {}
 
   /**
-   * Alta de usuario nuevo. El límite de intentos evita que alguien cree miles de cuentas seguidas.
+   * REGISTER: crea un nuevo usuario con email, username y password. Devuelve el usuario creado (sin password).
+   * @param registerDto Los datos de registro del usuario (email, username, password)
+   * @returns El usuario creado (sin password)
    */
   @Post('register')
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
@@ -32,7 +34,9 @@ export class AuthController {
   }
 
   /**
-   * Entrada: si los datos son correctos, se devuelve el token de sesión.
+   * LOGIN: valida credenciales y, si son correctas, devuelve { access_token }.
+   * @param loginDto Los datos de inicio de sesión (email, password)
+   * @returns El token de acceso
    */
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -43,9 +47,10 @@ export class AuthController {
       loginDto.password,
     );
 
-    if (!user) {
+    if (user === null) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+
     return this.authService.login(user);
   }
 }

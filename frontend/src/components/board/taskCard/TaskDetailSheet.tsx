@@ -15,7 +15,6 @@ import { TaskDetailChecklistSection } from "./taskDetailSheet/TaskDetailChecklis
 import { TaskDetailPlanningSection } from "./taskDetailSheet/TaskDetailPlanningSection";
 import { TaskDetailPersonasSection } from "./taskDetailSheet/TaskDetailPersonasSection";
 import { TaskDetailLabelsSection } from "./taskDetailSheet/TaskDetailLabelsSection";
-
 export type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.types";
 
 export function TaskDetailSheet(props: TaskDetailSheetProps) {

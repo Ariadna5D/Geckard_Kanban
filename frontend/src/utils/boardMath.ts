@@ -1,9 +1,6 @@
 import { generateKeyBetween } from 'fractional-indexing';
+import type { Task } from '../types/board.types';
 
-/**
- * Comprueba si `key` es válida para fractional-indexing (misma regla que generateKeyBetween).
- * Claves inválidas típicas: "", "a" (sin sufijo), "1" (empieza en dígito), etc.
- */
 function isValidOrderKey(key: string): boolean {
   try {
     generateKeyBetween(key, null);
@@ -13,16 +10,12 @@ function isValidOrderKey(key: string): boolean {
   }
 }
 
-/** Convierte valores legacy / corruptos en null para que generateKeyBetween pueda rellenar. */
 export function normalizeOrderKey(key: string | null | undefined): string | null {
   if (key == null || key === '') return null;
-  return isValidOrderKey(key) ? key : null;
+  if (isValidOrderKey(key)) return key;
+  return null;
 }
 
-/**
- * Orden lexicográfico de claves (el que usa la librería en `a >= b`).
- * Sustituye a localeCompare para listas ordenadas por fractional index.
- */
 export function compareOrderKey(
   a: string | null | undefined,
   b: string | null | undefined,
@@ -30,13 +23,10 @@ export function compareOrderKey(
   const sa = a ?? '';
   const sb = b ?? '';
   if (sa === sb) return 0;
-  return sa < sb ? -1 : 1;
+  if (sa < sb) return -1;
+  return 1;
 }
 
-/**
- * Calcula una clave entre dos índices fraccionarios existentes.
- * Pasa null si no hay anterior o siguiente.
- */
 export function calculateNewOrder(
   prevOrder: string | null | undefined,
   nextOrder: string | null | undefined,
@@ -63,4 +53,13 @@ export function calculateNewOrder(
   } catch {
     return generateKeyBetween(null, null);
   }
+}
+
+export function sortTasksInColumn(tasks: Task[] | undefined): Task[] {
+  if (!tasks || tasks.length === 0) return [];
+  const list = tasks.slice();
+  list.sort(function (a, b) {
+    return compareOrderKey(a.order, b.order);
+  });
+  return list;
 }

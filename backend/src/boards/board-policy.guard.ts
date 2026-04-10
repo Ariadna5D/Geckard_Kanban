@@ -29,39 +29,42 @@ export class BoardPolicyGuard implements CanActivate {
   ) {}
 
   /**
-   * Mira si el usuario puede hacer la acción en ESTE tablero concreto
-   * (propietario, editor, etc.).
+   * Resuelve el tablero, el rol del usuario en él y aplica las políticas CASL de la ruta.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const handlers =
-      this.reflector.getAllAndOverride<BoardPolicyHandler[]>(
-        BOARD_POLICY_HANDLERS_KEY,
-        [context.getHandler(), context.getClass()],
-      ) ?? [];
+    const handlersFromMetadata = this.reflector.getAllAndOverride<
+      BoardPolicyHandler[]
+    >(BOARD_POLICY_HANDLERS_KEY, [context.getHandler(), context.getClass()]);
 
-    if (handlers.length === 0) {
+    let boardPolicyHandlers: BoardPolicyHandler[] = [];
+    if (handlersFromMetadata !== undefined && handlersFromMetadata !== null) {
+      boardPolicyHandlers = handlersFromMetadata;
+    }
+
+    if (boardPolicyHandlers.length === 0) {
       return true;
     }
 
-    const source = this.reflector.getAllAndOverride<BoardIdSource>(
+    const boardIdSource = this.reflector.getAllAndOverride<BoardIdSource>(
       BOARD_ID_SOURCE_KEY,
       [context.getHandler(), context.getClass()],
     );
 
-    if (source === undefined) {
+    if (boardIdSource === undefined || boardIdSource === null) {
       throw new ForbiddenException(
         'Esta ruta de tablero no está bien enlazada en el código.',
       );
     }
 
-    const req = context.switchToHttp().getRequest<ValidatedRequest>();
-    const user = req.user;
+    const httpRequest = context.switchToHttp().getRequest<ValidatedRequest>();
+    const authenticatedUser = httpRequest.user;
 
-    if (user.role === 'admin') {
+    const isApplicationAdmin = authenticatedUser.role === 'admin';
+    if (isApplicationAdmin) {
       return true;
     }
 
-    const boardId = await this.resolveBoardId(source, req);
+    const boardId = await this.resolveBoardId(boardIdSource, httpRequest);
     const boardExists = await this.boardsService.boardExists(boardId);
     if (!boardExists) {
       throw new NotFoundException('El tablero no existe.');
@@ -69,86 +72,95 @@ export class BoardPolicyGuard implements CanActivate {
 
     const roleOnBoard = await this.boardsService.getEffectiveBoardRole(
       boardId,
-      user.sub,
+      authenticatedUser.sub,
     );
     if (!roleOnBoard) {
       throw new ForbiddenException('No tienes acceso a este tablero.');
     }
 
-    const ability = this.caslFactory.createForBoardMember(
-      { userId: user.sub, role: user.role },
+    const abilityForMember = this.caslFactory.createForBoardMember(
+      { userId: authenticatedUser.sub, role: authenticatedUser.role },
       roleOnBoard,
     );
 
-    for (const checkPolicy of handlers) {
-      if (!checkPolicy(ability)) {
+    for (let index = 0; index < boardPolicyHandlers.length; index++) {
+      const policyCheck = boardPolicyHandlers[index];
+      const allowed = policyCheck(abilityForMember);
+      if (!allowed) {
         throw new ForbiddenException('No tienes permiso para esta acción.');
       }
     }
     return true;
   }
 
-  /**
-   * A veces el id del tablero viene en la URL, otras en el cuerpo, otras hay que
-   * leerlo desde la tarea… Aquí unificamos eso.
-   */
   private normalizeRouteParam(
     value: string | string[] | undefined,
   ): string | undefined {
-    if (value === undefined) return undefined;
-    if (Array.isArray(value)) return value[0];
+    if (value === undefined) {
+      return undefined;
+    }
+    if (Array.isArray(value)) {
+      return value[0];
+    }
     return value;
   }
 
   private async resolveBoardId(
     source: BoardIdSource,
-    req: ValidatedRequest,
+    httpRequest: ValidatedRequest,
   ): Promise<string> {
     switch (source) {
       case BoardIdSource.ParamId: {
-        const raw = this.normalizeRouteParam(req.params['id']);
-        if (!raw || !Types.ObjectId.isValid(raw)) {
+        const rawId = this.normalizeRouteParam(httpRequest.params['id']);
+        if (!rawId || !Types.ObjectId.isValid(rawId)) {
           throw new NotFoundException('Identificador de tablero no válido.');
         }
-        return raw;
+        return rawId;
       }
       case BoardIdSource.ParamBoardId: {
-        const raw = this.normalizeRouteParam(req.params['boardId']);
-        if (!raw || !Types.ObjectId.isValid(raw)) {
+        const rawBoardId = this.normalizeRouteParam(
+          httpRequest.params['boardId'],
+        );
+        if (!rawBoardId || !Types.ObjectId.isValid(rawBoardId)) {
           throw new NotFoundException('Identificador de tablero no válido.');
         }
-        return raw;
+        return rawBoardId;
       }
       case BoardIdSource.ParamSlug: {
-        const slug = this.normalizeRouteParam(req.params['slug']);
-        if (!slug?.trim()) {
+        const slugParam = this.normalizeRouteParam(httpRequest.params['slug']);
+        if (!slugParam || slugParam.trim() === '') {
           throw new NotFoundException('El tablero no existe.');
         }
-        const id = await this.boardsService.getBoardIdBySlug(slug.trim());
-        if (!id) throw new NotFoundException('El tablero no existe.');
-        return id;
+        const boardIdFromSlug = await this.boardsService.getBoardIdBySlug(
+          slugParam.trim(),
+        );
+        if (!boardIdFromSlug) {
+          throw new NotFoundException('El tablero no existe.');
+        }
+        return boardIdFromSlug;
       }
       case BoardIdSource.BodyBoardId: {
-        const raw = (req.body as { boardId?: string })?.boardId;
-        if (!raw || !Types.ObjectId.isValid(raw)) {
+        const body = httpRequest.body as { boardId?: string };
+        const rawBodyBoardId = body?.boardId;
+        if (!rawBodyBoardId || !Types.ObjectId.isValid(rawBodyBoardId)) {
           throw new NotFoundException('Identificador de tablero no válido.');
         }
-        return raw;
+        return rawBodyBoardId;
       }
       case BoardIdSource.TaskParamId: {
-        const taskId = this.normalizeRouteParam(req.params['id']);
-        if (!taskId || !Types.ObjectId.isValid(taskId)) {
+        const taskIdParam = this.normalizeRouteParam(httpRequest.params['id']);
+        if (!taskIdParam || !Types.ObjectId.isValid(taskIdParam)) {
           throw new NotFoundException('Tarea no encontrada.');
         }
-        const task = await this.taskModel
-          .findById(taskId)
+        const taskDocument = await this.taskModel
+          .findById(taskIdParam)
           .select('boardId')
           .lean()
           .exec();
-        if (!task?.boardId) {
+        if (!taskDocument || !taskDocument.boardId) {
           throw new NotFoundException('Tarea no encontrada.');
         }
-        return task.boardId.toString();
+        return taskDocument.boardId.toString();
       }
       default:
         throw new ForbiddenException('Origen de tablero no soportado.');

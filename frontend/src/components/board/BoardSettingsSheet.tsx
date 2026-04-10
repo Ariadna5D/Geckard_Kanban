@@ -46,7 +46,10 @@ import {
   getBoardMembersRequest,
   updateBoardRequest,
 } from "@/api/boards.api";
-import { useActiveBoardStore } from "@/store/useActiveBoardStore";
+import {
+  useActiveBoardStore,
+  type ActiveBoardState,
+} from "@/store/useActiveBoardStore";
 import { BoardInviteBlock } from "./BoardInviteBlock";
 
 type Panel = "menu" | "edit" | "members";
@@ -59,15 +62,44 @@ const MANAGEABLE_ROLES: { value: BoardInviteRole; label: string }[] = [
 
 function roleLabel(role: string): string {
   if (role === "owner") return "Propietario";
-  return MANAGEABLE_ROLES.find((roleOption) => roleOption.value === role)?.label ?? role;
+  for (let i = 0; i < MANAGEABLE_ROLES.length; i++) {
+    if (MANAGEABLE_ROLES[i].value === role) {
+      return MANAGEABLE_ROLES[i].label;
+    }
+  }
+  return role;
 }
 
 function userInitials(username: string): string {
-  const parts = username.trim().split(/\s+/).filter(Boolean);
+  const trimmed = username.trim();
+  const parts: string[] = [];
+  let current = "";
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (ch === " " || ch === "\t") {
+      if (current.length > 0) {
+        parts.push(current);
+        current = "";
+      }
+    } else {
+      current += ch;
+    }
+  }
+  if (current.length > 0) {
+    parts.push(current);
+  }
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
   return username.slice(0, 2).toUpperCase() || "?";
+}
+
+function selectInviteMember(state: ActiveBoardState) {
+  return state.inviteMember;
+}
+
+function selectRemoveBoardMember(state: ActiveBoardState) {
+  return state.removeBoardMember;
 }
 
 function apiErr(e: unknown): string {
@@ -95,8 +127,8 @@ export function BoardSettingsSheet({
   onOpenChange,
 }: Props) {
   const navigate = useNavigate();
-  const inviteMember = useActiveBoardStore((s) => s.inviteMember);
-  const removeBoardMember = useActiveBoardStore((s) => s.removeBoardMember);
+  const inviteMember = useActiveBoardStore(selectInviteMember);
+  const removeBoardMember = useActiveBoardStore(selectRemoveBoardMember);
 
   const [panel, setPanel] = useState<Panel>("menu");
   const [editTitle, setEditTitle] = useState(board.title);
@@ -142,38 +174,39 @@ export function BoardSettingsSheet({
     }
   }, [open, board.title, board.description]);
 
-  const loadMembers = useCallback(
-    async (opts?: { showSpinner?: boolean }) => {
-      if (!boardDocId) return;
-      const spin = opts?.showSpinner !== false;
-      if (spin) {
-        setMembersLoading(true);
-        setListError(null);
-      }
-      try {
-        const data = await getBoardMembersRequest(boardDocId);
-        setListError(null);
-        setOwnerId(data.ownerId);
-        setMembers(data.members);
-        const drafts: Record<string, BoardInviteRole> = {};
-        for (const member of data.members) {
-          if (member.role !== "owner") {
-            drafts[member.userId] = member.role as BoardInviteRole;
-          }
+  const loadMembers = useCallback(async function loadMembers(
+    opts?: { showSpinner?: boolean },
+  ) {
+    if (!boardDocId) return;
+    const spin = opts?.showSpinner !== false;
+    if (spin) {
+      setMembersLoading(true);
+      setListError(null);
+    }
+    try {
+      const data = await getBoardMembersRequest(boardDocId);
+      setListError(null);
+      setOwnerId(data.ownerId);
+      setMembers(data.members);
+      const drafts: Record<string, BoardInviteRole> = {};
+      const list = data.members;
+      for (let i = 0; i < list.length; i++) {
+        const member = list[i];
+        if (member.role !== "owner") {
+          drafts[member.userId] = member.role as BoardInviteRole;
         }
-        setRoleDraft(drafts);
-      } catch {
-        setListError(
-          spin
-            ? "No se pudo cargar la lista de participantes."
-            : "No se pudo actualizar la lista.",
-        );
-      } finally {
-        if (spin) setMembersLoading(false);
       }
-    },
-    [boardDocId],
-  );
+      setRoleDraft(drafts);
+    } catch {
+      setListError(
+        spin
+          ? "No se pudo cargar la lista de participantes."
+          : "No se pudo actualizar la lista.",
+      );
+    } finally {
+      if (spin) setMembersLoading(false);
+    }
+  }, [boardDocId]);
 
   useEffect(() => {
     if (!open || panel !== "members" || !boardDocId) return;
@@ -214,18 +247,34 @@ export function BoardSettingsSheet({
 
   const handleUpdateRole = async (memberUserId: string) => {
     if (!boardDocId) return;
-    const next = roleDraft[memberUserId];
-    const row = members.find((member) => member.userId === memberUserId);
-    if (!next || !row || row.role === "owner") return;
-    if (next === row.role) return;
+    const nextRole = roleDraft[memberUserId];
+    let row: BoardMemberSummary | undefined;
+    for (let i = 0; i < members.length; i++) {
+      if (members[i].userId === memberUserId) {
+        row = members[i];
+        break;
+      }
+    }
+    if (!nextRole || !row || row.role === "owner") return;
+    if (nextRole === row.role) return;
     setRowBusy(memberUserId);
     try {
-      await inviteMember(slug, boardDocId, { userId: memberUserId, role: next });
-      setMembers((prev) =>
-        prev.map((member) =>
-          member.userId === memberUserId ? { ...member, role: next } : member,
-        ),
-      );
+      await inviteMember(slug, boardDocId, {
+        userId: memberUserId,
+        role: nextRole,
+      });
+      setMembers(function replaceMemberRole(prev) {
+        const out: BoardMemberSummary[] = [];
+        for (let i = 0; i < prev.length; i++) {
+          const m = prev[i];
+          if (m.userId === memberUserId) {
+            out.push({ ...m, role: nextRole });
+          } else {
+            out.push(m);
+          }
+        }
+        return out;
+      });
     } catch (e) {
       setListError(apiErr(e));
     } finally {
@@ -240,8 +289,16 @@ export function BoardSettingsSheet({
     setRowBusy(memberUserId);
     try {
       await removeBoardMember(slug, boardDocId, memberUserId);
-      setMembers((prev) => prev.filter((member) => member.userId !== memberUserId));
-      setRoleDraft((d) => {
+      setMembers(function withoutExpelledMember(prev) {
+        const out: BoardMemberSummary[] = [];
+        for (let i = 0; i < prev.length; i++) {
+          if (prev[i].userId !== memberUserId) {
+            out.push(prev[i]);
+          }
+        }
+        return out;
+      });
+      setRoleDraft(function removeRoleDraftKey(d) {
         const n = { ...d };
         delete n[memberUserId];
         return n;

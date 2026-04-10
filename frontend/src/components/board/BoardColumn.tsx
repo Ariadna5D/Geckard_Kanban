@@ -192,7 +192,11 @@ export const BoardColumn = ({
         <div className="mx-2 mb-1 flex min-h-kanban-col-body flex-1 flex-col gap-3 overflow-y-auto rounded-lg bg-surface-100/90 p-2 pt-2 dark:bg-surface-950/50">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {column.tasks?.map((task) => (
-              <TaskCard key={task._id} task={task} readOnly={!canEdit} />
+              <TaskCard
+                key={task._id}
+                task={task}
+                readOnly={!canEdit}
+              />
             ))}
           </SortableContext>
         </div>

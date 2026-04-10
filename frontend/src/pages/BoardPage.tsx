@@ -22,12 +22,13 @@ import { useRefetchBoardWhenTabVisible } from '../hooks/useRefetchBoardWhenTabVi
 import { BOARD_SILENT_POLL_INTERVAL_MS } from '../constants/boardRefetch';
 import { calculateNewOrder } from '../utils/boardMath';
 import {
+  computeTaskDropOrder,
   createBoardCollisionDetection,
   destinationColumnIdFromDroppable,
   type ColumnDropPayload,
   type TaskDropPayload,
 } from '../utils/boardDnd';
-import { Task, Column } from '../types/board.types';
+import { Column } from '../types/board.types';
 
 // DND-KIT
 import {
@@ -41,18 +42,30 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from '../components/board/TaskCard';
+import type { Task } from '../types/board.types';
+
+function columnIndexById(columns: Column[], id: string): number {
+  for (let i = 0; i < columns.length; i++) {
+    if (columns[i]._id === id) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 export const BoardPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const user = useAuthStore((s) => s.user);
-  const { 
-    board, 
-    isLoading, 
-    error, 
-    fetchBoard, 
-    addColumn, 
-    moveTaskOptimistic, 
-    moveColumnOptimistic 
+  const user = useAuthStore(function selectUser(s) {
+    return s.user;
+  });
+  const {
+    board,
+    isLoading,
+    error,
+    fetchBoard,
+    addColumn,
+    moveTaskOptimistic,
+    moveColumnOptimistic,
   } = useActiveBoardStore();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -119,7 +132,14 @@ export const BoardPage = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const columnIds = board?.columns.map((col) => col._id) || [];
+  const columnIds = useMemo(() => {
+    if (!board) return [];
+    const ids: string[] = [];
+    for (let i = 0; i < board.columns.length; i++) {
+      ids.push(board.columns[i]._id);
+    }
+    return ids;
+  }, [board]);
 
   const collisionDetection = useMemo(
     () => createBoardCollisionDetection(board),
@@ -152,6 +172,7 @@ export const BoardPage = () => {
     if (activeId === overId) return;
 
     const activeType = active.data.current?.type;
+
     const overData = over.data.current as
       | ColumnDropPayload
       | TaskDropPayload
@@ -159,8 +180,8 @@ export const BoardPage = () => {
 
     // --- Reorden de columnas ---
     if (activeType === 'Column') {
-      const oldIndex = board.columns.findIndex((col) => col._id === activeId);
-      const newIndex = board.columns.findIndex((col) => col._id === overId);
+      const oldIndex = columnIndexById(board.columns, activeId);
+      const newIndex = columnIndexById(board.columns, overId);
 
       if (oldIndex === -1 || newIndex === -1) return;
 
@@ -183,43 +204,32 @@ export const BoardPage = () => {
     // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
       const sourceColumnId = active.data.current?.task?.columnId;
+      const activeTask = active.data.current?.task as Task | undefined;
       const destColumnId = destinationColumnIdFromDroppable(overData);
 
-      if (!sourceColumnId || !destColumnId) return;
+      if (!sourceColumnId || !destColumnId || !activeTask) return;
 
-      const destCol = board.columns.find((col) => col._id === destColumnId);
-      if (!destCol) return;
-      const destTasks = destCol.tasks || [];
+      const isBelowOver = Boolean(
+        over &&
+          active.rect.current.translated &&
+          active.rect.current.translated.top >
+            over.rect.top + over.rect.height / 2,
+      );
 
-      let newOrder = '';
+      const nextOrder = computeTaskDropOrder(board, {
+        activeTask,
+        activeId,
+        destColumnId,
+        overId,
+        overData,
+        isBelowOver,
+      });
+      if (nextOrder == null) return;
 
-      // Índices de referencia en la columna destino.
-      const oldIndexInDest = destTasks.findIndex((task) => task._id === activeId);
-      const overIndex = destTasks.findIndex((task) => task._id === overId);
-
-      // Si el puntero cae en la mitad inferior, inserta debajo.
-      const isBelow = over && active.rect.current.translated && 
-                      active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
-
-      let tempTasks = [...destTasks];
-      if (oldIndexInDest !== -1) tempTasks.splice(oldIndexInDest, 1);
-
-      // Cálculo final del punto de inserción.
-      let insertIndex = overIndex === -1 ? tempTasks.length : overIndex;
-      if (isBelow && overIndex !== -1) insertIndex++;
-
-      tempTasks.splice(insertIndex, 0, active.data.current?.task);
-
-      const prev = insertIndex > 0 ? tempTasks[insertIndex - 1] : null;
-      const next = insertIndex < tempTasks.length - 1 ? tempTasks[insertIndex + 1] : null;
-
-      // Evita order duplicado consecutivo.
-      const prevOrder = prev?.order;
-      const nextOrder = (next?.order === prevOrder) ? null : next?.order;
-
-      newOrder = calculateNewOrder(prevOrder || null, nextOrder || null);
-      
-      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, newOrder, { newColumnId: destColumnId, newOrder });
+      moveTaskOptimistic(activeId, sourceColumnId, destColumnId, nextOrder, {
+        newColumnId: destColumnId,
+        newOrder: nextOrder,
+      });
     }
   };
 

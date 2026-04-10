@@ -11,27 +11,83 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
+/**
+ * ESTO ES PARA ESCAPAR CARACTERES RAROS
+ */
+function charNeedsRegexEscape(character: string): boolean {
+  const specialRegexCharacters = [
+    '\\',
+    '.',
+    '^',
+    '$',
+    '*',
+    '+',
+    '?',
+    '(',
+    ')',
+    '[',
+    ']',
+    '{',
+    '}',
+    '|',
+  ];
+  for (let index = 0; index < specialRegexCharacters.length; index++) {
+    if (character === specialRegexCharacters[index]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// APLICA LO ANTERIOR A TODO EL TEXTO DE BÚSQUEDA PARA EVITAR INYECCIONES O ERRORES DE REGEX
+function escapeRegexSpecialChars(plainText: string): string {
+  let escapedText = '';
+  for (let index = 0; index < plainText.length; index++) {
+    const currentCharacter = plainText[index];
+    if (charNeedsRegexEscape(currentCharacter)) {
+      escapedText += '\\' + currentCharacter;
+    } else {
+      escapedText += currentCharacter;
+    }
+  }
+  return escapedText;
+}
+
+// Limita el número de resultados
+function clampInviteSearchLimit(requestedLimit: number): number {
+  let safeLimit = requestedLimit;
+  if (safeLimit < 1) {
+    safeLimit = 1;
+  }
+  if (safeLimit > 30) {
+    safeLimit = 30;
+  }
+  return safeLimit;
+}
+
+/// SERVICIOS ///////////////////////////////////////////////////////////////////
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
-  /**
-   * Guarda un usuario nuevo: comprueba que email y nombre no estén cogidos
-   * y guarda la contraseña ya encriptada.
-   */
+  // REGISTRO
   async create(registerDto: RegisterDto): Promise<User> {
-    const { username, password } = registerDto;
-    const email = registerDto.email.toLowerCase().trim();
+    const username = registerDto.username;
+    const password = registerDto.password;
+    const email = registerDto.email.toLowerCase().trim(); // Mutacion de mail
 
-    const existingEmail = await this.userModel.findOne({ email });
-    if (existingEmail)
+    const userWithSameEmail = await this.userModel.findOne({ email }); // Buscar si mail existe
+    if (userWithSameEmail) {
       throw new ConflictException('El email ya está registrado');
+    }
 
-    const existingUser = await this.userModel.findOne({ username });
-    if (existingUser)
+    const userWithSameUsername = await this.userModel.findOne({ username }); // Buscar si username existe
+    if (userWithSameUsername) {
       throw new ConflictException('El nombre de usuario ya está en uso');
+    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const saltRounds = 10; // sal para bcrypt
+    const hashedPassword = await bcrypt.hash(password, saltRounds); // Hasheado de contraseña
 
     const newUser = new this.userModel({
       email,
@@ -42,129 +98,179 @@ export class UsersService {
     return newUser.save();
   }
 
-  /**
-   * Busca por email ignorando mayúsculas para que el login sea menos estricto.
-   */
+  // BUSCAR MAIL
   async findByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.userModel.findOne({ email: normalizedEmail }).exec();
   }
 
-  /**
-   * Carga un usuario por su id de Mongo.
-   */
-  async findById(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+  // BUSCAR POR ID
+  async findById(userId: string): Promise<User | null> {
+    return this.userModel.findById(userId).exec();
   }
 
-  /**
-   * Lista todos (la contraseña nunca sale en la respuesta).
-   */
+  // OBTENER TODOS LOS USUARIOS
   async findAll() {
-    return this.userModel.find().select('-passwordHash').exec();
+    return this.userModel.find().select('-passwordHash').exec(); // quitamos password
   }
 
-  /**
-   * Buscador para invitar gente al tablero: por nombre o email, sin datos sensibles.
-   * El texto debe tener al menos 2 letras. Se excluye al usuario que está buscando.
-   */
+  // BUSQUEDA PARA INVITAR USUARIOS
   async searchForInvite(
-    q: string,
+    searchText: string,
     excludeUserId: string,
     limit = 15,
   ): Promise<{ id: string; username: string; email: string }[]> {
-    const trimmed = q?.trim() ?? '';
-    if (trimmed.length < 2) return [];
+    let trimmedSearchText = '';
+    if (searchText !== undefined && searchText !== null) {
+      trimmedSearchText = searchText.trim();
+    }
+    if (trimmedSearchText.length < 2) {
+      return [];
+    }
 
-    // Escapamos caracteres raros para que la búsqueda no se rompa (p. ej. un punto suelto).
-    const escapedForRegex = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedForRegex, 'i');
+    // Escapamos caracteres especiales para evitar inyecciones o errores en la regex
+    const textEscapedForRegex = escapeRegexSpecialChars(trimmedSearchText);
+    const usernameOrEmailPattern = new RegExp(textEscapedForRegex, 'i');
 
-    const filter: Record<string, unknown> = {
-      $or: [{ username: regex }, { email: regex }],
+    const mongoFilter: Record<string, unknown> = {
+      // Filtro para la búsqueda en MongoDB
+      $or: [
+        { username: usernameOrEmailPattern },
+        { email: usernameOrEmailPattern },
+      ],
     };
     if (Types.ObjectId.isValid(excludeUserId)) {
-      filter._id = { $ne: new Types.ObjectId(excludeUserId) };
+      mongoFilter._id = { $ne: new Types.ObjectId(excludeUserId) };
     }
 
-    const cappedLimit = Math.min(Math.max(limit, 1), 30);
-    const docs = await this.userModel
-      .find(filter)
-      .select('username email')
-      .limit(cappedLimit)
-      .lean()
-      .exec();
+    // Limitamos el número de resultados para evitar sobrecargar la respuesta
+    const maxResults = clampInviteSearchLimit(limit);
+    const matchingUsers = await this.userModel
+      .find(mongoFilter) // Solo seleccionamos campos necesarios para la invitación
+      .select('username email') // quitamos password y otros campos sensibles
+      .limit(maxResults) // Limitamos el número de resultados para evitar sobrecargar la respuesta
+      .lean() // lean() para obtener objetos JavaScript simples en lugar de documentos Mongoose
+      .exec(); // Ejecutamos la consulta
 
-    const out: { id: string; username: string; email: string }[] = [];
-    for (const d of docs) {
-      out.push({
-        id: d._id.toString(),
-        username: d.username,
-        email: d.email,
+    const inviteSearchResults: {
+      id: string;
+      username: string;
+      email: string;
+    }[] = [];
+    for (let index = 0; index < matchingUsers.length; index++) {
+      const leanUser = matchingUsers[index];
+      inviteSearchResults.push({
+        id: leanUser._id.toString(),
+        username: leanUser.username,
+        email: leanUser.email,
       });
     }
-    return out;
+    return inviteSearchResults;
   }
 
-  /**
-   * Comprueba la contraseña del formulario contra el hash guardado en base de datos.
-   */
-  async comparePassword(password: string, hash: string): Promise<boolean> {
-    return bcrypt.compare(password, hash);
+  // COMPARAR CONTRASEÑA EN CLARO CON HASH
+  async comparePassword(
+    plainPassword: string,
+    storedHash: string,
+  ): Promise<boolean> {
+    return bcrypt.compare(plainPassword, storedHash);
   }
 
-  /**
-   * Cambia datos del perfil comprobando otra vez que email y username no estén duplicados.
-   */
+  // ACTUALIZAR USUARIO
   async update(userId: string, updateDto: UpdateUserDto) {
-    const user = await this.userModel.findById(userId);
+    const existingUser = await this.userModel.findById(userId);
 
-    if (!user) throw new BadRequestException('Usuario no encontrado');
-
-    if (updateDto.email && updateDto.email !== user.email) {
-      const isTaken = await this.userModel.findOne({ email: updateDto.email });
-      if (isTaken)
-        throw new ConflictException('Este email ya lo usa otra persona');
+    if (!existingUser) {
+      throw new BadRequestException('Usuario no encontrado');
     }
 
-    if (updateDto.username && updateDto.username !== user.username) {
-      const isTaken = await this.userModel.findOne({
-        username: updateDto.username,
+    const fieldsToUpdate: UpdateUserDto = { ...updateDto };
+    if (fieldsToUpdate.email !== undefined && fieldsToUpdate.email !== null) {
+      fieldsToUpdate.email = fieldsToUpdate.email.toLowerCase().trim();
+    }
+
+    if (fieldsToUpdate.email && fieldsToUpdate.email !== existingUser.email) {
+      const otherUserWithEmail = await this.userModel.findOne({
+        email: fieldsToUpdate.email,
       });
-      if (isTaken)
+      if (otherUserWithEmail) {
+        throw new ConflictException('Este email ya lo usa otra persona');
+      }
+    }
+
+    if (
+      fieldsToUpdate.username &&
+      fieldsToUpdate.username !== existingUser.username
+    ) {
+      const otherUserWithUsername = await this.userModel.findOne({
+        username: fieldsToUpdate.username,
+      });
+      if (otherUserWithUsername) {
         throw new ConflictException('Este nombre de usuario ya está en uso');
+      }
     }
 
     return this.userModel
-      .findByIdAndUpdate(userId, updateDto, { returnDocument: 'after' })
+      .findByIdAndUpdate(userId, fieldsToUpdate, { returnDocument: 'after' })
       .exec();
   }
 
-  /**
-   * Devuelve un usuario para mostrar en pantalla (sin contraseña ni campos internos raros).
-   */
-  async findOne(id: string) {
-    const doc = await this.userModel
-      .findById(id)
+  // OBTENER USUARIO POR ID
+  async findOne(userId: string) {
+    const userDocument = await this.userModel
+      .findById(userId)
       .select('-passwordHash -__v')
       .lean()
       .exec();
 
-    if (!doc) {
+    if (!userDocument) {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    const { _id, ...rest } = doc;
+    const storedUser = userDocument as {
+      _id: Types.ObjectId;
+      username: string;
+      email: string;
+      bio?: string;
+      avatarUrl?: string;
+      experiencePoints?: number;
+      role: string;
+      createdAt?: Date;
+      updatedAt?: Date;
+    };
+
+    let bio = '';
+    if (storedUser.bio !== undefined && storedUser.bio !== null) {
+      bio = storedUser.bio;
+    }
+    let avatarUrl = '';
+    if (storedUser.avatarUrl !== undefined && storedUser.avatarUrl !== null) {
+      avatarUrl = storedUser.avatarUrl;
+    }
+    let experiencePoints = 0;
+    if (
+      storedUser.experiencePoints !== undefined &&
+      storedUser.experiencePoints !== null
+    ) {
+      experiencePoints = storedUser.experiencePoints;
+    }
+
     return {
-      id: _id.toString(),
-      ...rest,
+      id: storedUser._id.toString(),
+      username: storedUser.username,
+      email: storedUser.email,
+      bio,
+      avatarUrl,
+      experiencePoints,
+      role: storedUser.role,
+      createdAt: storedUser.createdAt,
+      updatedAt: storedUser.updatedAt,
     };
   }
 
-  /**
-   * Borra la cuenta por completo.
-   */
-  async remove(id: string) {
-    const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
+  // ELIMINAR USUARIO POR ID
+  async remove(userId: string) {
+    const deletedUser = await this.userModel.findByIdAndDelete(userId).exec();
 
     if (!deletedUser) {
       throw new NotFoundException('Usuario no encontrado');
