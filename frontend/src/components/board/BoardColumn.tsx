@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Column } from '../../types/board.types';
+import { Column, type Task } from '../../types/board.types';
 import { TaskCard } from './TaskCard';
 import { InlineCreateForm } from '../shared/InlineCreateForm';
 import { calculateNewOrder } from '../../utils/boardMath';
@@ -35,6 +35,10 @@ import { Input } from '@/components/ui/input';
 
 interface BoardColumnProps {
   column: Column;
+  /** Tareas mostradas en la columna (p. ej. filtradas por búsqueda); el store sigue teniendo la lista completa en `column.tasks`. */
+  visibleTasks: Task[];
+  /** Con filtro activo se desactiva el arrastre para no desincronizar el orden con el backend. */
+  taskDragDisabled?: boolean;
   boardId: string;
   /** Si es false, la columna es solo lectura (rol viewer en el tablero). */
   canEdit?: boolean;
@@ -42,6 +46,8 @@ interface BoardColumnProps {
 
 export const BoardColumn = ({
   column,
+  visibleTasks,
+  taskDragDisabled = false,
   boardId,
   canEdit = true,
 }: BoardColumnProps) => {
@@ -53,7 +59,7 @@ export const BoardColumn = ({
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  const taskIds = column.tasks?.map((task) => task._id) || [];
+  const taskIds = visibleTasks.map((task) => task._id);
 
   const { 
     setNodeRef,
@@ -171,7 +177,7 @@ export const BoardColumn = ({
 
           <div className="flex items-center gap-2" onPointerDown={handlePointerDownStop}>
             <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-300">
-              {column.tasks?.length || 0}
+              {visibleTasks.length}
             </span>
             {canEdit && (
             <DropdownMenu>
@@ -191,11 +197,12 @@ export const BoardColumn = ({
 
         <div className="mx-2 mb-1 flex min-h-kanban-col-body flex-1 flex-col gap-3 overflow-y-auto rounded-lg bg-surface-100/90 p-2 pt-2 dark:bg-surface-950/50">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-            {column.tasks?.map((task) => (
+            {visibleTasks.map((task) => (
               <TaskCard
                 key={task._id}
                 task={task}
                 readOnly={!canEdit}
+                disableDrag={taskDragDisabled}
               />
             ))}
           </SortableContext>

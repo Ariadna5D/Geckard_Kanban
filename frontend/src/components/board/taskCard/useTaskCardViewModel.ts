@@ -45,7 +45,11 @@ async function fetchStoryPointVotingForTask(
   }
 }
 
-export function useTaskCardViewModel(task: Task, readOnly: boolean) {
+export function useTaskCardViewModel(
+  task: Task,
+  readOnly: boolean,
+  disableDrag = false,
+) {
   const { board, boardMembers, deleteTask, updateTask, fetchBoard } =
     useActiveBoardStore();
 
@@ -400,7 +404,7 @@ export function useTaskCardViewModel(task: Task, readOnly: boolean) {
   } = useSortable({
     id: task._id,
     data: { type: 'Task', task },
-    disabled: readOnly,
+    disabled: readOnly || disableDrag,
   });
 
   const style = useMemo(

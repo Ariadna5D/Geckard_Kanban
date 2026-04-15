@@ -9,14 +9,17 @@ interface TaskCardProps {
   isOverlay?: boolean;
   /** Solo lectura: sin arrastrar ni editar (rol viewer). */
   readOnly?: boolean;
+  /** Sin arrastrar (p. ej. búsqueda activa); el detalle de la tarea sigue abriéndose al hacer clic. */
+  disableDrag?: boolean;
 }
 
 export const TaskCard = ({
   task,
   isOverlay,
   readOnly = false,
+  disableDrag = false,
 }: TaskCardProps) => {
-  const vm = useTaskCardViewModel(task, readOnly);
+  const vm = useTaskCardViewModel(task, readOnly, disableDrag);
 
   if (isOverlay) {
     return (
@@ -50,10 +53,14 @@ export const TaskCard = ({
         ref={vm.setNodeRef}
         style={vm.style}
         {...vm.attributes}
-        {...(readOnly ? {} : vm.listeners)}
+        {...(readOnly || disableDrag ? {} : vm.listeners)}
         onClick={vm.handleOpenTaskSheet}
         className={`group relative select-none rounded-lg border border-surface-200 border-l-4 bg-surface-50 p-3 text-sm shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45 ${vm.priorityAccent} ${
-          readOnly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+          readOnly
+            ? 'cursor-default'
+            : disableDrag
+              ? 'cursor-pointer'
+              : 'cursor-grab active:cursor-grabbing'
         }`}
       >
         <TaskCardMetaChips

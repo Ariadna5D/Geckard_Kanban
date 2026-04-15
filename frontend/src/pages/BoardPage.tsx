@@ -29,6 +29,15 @@ import {
   type TaskDropPayload,
 } from '../utils/boardDnd';
 import { Column } from '../types/board.types';
+import {
+  applyBoardTaskFilter,
+  sortTasksForBoardView,
+  shouldLockTaskDrag,
+  type BoardTaskFilter,
+  type BoardTaskSortKey,
+  type BoardSortDirection,
+} from '../utils/boardTaskView';
+import { BoardViewToolbar } from '../components/board/BoardViewToolbar';
 
 // DND-KIT
 import {
@@ -81,6 +90,12 @@ export const BoardPage = () => {
    * redirige al dashboard en F5 o recarga directa en /boards/:slug.
    */
   const [fetchSettled, setFetchSettled] = useState(false);
+  /** Filtro elegido en el menú (todas, prioridad, título, etc.). */
+  const [taskFilter, setTaskFilter] = useState<BoardTaskFilter>({ kind: 'all' });
+  /** Orden dentro de cada columna en pantalla. */
+  const [sortKey, setSortKey] = useState<BoardTaskSortKey>('manual');
+  const [sortDirection, setSortDirection] =
+    useState<BoardSortDirection>('asc');
 
   useLayoutEffect(() => {
     if (!slug) return;
@@ -118,6 +133,14 @@ export const BoardPage = () => {
     }
   }, [slug, fetchBoard]);
 
+  const handleBoardSortChange = useCallback(
+    (key: BoardTaskSortKey, dir: BoardSortDirection) => {
+      setSortKey(key);
+      setSortDirection(dir);
+    },
+    [],
+  );
+
   /**
    * Cuando vuelves a esta pestaña, alineamos datos con el servidor (otro usuario, otro dispositivo).
    */
@@ -140,6 +163,28 @@ export const BoardPage = () => {
     }
     return ids;
   }, [board]);
+
+  /**
+   * Por columna: primero filtro (menú), luego orden de vista (menú).
+   * El store sigue guardando el orden real (`task.order`) para cuando vuelves a “manual”.
+   */
+  const columnsWithVisibleTasks = useMemo(() => {
+    if (!board) return [];
+    const out: { column: Column; visibleTasks: Task[] }[] = [];
+    for (let i = 0; i < board.columns.length; i++) {
+      const column = board.columns[i];
+      const afterFilter = applyBoardTaskFilter(column.tasks ?? [], taskFilter);
+      const visibleTasks = sortTasksForBoardView(
+        afterFilter,
+        sortKey,
+        sortDirection,
+      );
+      out.push({ column, visibleTasks });
+    }
+    return out;
+  }, [board, taskFilter, sortKey, sortDirection]);
+
+  const taskDragLocked = shouldLockTaskDrag(taskFilter, sortKey);
 
   const collisionDetection = useMemo(
     () => createBoardCollisionDetection(board),
@@ -203,6 +248,9 @@ export const BoardPage = () => {
 
     // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
+      if (shouldLockTaskDrag(taskFilter, sortKey)) {
+        return;
+      }
       const sourceColumnId = active.data.current?.task?.columnId;
       const activeTask = active.data.current?.task as Task | undefined;
       const destColumnId = destinationColumnIdFromDroppable(overData);
@@ -334,6 +382,12 @@ export const BoardPage = () => {
               />
             </>
           )}
+          <BoardViewToolbar
+            taskFilter={taskFilter}
+            onTaskFilterChange={setTaskFilter}
+            sortKey={sortKey}
+            onSortChange={handleBoardSortChange}
+          />
         </div>
       </header>
 
@@ -347,10 +401,12 @@ export const BoardPage = () => {
           <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             <div className="flex h-full min-h-0 min-w-min items-stretch gap-4 sm:gap-6">
               <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-                {board.columns.map((column) => (
+                {columnsWithVisibleTasks.map(({ column, visibleTasks }) => (
                   <BoardColumn
                     key={column._id}
                     column={column}
+                    visibleTasks={visibleTasks}
+                    taskDragDisabled={taskDragLocked}
                     boardId={board._id}
                     canEdit={canEdit}
                   />
