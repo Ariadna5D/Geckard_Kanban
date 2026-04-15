@@ -162,13 +162,13 @@ export const BoardColumn = ({
               onChange={handleTitleInputChange}
               onBlur={handleUpdateTitle}
               onKeyDown={handleTitleKeyDown}
-              className="h-7 bg-surface-50 text-sm font-semibold dark:bg-surface-900"
+              className="h-7 bg-surface-50 text-base font-semibold dark:bg-surface-900"
               onPointerDown={handlePointerDownStop}
             />
           ) : (
             <h3 
               onClick={handleTitleClick}
-              className={`flex-1 text-sm font-semibold text-surface-800 dark:text-surface-100 ${canEdit ? 'cursor-text' : ''}`}
+              className={`flex-1 text-base font-semibold text-surface-800 dark:text-surface-100 ${canEdit ? 'cursor-text' : ''}`}
               onPointerDown={handlePointerDownStop}
             >
               {column.title}

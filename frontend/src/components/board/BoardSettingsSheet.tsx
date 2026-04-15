@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import {
   ArrowLeft,
+  Keyboard,
   Loader2,
   Pencil,
   Trash2,
@@ -52,12 +53,55 @@ import {
 } from "@/store/useActiveBoardStore";
 import { BoardInviteBlock } from "./BoardInviteBlock";
 
-type Panel = "menu" | "edit" | "members";
+type Panel = "menu" | "edit" | "members" | "shortcuts";
 
 const MANAGEABLE_ROLES: { value: BoardInviteRole; label: string }[] = [
   { value: "admin", label: "Administrador" },
   { value: "editor", label: "Editor" },
   { value: "viewer", label: "Lector" },
+];
+
+const KEYBOARD_SHORTCUTS: { keys: string; action: string; scope: string }[] = [
+  {
+    keys: "Enter",
+    action: "Abrir el detalle de la tarea enfocada",
+    scope: "Tarjeta en tablero",
+  },
+  {
+    keys: "Espacio",
+    action: "Asignarme o quitarme como asignado",
+    scope: "Tarjeta en tablero (editor/admin/owner)",
+  },
+  {
+    keys: "Ctrl/Cmd + Enter",
+    action: "Guardar cambios de la tarea",
+    scope: "Panel de detalle de tarea",
+  },
+  {
+    keys: "Enter",
+    action: "Guardar edición del título",
+    scope: "Edición de título de columna",
+  },
+  {
+    keys: "Enter",
+    action: "Añadir enlace",
+    scope: "Campos de enlaces en detalle",
+  },
+  {
+    keys: "Enter",
+    action: "Añadir ítem de checklist",
+    scope: "Input de checklist en detalle",
+  },
+  {
+    keys: "Enter / Escape",
+    action: "Confirmar / cancelar edición de ítem",
+    scope: "Edición inline de checklist",
+  },
+  {
+    keys: "Enter / Escape",
+    action: "Guardar / cancelar edición de etiqueta",
+    scope: "Campo de etiquetas",
+  },
 ];
 
 function roleLabel(role: string): string {
@@ -334,6 +378,10 @@ export function BoardSettingsSheet({
     setPanel("members");
   }
 
+  function handleOpenShortcutsPanel() {
+    setPanel("shortcuts");
+  }
+
   function handleSaveBoardClick() {
     void handleSaveBoard();
   }
@@ -384,6 +432,7 @@ export function BoardSettingsSheet({
                 {panel === "menu" && "Configuración del tablero"}
                 {panel === "edit" && "Editar tablero"}
                 {panel === "members" && "Participantes"}
+                {panel === "shortcuts" && "Atajos de teclado"}
               </SheetTitle>
             </div>
             {panel === "menu" && (
@@ -432,6 +481,43 @@ export function BoardSettingsSheet({
                 <Users className="size-4 shrink-0 opacity-80" />
                 <span className="text-left">Lista de participantes</span>
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 py-3"
+                onClick={handleOpenShortcutsPanel}
+              >
+                <Keyboard className="size-4 shrink-0 opacity-80" />
+                <span className="text-left">Atajos de teclado</span>
+              </Button>
+            </div>
+          )}
+
+          {panel === "shortcuts" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+              <p className="text-muted-foreground mb-3 text-sm">
+                Usa Tab para enfocar una tarjeta y luego aplica los atajos.
+              </p>
+              <ul className="space-y-2">
+                {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                  <li
+                    key={`${shortcut.keys}-${shortcut.scope}`}
+                    className="rounded-lg border border-surface-200 bg-surface-100/70 p-3 dark:border-surface-700 dark:bg-surface-950/40"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="rounded-md border border-surface-300 bg-surface-50 px-2 py-0.5 text-xs font-semibold tracking-wide text-surface-700 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-200">
+                        {shortcut.keys}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {shortcut.scope}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-surface-800 dark:text-surface-100">
+                      {shortcut.action}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

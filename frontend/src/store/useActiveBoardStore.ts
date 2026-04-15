@@ -429,11 +429,15 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           if (taskIndex !== -1) {
             const prev = column.tasks[taskIndex];
             const next: Task = { ...prev, ...updatedTask };
+            const requestLinks = Array.isArray(data.links) ? data.links : undefined;
+            const requestChecklist = Array.isArray(data.checklist)
+              ? data.checklist
+              : undefined;
             if (!Array.isArray(next.links)) {
-              next.links = prev.links ?? [];
+              next.links = requestLinks ?? prev.links ?? [];
             }
             if (!Array.isArray(next.checklist)) {
-              next.checklist = prev.checklist ?? [];
+              next.checklist = requestChecklist ?? prev.checklist ?? [];
             }
             column.tasks[taskIndex] = next;
             column.tasks = sortTasksInColumn(column.tasks);

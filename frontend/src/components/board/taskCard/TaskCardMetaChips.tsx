@@ -7,7 +7,7 @@ import {
   AlertTriangle,
   Link2,
   ListChecks,
-  Sigma,
+  DraftingCompass as Sigma,
 } from 'lucide-react';
 import {
   Avatar,
@@ -32,7 +32,7 @@ import {
 } from './taskCardConstants';
 
 function PriorityGlyph({ priority }: { priority: Task['priority'] }) {
-  const iconClass = 'size-3.5 shrink-0 opacity-90';
+  const iconClass = 'size-4 shrink-0 opacity-90';
   switch (priority) {
     case 'low':
       return <ArrowDown className={iconClass} aria-hidden />;
@@ -90,11 +90,11 @@ export function TaskCardMetaChips({
   return (
     <>
       <div className="pr-7">
-        <p className="font-medium leading-relaxed text-surface-900 dark:text-surface-50">
+        <p className="text-[15px] font-medium leading-relaxed text-surface-900 dark:text-surface-50">
           {task.title}
         </p>
         <p
-          className={`mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium leading-tight ${priorityRowStyle.bg} ${priorityRowStyle.text}`}
+          className={`mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium leading-tight ${priorityRowStyle.bg} ${priorityRowStyle.text}`}
         >
           <PriorityGlyph priority={priority} />
           <span className="min-w-0">
@@ -111,7 +111,7 @@ export function TaskCardMetaChips({
             <span
               key={`${label.name}-${idx}`}
               role="listitem"
-              className={`inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${taskLabelColorClasses(label.color)}`}
+              className={`inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-xs font-medium ${taskLabelColorClasses(label.color)}`}
               title={label.name}
             >
               {label.name}
@@ -122,7 +122,7 @@ export function TaskCardMetaChips({
 
       {hasMetaIcons && (
         <div
-          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-surface-500 dark:text-surface-400"
+          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-surface-500 dark:text-surface-400"
           aria-label="Detalles de la tarea"
         >
           {hasSp ? (
@@ -130,7 +130,7 @@ export function TaskCardMetaChips({
               className="inline-flex items-center gap-1 font-semibold text-violet-700 dark:text-violet-300"
               title={storyPointsTitle}
             >
-              <Sigma className="size-3.5 shrink-0 opacity-90" aria-hidden />
+              <Sigma className="size-4 shrink-0 opacity-90" aria-hidden />
               <span className="tabular-nums">{storyPointsShown}</span>
             </span>
           ) : null}
@@ -139,7 +139,7 @@ export function TaskCardMetaChips({
               className="inline-flex items-center gap-1"
               title="Tiene descripción"
             >
-              <AlignLeft className="size-3.5 shrink-0" aria-hidden />
+              <AlignLeft className="size-4 shrink-0" aria-hidden />
             </span>
           ) : null}
           {linkCount > 0 ? (
@@ -147,7 +147,7 @@ export function TaskCardMetaChips({
               className="inline-flex items-center gap-1 font-medium"
               title={`${linkCount} enlace(s)`}
             >
-              <Link2 className="size-3.5 shrink-0 opacity-90" aria-hidden />
+              <Link2 className="size-4 shrink-0 opacity-90" aria-hidden />
               <span className="tabular-nums">{linkCount}</span>
             </span>
           ) : null}
@@ -156,7 +156,7 @@ export function TaskCardMetaChips({
               className="inline-flex items-center gap-1 font-medium"
               title={`Checklist: ${checklistCount} ítem(s)`}
             >
-              <ListChecks className="size-3.5 shrink-0 opacity-90" aria-hidden />
+              <ListChecks className="size-4 shrink-0 opacity-90" aria-hidden />
               <span className="tabular-nums">{checklistCount}</span>
             </span>
           ) : null}
@@ -171,7 +171,7 @@ export function TaskCardMetaChips({
               }`}
               title={dueBadgeTitle[dueState]}
             >
-              <CalendarDays className="size-3.5 shrink-0 opacity-90" aria-hidden />
+              <CalendarDays className="size-4 shrink-0 opacity-90" aria-hidden />
               {dueDateShort}
             </span>
           ) : null}

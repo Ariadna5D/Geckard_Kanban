@@ -15,6 +15,7 @@ import {
   voteStoryPointsRequest,
 } from '@/api/tasks.api';
 import { useActiveBoardStore } from '@/store/useActiveBoardStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import type {
   StoryPointVotingState,
   Task,
@@ -52,6 +53,7 @@ export function useTaskCardViewModel(
 ) {
   const { board, boardMembers, deleteTask, updateTask, fetchBoard } =
     useActiveBoardStore();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
 
   const priorityAccent =
     PRIORITY_ACCENT_BORDER[task.priority || 'medium'];
@@ -279,7 +281,11 @@ export function useTaskCardViewModel(
   const handleSaveChanges = useCallback(async () => {
     const storyPointsFromVotes =
       storyPointState?.average ?? taskVoteConsensus;
-    const linksPayload = parseLinksForSave(editLinks);
+    const linksDraftMerged = [...editLinks];
+    if (linkDraftUrl.trim()) {
+      linksDraftMerged.push({ url: linkDraftUrl, title: linkDraftTitle });
+    }
+    const linksPayload = parseLinksForSave(linksDraftMerged);
     const checklistPayload = parseChecklistForSave(
       editChecklist.map(({ text, checked }) => ({ text, checked })),
     );
@@ -306,6 +312,8 @@ export function useTaskCardViewModel(
     editLinks,
     editPriority,
     editTitle,
+    linkDraftTitle,
+    linkDraftUrl,
     storyPointState?.average,
     task._id,
     task.columnId,
@@ -419,6 +427,32 @@ export function useTaskCardViewModel(
     event.stopPropagation();
     deleteTask(task._id, task.columnId);
   }
+
+  const canSelfAssignShortcut =
+    !readOnly && currentUserId !== null && currentUserId.length > 0;
+  const isAssignedToCurrentUser =
+    currentUserId !== null &&
+    currentUserId.length > 0 &&
+    (task.assigneeIds ?? []).includes(currentUserId);
+
+  const handleToggleSelfAssign = useCallback(async () => {
+    if (!canSelfAssignShortcut || !currentUserId) return;
+    const currentAssignees = task.assigneeIds ?? [];
+    const alreadyAssigned = currentAssignees.includes(currentUserId);
+    const nextAssignees = alreadyAssigned
+      ? currentAssignees.filter((id) => id !== currentUserId)
+      : [...currentAssignees, currentUserId];
+    await updateTask(task._id, task.columnId, {
+      assigneeIds: nextAssignees,
+    });
+  }, [
+    canSelfAssignShortcut,
+    currentUserId,
+    task._id,
+    task.assigneeIds,
+    task.columnId,
+    updateTask,
+  ]);
 
   function handleSubmitLinkDraft() {
     const normalized = normalizeTaskLinkUrl(linkDraftUrl);
@@ -598,8 +632,11 @@ export function useTaskCardViewModel(
     readOnly,
     task,
     boardMembers,
+    canSelfAssignShortcut,
+    isAssignedToCurrentUser,
     sheetProps,
     handleOpenTaskSheet,
+    handleToggleSelfAssign,
     handleDeleteCardClick,
   };
 }
