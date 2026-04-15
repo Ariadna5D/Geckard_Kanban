@@ -44,8 +44,8 @@ function readStringConfig(
 
 function setupSwaggerIfDev(app: INestApplication): void {
   const config = new DocumentBuilder()
-    .setTitle('Kanban TFG API')
-    .setDescription('Documentación de la API para el tablero Kanban gamificado')
+    .setTitle('KanBase API')
+    .setDescription('Documentación de la API de KanBase')
     .setVersion('0.1')
     .addBearerAuth()
     .build();

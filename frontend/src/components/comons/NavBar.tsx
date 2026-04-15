@@ -48,8 +48,8 @@ export const Navbar = () => {
         onClick={handleGoToDashboard}
         className="cursor-pointer text-xl font-bold transition-opacity hover:opacity-90"
       >
-        <span className="text-surface-900 dark:text-surface-50">Axi</span>
-        <span className="text-primary-600 dark:text-primary-400">Up</span>
+        <span className="text-surface-900 dark:text-surface-50">Kan</span>
+        <span className="text-primary-600 dark:text-primary-400">Base</span>
       </div>
 
       {/* MENÚ DESPLEGABLE DEL USUARIO */}

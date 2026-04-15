@@ -52,7 +52,7 @@ export const LoginPage = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
       <div className="w-full max-w-md rounded-xl border border-surface-200 bg-surface-50 p-8 text-surface-900 shadow-md dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
-        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Acceder a AxiUp</h2>
+        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Acceder a KanBase</h2>
 
         {/* CAJA DE ERROR DEL SERVIDOR */}
         {serverError && (
@@ -75,7 +75,7 @@ export const LoginPage = () => {
                 })}
                 type="email" 
                 className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 outline-none transition focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
-                placeholder="correo@ejemplo.com"
+                placeholder="usuario@correo.com"
               />
             </div>
             {errors.email && <span className="mt-1 block text-xs text-danger">{errors.email.message}</span>}

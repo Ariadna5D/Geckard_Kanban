@@ -4,6 +4,7 @@ import { isAxiosError } from "axios";
 import {
   ArrowLeft,
   Keyboard,
+  LogOut,
   Loader2,
   Pencil,
   Trash2,
@@ -40,11 +41,13 @@ import {
   canDeleteBoard,
   canEditBoardSettings,
   canManageBoardMembers,
+  getCurrentUserBoardRole,
   getBoardDocumentId,
 } from "@/types/board.types";
 import {
   deleteBoardRequest,
   getBoardMembersRequest,
+  leaveBoardRequest,
   updateBoardRequest,
 } from "@/api/boards.api";
 import {
@@ -182,6 +185,8 @@ export function BoardSettingsSheet({
   const [savingBoard, setSavingBoard] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [expelTarget, setExpelTarget] = useState<BoardMemberSummary | null>(
     null,
   );
@@ -200,6 +205,8 @@ export function BoardSettingsSheet({
   const canDelete = canDeleteBoard(board, user);
   /** Invitar / roles / expulsar: propietario, admin del tablero o admin de la app — no editores ni lectores. */
   const canManageParticipantsUI = canManageBoardMembers(board, user);
+  const boardRole = getCurrentUserBoardRole(board, user?.id);
+  const canLeaveBoard = boardRole !== null && boardRole !== "owner";
 
   const boardDocId = getBoardDocumentId(board);
 
@@ -382,6 +389,10 @@ export function BoardSettingsSheet({
     setPanel("shortcuts");
   }
 
+  function handleOpenLeaveDialog() {
+    setLeaveOpen(true);
+  }
+
   function handleSaveBoardClick() {
     void handleSaveBoard();
   }
@@ -402,6 +413,24 @@ export function BoardSettingsSheet({
   function handleDeleteActionClick(event: MouseEvent<HTMLElement>) {
     event.preventDefault();
     void handleConfirmDelete();
+  }
+
+  async function handleConfirmLeave() {
+    if (!boardDocId) return;
+    setLeaving(true);
+    try {
+      await leaveBoardRequest(boardDocId);
+      onOpenChange(false);
+      navigate("/dashboard");
+    } finally {
+      setLeaving(false);
+      setLeaveOpen(false);
+    }
+  }
+
+  function handleLeaveActionClick(event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    void handleConfirmLeave();
   }
 
   return (
@@ -470,6 +499,17 @@ export function BoardSettingsSheet({
                 >
                   <Trash2 className="size-4 shrink-0 opacity-90" />
                   <span className="text-left">Eliminar tablero</span>
+                </Button>
+              )}
+              {canLeaveBoard && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 py-3"
+                  onClick={handleOpenLeaveDialog}
+                >
+                  <LogOut className="size-4 shrink-0 opacity-80" />
+                  <span className="text-left">Abandonar tablero</span>
                 </Button>
               )}
               <Button
@@ -754,6 +794,32 @@ export function BoardSettingsSheet({
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 "Eliminar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Abandonar este tablero?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Perderás acceso a <strong>{board.title}</strong> hasta que alguien
+              vuelva a invitarte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leaving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={leaving}
+              onClick={handleLeaveActionClick}
+            >
+              {leaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                "Abandonar"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

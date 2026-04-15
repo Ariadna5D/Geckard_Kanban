@@ -124,7 +124,7 @@ export const RegisterPage = () => {
                 })}
                 type="text" 
                 className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
-                placeholder="Ej: NinjaKanban"
+                placeholder="usuario"
               />
             </div>
             {errors.username && <span className="text-xs text-danger">{errors.username.message}</span>}
@@ -142,7 +142,7 @@ export const RegisterPage = () => {
                 })}
                 type="email" 
                 className="w-full rounded-lg border border-surface-300 bg-surface-50 py-2 pr-4 pl-10 text-surface-900 focus:ring-2 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-50"
-                placeholder="correo@ejemplo.com"
+                placeholder="usuario@correo.com"
               />
             </div>
             {errors.email && <span className="text-xs text-danger">{errors.email.message}</span>}

@@ -815,4 +815,45 @@ export class BoardsService {
 
     await board.save();
   }
+
+  /**
+   * Permite que un miembro abandone el tablero por sí mismo.
+   * El propietario no puede salir sin transferir propiedad.
+   */
+  async leaveBoard(
+    boardId: string,
+    actorUserId: string,
+    isAppAdmin = false,
+  ): Promise<void> {
+    await this.assertUserHasBoardAccess(boardId, actorUserId, isAppAdmin);
+
+    const board = await this.boardModel.findById(boardId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    if (board.owner.toString() === actorUserId) {
+      throw new BadRequestException(
+        'El propietario no puede abandonar su propio tablero.',
+      );
+    }
+
+    const memberCountBefore = board.members.length;
+    const keptMembers: BoardMember[] = [];
+    for (let index = 0; index < board.members.length; index++) {
+      const member = board.members[index];
+      if (member.user.toString() !== actorUserId) {
+        keptMembers.push(member);
+      }
+    }
+    board.members = keptMembers;
+
+    if (board.members.length === memberCountBefore) {
+      throw new BadRequestException(
+        'No eres miembro directo del tablero; no se puede abandonar.',
+      );
+    }
+
+    await board.save();
+  }
 }

@@ -166,6 +166,24 @@ export class BoardsController {
     );
   }
 
+  // ABANDONAR TABLERO (mi propio usuario)
+  @Delete(':id/leave')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canReadBoard)
+  @ApiOperation({ summary: 'Abandonar tablero (usuario actual)' })
+  @HttpCode(204)
+  async leaveBoard(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    await this.boardsService.leaveBoard(
+      id.toString(),
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
   // --- COLUMNAS ---
 
   // CREAR COLUMNA

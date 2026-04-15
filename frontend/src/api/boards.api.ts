@@ -113,3 +113,8 @@ export const removeBoardMemberRequest = async (
 ): Promise<void> => {
   await api.delete(`/boards/${boardId}/members/${memberUserId}`);
 };
+
+/** El usuario autenticado abandona el tablero actual. */
+export const leaveBoardRequest = async (boardId: string): Promise<void> => {
+  await api.delete(`/boards/${boardId}/leave`);
+};
