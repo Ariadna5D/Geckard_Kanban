@@ -414,7 +414,7 @@ export const BoardPage = () => {
               </SortableContext>
               {canEdit && (
                 <div className="kanban-column-width">
-                  <InlineCreateForm actionText="Add column" onSubmit={handleCreateColumn} />
+                  <InlineCreateForm actionText="Añadir columna" onSubmit={handleCreateColumn} />
                 </div>
               )}
             </div>

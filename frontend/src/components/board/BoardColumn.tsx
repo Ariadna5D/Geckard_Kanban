@@ -185,9 +185,9 @@ export const BoardColumn = ({
                 <button className="rounded-md p-0.5 text-surface-500 outline-none hover:bg-primary-500/10 hover:text-primary-700 dark:text-surface-400 dark:hover:bg-primary-500/15 dark:hover:text-primary-300"><MoreHorizontal size={18} /></button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={handleStartTitleEdit}><Pencil size={14} className="mr-2" /> Rename</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleStartTitleEdit}><Pencil size={14} className="mr-2" /> Renombrar</DropdownMenuItem>
                 <DropdownMenuItem onClick={handleOpenDeleteAlert} className="text-danger focus:bg-danger/10 focus:text-danger">
-                  <Trash2 size={14} className="mr-2" /> Delete
+                  <Trash2 size={14} className="mr-2" /> Eliminar
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -210,7 +210,7 @@ export const BoardColumn = ({
 
         {canEdit && (
         <div className="p-3 shrink-0" onPointerDown={handlePointerDownStop}>
-          <InlineCreateForm actionText="Add task" onSubmit={handleCreateTask} />
+          <InlineCreateForm actionText="Añadir tarea" onSubmit={handleCreateTask} />
         </div>
         )}
       </div>
@@ -218,15 +218,15 @@ export const BoardColumn = ({
       <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>¿Seguro que quieres eliminar esta columna?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the column <strong>"{column.title}"</strong> and all its 
-              associated tasks. This action cannot be undone.
+              Se eliminará de forma permanente la columna <strong>"{column.title}"</strong> y
+              todas sus tareas asociadas. Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-secondary">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteColumn} className="bg-danger text-white hover:bg-danger/90">Delete Column</AlertDialogAction>
+            <AlertDialogCancel className="bg-secondary">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteColumn} className="bg-danger text-white hover:bg-danger/90">Eliminar columna</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

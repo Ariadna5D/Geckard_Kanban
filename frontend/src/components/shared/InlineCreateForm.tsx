@@ -14,7 +14,7 @@ interface InlineCreateFormProps {
 
 export const InlineCreateForm = ({ 
   actionText, 
-  placeholder = "Title...", 
+  placeholder = "Título...", 
   onSubmit,
   triggerClassName = "flex w-full items-center gap-1 rounded-md p-2 text-left text-sm text-surface-600 transition-colors hover:bg-primary-500/10 hover:text-primary-700 dark:text-surface-400 dark:hover:bg-primary-500/15 dark:hover:text-primary-300",
   formClassName = "rounded-lg border border-surface-200 bg-surface-100 p-2 shadow-sm dark:border-surface-800 dark:bg-surface-950"
@@ -72,7 +72,7 @@ export const InlineCreateForm = ({
       />
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" className="h-8 text-xs">
-          Save
+          Guardar
         </Button>
         <Button 
           type="button" 
