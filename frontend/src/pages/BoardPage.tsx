@@ -151,6 +151,7 @@ export const BoardPage = () => {
     pollIntervalMs: BOARD_SILENT_POLL_INTERVAL_MS,
   });
 
+  /** Sensor de puntero: evita iniciar drag por micro-movimientos involuntarios. */
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
@@ -186,11 +187,13 @@ export const BoardPage = () => {
 
   const taskDragLocked = shouldLockTaskDrag(taskFilter, sortKey);
 
+  /** Detección de colisión custom: columnas solo contra columnas al reordenar. */
   const collisionDetection = useMemo(
     () => createBoardCollisionDetection(board),
     [board],
   );
 
+  /** Guarda el elemento activo para dibujar su DragOverlay ("fantasma"). */
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     if (active.data.current?.type === 'Task') {
@@ -225,6 +228,7 @@ export const BoardPage = () => {
 
     // --- Reorden de columnas ---
     if (activeType === 'Column') {
+      // Índices actual y destino dentro del orden visual de columnas.
       const oldIndex = columnIndexById(board.columns, activeId);
       const newIndex = columnIndexById(board.columns, overId);
 
@@ -237,10 +241,11 @@ export const BoardPage = () => {
       const prevCol = newIndex > 0 ? tempColumns[newIndex - 1] : null;
       const nextCol = newIndex < tempColumns.length - 1 ? tempColumns[newIndex + 1] : null;
       
-      // Evita colisión de índices cuando dos columnas comparten order.
+      // Evita colisión de índices cuando dos columnas comparten la misma clave `order`.
       const prevOrder = prevCol?.order;
       const nextOrder = (nextCol?.order === prevOrder) ? null : nextCol?.order;
       
+      // Genera nueva clave fraccional y persiste de forma optimista.
       const newOrder = calculateNewOrder(prevOrder || null, nextOrder || null);
       moveColumnOptimistic(board._id, activeId, newOrder);
       return;
@@ -248,6 +253,7 @@ export const BoardPage = () => {
 
     // --- Reorden/movimiento de tareas ---
     if (activeType === 'Task') {
+      // Con filtros u orden no manual, bloqueamos drag para no desincronizar orden real.
       if (shouldLockTaskDrag(taskFilter, sortKey)) {
         return;
       }
@@ -257,6 +263,7 @@ export const BoardPage = () => {
 
       if (!sourceColumnId || !destColumnId || !activeTask) return;
 
+      // Señal de posición relativa para saber si insertar arriba o abajo del `over`.
       const isBelowOver = Boolean(
         over &&
           active.rect.current.translated &&
@@ -274,6 +281,7 @@ export const BoardPage = () => {
       });
       if (nextOrder == null) return;
 
+      // Aplica movimiento optimista y luego sincroniza con backend.
       moveTaskOptimistic(activeId, sourceColumnId, destColumnId, nextOrder, {
         newColumnId: destColumnId,
         newOrder: nextOrder,
@@ -284,6 +292,7 @@ export const BoardPage = () => {
   const handleCreateColumn = (title: string) => {
     const columns = board?.columns || [];
     const lastCol = columns.length > 0 ? columns[columns.length - 1] : null;
+    // Nueva columna al final: order entre último elemento y null (final de lista).
     const newOrder = calculateNewOrder(lastCol?.order || null, null);
     addColumn(board!._id, title, newOrder);
   };
@@ -420,7 +429,9 @@ export const BoardPage = () => {
             </div>
           </div>
           <DragOverlay>
+            {/* Fantasma visual durante drag de tarea */}
             {activeTask && <TaskCard task={activeTask} isOverlay />}
+            {/* Fantasma visual durante drag de columna */}
             {activeColumn && (
                <div className="kanban-column-width rotate-2 rounded-xl border-2 border-primary-500/40 bg-surface-50 p-4 opacity-95 shadow-2xl ring-2 ring-primary-500/20 dark:border-primary-400/35 dark:bg-surface-900 dark:ring-primary-400/15">
                  <h3 className="font-semibold text-surface-900 dark:text-surface-50">{activeColumn.title}</h3>
