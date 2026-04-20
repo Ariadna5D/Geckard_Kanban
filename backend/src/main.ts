@@ -6,30 +6,20 @@ import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import type { INestApplication } from '@nestjs/common';
 
-/**
- * Parsea una lista de orígenes permitidos para CORS a partir de una cadena separada por comas.
- * @param corsOriginsRaw  La cadena de texto con los orígenes separados por comas.
- * @returns  Un array de orígenes permitidos para CORS.
- */
+// Convierte "http://a.com, http://b.com" en un array de orígenes (sin huecos vacíos).
 function parseCorsOriginsList(corsOriginsRaw: string): string[] {
   const rawParts = corsOriginsRaw.split(',');
   const allowedOrigins: string[] = [];
   for (let i = 0; i < rawParts.length; i++) {
-    const trimmed = rawParts[i].trim();
-    if (trimmed.length > 0) {
-      allowedOrigins.push(trimmed);
+    const corsOriginPart = rawParts[i].trim();
+    if (corsOriginPart.length > 0) {
+      allowedOrigins.push(corsOriginPart);
     }
   }
   return allowedOrigins;
 }
 
-/**
- *  Lee una variable de entorno como string, con un valor por defecto si no está definida
- * @param configService  El servicio de configuración para acceder a las variables de entorno
- * @param key  La clave de la variable de entorno a leer
- * @param whenMissing  El valor por defecto a usar si la variable no está definida
- * @returns  El valor de la variable de entorno o el valor por defecto si no está definida
- */
+// Lee una variable de entorno como texto; si no existe, devuelve whenMissing.
 function readStringConfig(
   configService: ConfigService,
   key: string,
@@ -44,8 +34,8 @@ function readStringConfig(
 
 function setupSwaggerIfDev(app: INestApplication): void {
   const config = new DocumentBuilder()
-    .setTitle('KanBase API')
-    .setDescription('Documentación de la API de KanBase')
+    .setTitle('Geckard API')
+    .setDescription('Documentación de la API de Geckard')
     .setVersion('0.1')
     .addBearerAuth()
     .build();
@@ -53,11 +43,8 @@ function setupSwaggerIfDev(app: INestApplication): void {
   SwaggerModule.setup('api/docs', app, document);
 }
 
-/**
- * Función principal para arrancar la aplicación NestJS. Configura CORS, seguridad, validación y Swagger.
- */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
 
   const nodeEnv = readStringConfig(configService, 'NODE_ENV', 'development');
@@ -97,7 +84,8 @@ async function bootstrap() {
     setupSwaggerIfDev(app);
   }
 
-  await app.listen(3000, '0.0.0.0'); // Escuchar en todas las interfaces para permitir conexiones desde otros contenedores
+  // 0.0.0.0: aceptar conexiones desde Docker u otras máquinas en la red local.
+  await app.listen(3000, '0.0.0.0');
 }
 
 void bootstrap();

@@ -28,7 +28,7 @@ export class RegisterDto {
 
   /** Contraseña */
   @ApiProperty({
-    example: 'usuario',
+    example: 'Usuario123.',
     description: 'Contraseña del usuario',
   })
   @IsString()

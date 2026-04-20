@@ -1,4 +1,4 @@
-# Variables obligatorias (raíz del proyecto: copia .envExample → .env):
+# Variables obligatorias (raíz del proyecto: copia .env.example → .env):
 # MONGO_USERNAME, MONGO_PASSWORD, JWT_SECRET
 # Opcional: MONGO_DATABASE (por defecto kanban_db), CLOUDINARY_*
 services:
@@ -23,6 +23,7 @@ services:
     environment:
       NODE_ENV: production
       CORS_ORIGINS: ${CORS_ORIGINS}
+      MONGO_HOST: ${MONGO_HOST:-mongodb}
       MONGO_USERNAME: ${MONGO_USERNAME}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_DATABASE: ${MONGO_DATABASE:-kanban_db}

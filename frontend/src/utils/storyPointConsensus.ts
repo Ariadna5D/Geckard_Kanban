@@ -9,15 +9,20 @@ export const STORY_POINT_VOTE_SCALE = [1, 2, 3, 5, 8, 13] as const;
 export function consensusFromVoteValues(values: number[]): number | null {
   if (values.length === 0) return null;
   let sum = 0;
-  for (let i = 0; i < values.length; i++) sum += values[i];
+  for (let valueIndex = 0; valueIndex < values.length; valueIndex++) {
+    sum += values[valueIndex];
+  }
   const mean = sum / values.length;
 
   let best = STORY_POINT_VOTE_SCALE[0];
   let bestDist = Math.abs(mean - best);
   for (const f of STORY_POINT_VOTE_SCALE) {
-    const d = Math.abs(mean - f);
-    if (d < bestDist || (d === bestDist && f < best)) {
-      bestDist = d;
+    const distance = Math.abs(mean - f);
+    if (
+      distance < bestDist ||
+      (distance === bestDist && f < best)
+    ) {
+      bestDist = distance;
       best = f;
     }
   }

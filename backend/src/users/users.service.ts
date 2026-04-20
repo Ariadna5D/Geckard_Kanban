@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { User } from './schemas/user.schema';
+import { User, UserPlan } from './schemas/user.schema';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -109,6 +109,49 @@ export class UsersService {
     return this.userModel.findById(userId).exec();
   }
 
+  async findByStripeCustomerId(
+    stripeCustomerId: string,
+  ): Promise<User | null> {
+    if (stripeCustomerId.trim() === '') {
+      return null;
+    }
+    return this.userModel
+      .findOne({ stripeCustomerId })
+      .exec();
+  }
+
+  /** Tras cancelación o borrado de suscripción en Stripe: vuelve a plan free. */
+  async downgradeToFreeAfterStripeSubscriptionEnd(
+    stripeCustomerId: string,
+    stripeSubscriptionId: string | null,
+  ): Promise<void> {
+    const updatePayload = {
+      userPlan: 'free' as UserPlan,
+      stripeSubscriptionId: null as string | null,
+    };
+    if (
+      stripeSubscriptionId !== null &&
+      stripeSubscriptionId !== undefined &&
+      stripeSubscriptionId.trim() !== ''
+    ) {
+      const withSub = await this.userModel
+        .findOneAndUpdate(
+          {
+            stripeCustomerId,
+            stripeSubscriptionId,
+          },
+          updatePayload,
+        )
+        .exec();
+      if (withSub !== null) {
+        return;
+      }
+    }
+    await this.userModel
+      .findOneAndUpdate({ stripeCustomerId }, updatePayload)
+      .exec();
+  }
+
   // OBTENER TODOS LOS USUARIOS
   async findAll() {
     return this.userModel.find().select('-passwordHash').exec(); // quitamos password
@@ -120,16 +163,16 @@ export class UsersService {
     excludeUserId: string,
     limit = 15,
   ): Promise<{ id: string; username: string; email: string }[]> {
-    let trimmedSearchText = '';
+    let searchTextForInvite = '';
     if (searchText !== undefined && searchText !== null) {
-      trimmedSearchText = searchText.trim();
+      searchTextForInvite = searchText.trim();
     }
-    if (trimmedSearchText.length < 2) {
+    if (searchTextForInvite.length < 2) {
       return [];
     }
 
     // Escapamos caracteres especiales para evitar inyecciones o errores en la regex
-    const textEscapedForRegex = escapeRegexSpecialChars(trimmedSearchText);
+    const textEscapedForRegex = escapeRegexSpecialChars(searchTextForInvite);
     const usernameOrEmailPattern = new RegExp(textEscapedForRegex, 'i');
 
     const mongoFilter: Record<string, unknown> = {
@@ -215,6 +258,32 @@ export class UsersService {
       .exec();
   }
 
+  // ACTUALIZA EL PLAN DESDE EVENTOS DE STRIPE (USO INTERNO)
+  async updatePlanFromStripe(
+    userId: string,
+    userPlan: Exclude<UserPlan, 'free'>,
+    stripeCustomerId: string | null,
+    stripeSubscriptionId: string | null,
+  ) {
+    const updatedUser = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        {
+          userPlan,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        },
+        { returnDocument: 'after' },
+      )
+      .exec();
+
+    if (updatedUser === null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return updatedUser;
+  }
+
   // OBTENER USUARIO POR ID
   async findOne(userId: string) {
     const userDocument = await this.userModel
@@ -235,6 +304,9 @@ export class UsersService {
       avatarUrl?: string;
       experiencePoints?: number;
       role: string;
+      userPlan?: string;
+      stripeCustomerId?: string | null;
+      stripeSubscriptionId?: string | null;
       createdAt?: Date;
       updatedAt?: Date;
     };
@@ -255,6 +327,23 @@ export class UsersService {
       experiencePoints = storedUser.experiencePoints;
     }
 
+    let stripeCustomerId: string | null = null;
+    if (
+      storedUser.stripeCustomerId !== undefined &&
+      storedUser.stripeCustomerId !== null &&
+      storedUser.stripeCustomerId.trim() !== ''
+    ) {
+      stripeCustomerId = storedUser.stripeCustomerId;
+    }
+    let stripeSubscriptionId: string | null = null;
+    if (
+      storedUser.stripeSubscriptionId !== undefined &&
+      storedUser.stripeSubscriptionId !== null &&
+      storedUser.stripeSubscriptionId.trim() !== ''
+    ) {
+      stripeSubscriptionId = storedUser.stripeSubscriptionId;
+    }
+
     return {
       id: storedUser._id.toString(),
       username: storedUser.username,
@@ -263,6 +352,9 @@ export class UsersService {
       avatarUrl,
       experiencePoints,
       role: storedUser.role,
+      userPlan: storedUser.userPlan ?? 'free',
+      stripeCustomerId,
+      stripeSubscriptionId,
       createdAt: storedUser.createdAt,
       updatedAt: storedUser.updatedAt,
     };

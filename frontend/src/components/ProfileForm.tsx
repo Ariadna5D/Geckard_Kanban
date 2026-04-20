@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Loader2, Trash2 } from 'lucide-react';
+import { UploadCloud, Loader2, Trash2, ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../api/axios.instance';
 import { apiErrorMessage } from '@/utils/apiErrorMessage';
+import { createCustomerPortalSessionRequest } from '@/api/billing.api';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +38,7 @@ interface ProfileFormData {
  * - borrado de cuenta con confirmación
  */
 export const ProfileForm = () => {
-  const { user, updateUser, logout } = useAuthStore();
+  const { user, updateUser, logout, fetchUser } = useAuthStore();
   const navigate = useNavigate();
   
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormData>({
@@ -50,6 +51,7 @@ export const ProfileForm = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -264,8 +266,41 @@ export const ProfileForm = () => {
     fileInputRef.current?.click();
   }
 
+  const planLabel =
+    user?.userPlan === 'pro' || user?.userPlan === 'team'
+      ? user.userPlan
+      : 'free';
+  const hasStripeCustomer =
+    user?.stripeCustomerId !== undefined &&
+    user?.stripeCustomerId !== null &&
+    user.stripeCustomerId.trim() !== '';
+  const hasActiveSubscription =
+    user?.stripeSubscriptionId !== undefined &&
+    user?.stripeSubscriptionId !== null &&
+    user.stripeSubscriptionId.trim() !== '';
+
+  async function handleOpenStripePortal() {
+    setIsPortalLoading(true);
+    setMessage(null);
+    try {
+      const { url } = await createCustomerPortalSessionRequest();
+      window.location.href = url;
+    } catch (error: unknown) {
+      setMessage({
+        type: 'error',
+        text: apiErrorMessage(
+          error,
+          'No se pudo abrir el portal de Stripe. Revisa STRIPE_PORTAL_RETURN_URL y el Customer Portal en Stripe.',
+        ),
+      });
+    } finally {
+      setIsPortalLoading(false);
+    }
+  }
+
   return (
-    <Card className="mx-auto mt-8 max-w-xl border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
+    <div className="mx-auto mt-8 max-w-xl space-y-6">
+    <Card className="border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
       <CardHeader>
         <CardTitle>Tu Perfil</CardTitle>
         <CardDescription>Actualiza tu foto y tus datos públicos.</CardDescription>
@@ -374,5 +409,82 @@ export const ProfileForm = () => {
 
       </CardContent>
     </Card>
+
+    <Card className="border border-surface-200 bg-surface-50 shadow-sm ring-1 ring-surface-200/70 dark:border-surface-800 dark:bg-surface-900 dark:ring-surface-800/80">
+      <CardHeader>
+        <CardTitle>Suscripción</CardTitle>
+        <CardDescription>
+          Plan actual y gestión en Stripe (cancelar, tarjeta, facturas).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-sm text-surface-700 dark:text-surface-300">
+          <p>
+            <span className="font-medium text-surface-900 dark:text-surface-100">
+              Plan:
+            </span>{' '}
+            <span className="capitalize">{planLabel}</span>
+          </p>
+          <p className="mt-1">
+            <span className="font-medium text-surface-900 dark:text-surface-100">
+              Suscripción Stripe:
+            </span>{' '}
+            {hasActiveSubscription ? 'Activa' : 'Sin suscripción activa'}
+          </p>
+          {hasActiveSubscription && user?.stripeSubscriptionId ? (
+            <p className="mt-1 break-all font-mono text-xs text-surface-500 dark:text-surface-400">
+              {user.stripeSubscriptionId}
+            </p>
+          ) : null}
+        </div>
+        {hasStripeCustomer ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full flex-1"
+              disabled={isPortalLoading || isLoading || isDeleting}
+              onClick={() => {
+                void handleOpenStripePortal();
+              }}
+            >
+              {isPortalLoading ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <ExternalLink className="mr-2 size-4" />
+              )}
+              {isPortalLoading ? 'Abriendo portal...' : 'Gestionar en Stripe'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full flex-1"
+              disabled={isPortalLoading || isLoading || isDeleting}
+              onClick={() => {
+                void fetchUser();
+              }}
+            >
+              Actualizar estado
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              navigate('/billing/plans');
+            }}
+          >
+            Ver planes y contratar
+          </Button>
+        )}
+        <p className="text-xs text-surface-500 dark:text-surface-400">
+          Tras cambiar algo en Stripe, vuelve aquí y recarga o cierra sesión si
+          hace falta. El plan se actualiza cuando Stripe envía el webhook.
+        </p>
+      </CardContent>
+    </Card>
+    </div>
   );
 };

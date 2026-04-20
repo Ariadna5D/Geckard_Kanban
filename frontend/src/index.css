@@ -3,21 +3,32 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* Tipografía de marca (logo / wordmark). Origen: fonts.cdnfonts.com (Aldo the Apache, AJ Paglia). */
+@font-face {
+  font-family: "Aldo the Apache";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("Aldo the Apache"),
+    url("https://fonts.cdnfonts.com/s/5840/AldotheApache.woff") format("woff");
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* --- PRIMARY --- */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1; 
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
+  /* --- PRIMARY: azul tipo #0078C4 (600 = marca) --- */
+  --color-primary-50: #eff8fc;
+  --color-primary-100: #d9eef8;
+  --color-primary-200: #b3ddf2;
+  --color-primary-300: #82c7e8;
+  --color-primary-400: #4badde;
+  --color-primary-500: #2094ce;
+  --color-primary-600: #0078c4;
+  --color-primary-700: #0064a5;
+  --color-primary-800: #005086;
+  --color-primary-900: #003d68;
+  --color-primary-950: #002847;
 
   /* --- SURFACE: grises neutros. En claro, 50/100/200 más marcados que el blanco puro (lienzo vs paneles). --- */
   --color-surface-50: #f0f0f3;
@@ -54,7 +65,7 @@
   --color-error: #ef4444;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
-  --color-info: #3b82f6;
+  --color-info: #0078c4;
 
   /* Altura mínima zona de tareas en columna (~150px), usable como min-h-kanban-col-body */
   --spacing-kanban-col-body: 9.375rem;
@@ -120,8 +131,8 @@
   --popover: oklch(0.945 0.005 264);
   --popover-foreground: oklch(0.145 0 0);
   
-  /* CORREGIDO: Ahora el botón de shadcn será del mismo azul índigo que tu paleta, no negro */
-  --primary: oklch(0.446 0.16 264); 
+  /* Botones / enlaces: mismo matiz que primary-600 (#0078C4) */
+  --primary: oklch(0.53 0.13 245);
   --primary-foreground: oklch(0.985 0 0);
   
   --secondary: oklch(0.93 0.006 264);
@@ -134,8 +145,8 @@
   --border: oklch(0.86 0.008 264);
   --input: oklch(0.86 0.008 264);
   
-  /* CORREGIDO: El borde al hacer focus en los inputs será azul índigo */
-  --ring: oklch(0.446 0.16 264); 
+  /* Focus: alineado con primary */
+  --ring: oklch(0.53 0.13 245);
   
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -145,12 +156,12 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.945 0.005 264);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.446 0.16 264);
+  --sidebar-primary: oklch(0.53 0.13 245);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.86 0.008 264);
-  --sidebar-ring: oklch(0.446 0.16 264);
+  --sidebar-ring: oklch(0.53 0.13 245);
 }
 
 .dark {
@@ -162,8 +173,8 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
   
-  /* CORREGIDO: Azul índigo adaptado para modo oscuro */
-  --primary: oklch(0.65 0.15 264); 
+  /* Primary más claro sobre fondo oscuro */
+  --primary: oklch(0.7 0.11 245);
   --primary-foreground: oklch(0.145 0 0);
   
   --secondary: oklch(0.269 0 0);
@@ -175,7 +186,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.15 264);
+  --ring: oklch(0.7 0.11 245);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -183,21 +194,13 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.65 0.15 264);
+  --sidebar-primary: oklch(0.7 0.11 245);
   --sidebar-primary-foreground: oklch(0.145 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.15 264);
+  --sidebar-ring: oklch(0.7 0.11 245);
 }
-
-/*
- * Extensión (toggle manual): lee localStorage y aplica class "dark" | quítala;
- * si usas "system", ejecuta la misma lógica que el script de index.html.
- * Los tokens --background, --foreground, --card, --muted, --border, --primary
- * bastan para toda la app mientras la UI use utilidades semánticas (bg-background,
- * text-foreground, bg-card, border-border, text-primary, text-muted-foreground, …).
- */
 
 @layer base {
   * {
@@ -208,6 +211,9 @@
   }
   html {
     @apply font-sans;
+  }
+  .font-brand {
+    font-family: "Aldo the Apache", ui-sans-serif, system-ui, sans-serif;
   }
 }
 

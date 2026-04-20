@@ -1,4 +1,4 @@
-// src/seed.ts
+// Usuario de demostración solo para entornos de prueba (no usar en producción).
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getModelToken } from '@nestjs/mongoose';

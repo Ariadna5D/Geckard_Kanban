@@ -17,6 +17,11 @@ import {
   canInviteToBoard,
 } from '../types/board.types';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Loader2, RefreshCw, Settings, UserPlus } from 'lucide-react';
 import { useRefetchBoardWhenTabVisible } from '../hooks/useRefetchBoardWhenTabVisible';
 import { BOARD_SILENT_POLL_INTERVAL_MS } from '../constants/boardRefetch';
@@ -31,6 +36,7 @@ import {
 import { Column } from '../types/board.types';
 import {
   applyBoardTaskFilter,
+  collectTaskLabelOptionsFromBoard,
   sortTasksForBoardView,
   shouldLockTaskDrag,
   type BoardTaskFilter,
@@ -90,9 +96,9 @@ export const BoardPage = () => {
    * redirige al dashboard en F5 o recarga directa en /boards/:slug.
    */
   const [fetchSettled, setFetchSettled] = useState(false);
-  /** Filtro elegido en el menú (todas, prioridad, título, etc.). */
+  /** Filtro de vista (solo sesión; no se persiste). */
   const [taskFilter, setTaskFilter] = useState<BoardTaskFilter>({ kind: 'all' });
-  /** Orden dentro de cada columna en pantalla. */
+  /** Orden dentro de cada columna en pantalla (solo sesión). */
   const [sortKey, setSortKey] = useState<BoardTaskSortKey>('manual');
   const [sortDirection, setSortDirection] =
     useState<BoardSortDirection>('asc');
@@ -164,6 +170,11 @@ export const BoardPage = () => {
     }
     return ids;
   }, [board]);
+
+  const boardLabelOptions = useMemo(
+    () => collectTaskLabelOptionsFromBoard(board),
+    [board],
+  );
 
   /**
    * Por columna: primero filtro (menú), luego orden de vista (menú).
@@ -333,35 +344,46 @@ export const BoardPage = () => {
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-            onClick={() => void handleRefreshBoard()}
-            disabled={refreshBusy}
-            aria-label="Actualizar tablero desde el servidor"
-            title="Actualizar tablero"
-          >
-            {refreshBusy ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="size-4" aria-hidden />
-            )}
-          </Button>
-          {user && slug && (
-            <>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-                onClick={handleOpenSettings}
-                aria-label="Configuración del tablero"
+                onClick={() => void handleRefreshBoard()}
+                disabled={refreshBusy}
+                aria-label="Actualizar tablero desde el servidor"
               >
-                <Settings className="size-4" />
+                {refreshBusy ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCw className="size-4" aria-hidden />
+                )}
               </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Sincronizar con el servidor
+            </TooltipContent>
+          </Tooltip>
+          {user && slug && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+                    onClick={handleOpenSettings}
+                    aria-label="Configuración del tablero"
+                  >
+                    <Settings className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Ajustes del tablero</TooltipContent>
+              </Tooltip>
               <BoardSettingsSheet
                 board={board}
                 slug={slug}
@@ -373,16 +395,21 @@ export const BoardPage = () => {
           )}
           {user && canInviteToBoard(board, user) && slug && (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-                onClick={handleOpenShare}
-              >
-                <UserPlus data-icon="inline-start" />
-                Compartir
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+                    onClick={handleOpenShare}
+                  >
+                    <UserPlus data-icon="inline-start" />
+                    Compartir
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Invitar al tablero</TooltipContent>
+              </Tooltip>
               <BoardShareDialog
                 open={shareOpen}
                 onOpenChange={setShareOpen}
@@ -395,7 +422,9 @@ export const BoardPage = () => {
             taskFilter={taskFilter}
             onTaskFilterChange={setTaskFilter}
             sortKey={sortKey}
+            sortDirection={sortDirection}
             onSortChange={handleBoardSortChange}
+            boardLabelOptions={boardLabelOptions}
           />
         </div>
       </header>

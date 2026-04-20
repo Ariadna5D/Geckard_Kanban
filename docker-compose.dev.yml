@@ -27,6 +27,7 @@ services:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
       # Misma fuente que en producción (JWT + Mongo + Cloudinary)
+      - MONGO_HOST=${MONGO_HOST:-mongodb}
       - MONGO_USERNAME=${MONGO_USERNAME}
       - MONGO_PASSWORD=${MONGO_PASSWORD}
       - MONGO_DATABASE=${MONGO_DATABASE:-kanban_db}

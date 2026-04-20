@@ -43,6 +43,9 @@ function asStringKeyedObject(entry: unknown): Record<string, unknown> | null {
   return entry as Record<string, unknown>;
 }
 
+/** Máximo de filas en `members` (no cuenta al owner) con plan Free. */
+const FREE_PLAN_MAX_BOARD_MEMBERS = 10;
+
 // SERVICIO //////////////////////////////////////
 @Injectable()
 export class BoardsService {
@@ -295,7 +298,7 @@ export class BoardsService {
 
   // Devuelve un tablero con sus columnas y tareas, asegurando que el usuario tenga acceso. PARA RUTAS CON SLUG
   private mapTaskForBoardClient(task: Record<string, unknown>) {
-    const t = task as {
+    const typedTask = task as {
       _id: Types.ObjectId;
       boardId: Types.ObjectId;
       columnId: Types.ObjectId;
@@ -303,9 +306,9 @@ export class BoardsService {
       storyPointVotes?: { userId: Types.ObjectId; value: number }[];
       [key: string]: unknown;
     };
-    const votes = t.storyPointVotes ?? [];
+    const votes = typedTask.storyPointVotes ?? [];
     const assigneeIds: string[] = [];
-    const rawAssignees = t.assigneeIds ?? [];
+    const rawAssignees = typedTask.assigneeIds ?? [];
     for (let index = 0; index < rawAssignees.length; index++) {
       assigneeIds.push(rawAssignees[index].toString());
     }
@@ -323,13 +326,13 @@ export class BoardsService {
     }
     const mapped: Record<string, unknown> = {
       ...task,
-      _id: t._id.toString(),
-      boardId: t.boardId.toString(),
-      columnId: t.columnId.toString(),
+      _id: typedTask._id.toString(),
+      boardId: typedTask.boardId.toString(),
+      columnId: typedTask.columnId.toString(),
       assigneeIds,
       storyPointVotes: storyPointVotesOut,
-      links: this.normalizeTaskLinksForClient(t.links),
-      checklist: this.normalizeTaskChecklistForClient(t.checklist),
+      links: this.normalizeTaskLinksForClient(typedTask.links),
+      checklist: this.normalizeTaskChecklistForClient(typedTask.checklist),
     };
     delete mapped.sprintId;
     return mapped;
@@ -624,6 +627,7 @@ export class BoardsService {
       }
       board.members[existingMemberIndex].role = dto.role;
     } else {
+      await this.assertNewMemberAllowedByOwnerPlan(board);
       board.members.push({
         user: new Types.ObjectId(dto.userId),
         role: dto.role,
@@ -631,6 +635,25 @@ export class BoardsService {
     }
 
     return board.save();
+  }
+
+  /**
+   * Plan Free: como mucho 10 usuarios en `members` (el owner no cuenta).
+   * Pro y Team: sin tope aquí.
+   */
+  private async assertNewMemberAllowedByOwnerPlan(
+    board: BoardDocument,
+  ): Promise<void> {
+    const ownerUser = await this.usersService.findById(board.owner.toString());
+    let ownerPlan = 'free';
+    if (ownerUser !== null && ownerUser.userPlan !== undefined && ownerUser.userPlan !== null) {
+      ownerPlan = ownerUser.userPlan;
+    }
+    if (ownerPlan === 'free' && board.members.length >= FREE_PLAN_MAX_BOARD_MEMBERS) {
+      throw new ForbiddenException(
+        'Con el plan Free solo puedes tener hasta 10 colaboradores en el tablero. Pasa a Pro para invitar sin límite.',
+      );
+    }
   }
 
   // Devuelve la lista de miembros de un tablero con su rol, asegurando que el usuario tenga acceso

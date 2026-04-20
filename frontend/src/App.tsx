@@ -13,6 +13,9 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuthStore } from "./store/useAuthStore";
 import { ProfilePage } from "./pages/ProfilePage";
 import { MainLayout } from './components/layouts/MainLayout';
+import { BillingPlansPage } from './pages/BillingPlansPage';
+import { BillingSuccessPage } from './pages/BillingSuccessPage';
+import { BillingCancelPage } from './pages/BillingCancelPage';
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -55,6 +58,9 @@ export const App = () => {
             { path: "/dashboard", element: <DashboardPage /> },
             { path: "/profile", element: <ProfilePage /> },
             { path: "/boards/:slug", element: <BoardPage /> }, 
+            { path: "/billing/plans", element: <BillingPlansPage /> },
+            { path: "/billing/success", element: <BillingSuccessPage /> },
+            { path: "/billing/cancel", element: <BillingCancelPage /> },
           ],
         }
       ],

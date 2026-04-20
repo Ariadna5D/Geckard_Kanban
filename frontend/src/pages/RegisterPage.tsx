@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useState } from 'react';
 import api from '../api/axios.instance';
 import { apiErrorMessage } from '../utils/apiErrorMessage';
+import { BrandMark } from '@/components/comons/BrandMark';
 // 1. Definimos el "contrato" de lo que vamos a enviar
 interface RegisterFormData {
   username: string;
@@ -101,7 +102,10 @@ export const RegisterPage = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-100 dark:bg-surface-950">
       <div className="w-full max-w-md rounded-xl border border-surface-200 bg-surface-50 p-8 text-surface-900 shadow-md dark:border-surface-800 dark:bg-surface-900 dark:text-surface-50">
-        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Crear Cuenta</h2>
+        <div className="mb-6 flex justify-center">
+          <BrandMark imgClassName="h-14 w-auto max-w-full sm:h-16" />
+        </div>
+        <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-surface-50">Crear cuenta en Geckard</h2>
 
         {serverError && (
           <div className="mb-4 rounded border border-danger/30 bg-danger/10 px-4 py-3 text-danger">

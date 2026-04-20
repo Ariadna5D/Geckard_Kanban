@@ -7,8 +7,8 @@ const SCALE = [...STORY_POINT_SCALE] as const;
 export class StoryPointVoteDto {
   @Transform(({ value }: { value: unknown }) => {
     if (typeof value === 'string') {
-      const n = Number.parseInt(value, 10);
-      return Number.isNaN(n) ? value : n;
+      const parsedInt = Number.parseInt(value, 10);
+      return Number.isNaN(parsedInt) ? value : parsedInt;
     }
     return value;
   })

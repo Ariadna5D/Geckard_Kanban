@@ -1,10 +1,6 @@
 import {
   AlignLeft,
-  ArrowDown,
-  ArrowUp,
   CalendarDays,
-  ChevronsUp,
-  AlertTriangle,
   Link2,
   ListChecks,
   DraftingCompass as Sigma,
@@ -30,20 +26,7 @@ import {
   MAX_ASSIGNEE_AVATARS_ON_CARD,
   PRIORITY_ROW_STYLE,
 } from './taskCardConstants';
-
-function PriorityGlyph({ priority }: { priority: Task['priority'] }) {
-  const iconClass = 'size-4 shrink-0 opacity-90';
-  switch (priority) {
-    case 'low':
-      return <ArrowDown className={iconClass} aria-hidden />;
-    case 'medium':
-      return <ArrowUp className={iconClass} aria-hidden />;
-    case 'high':
-      return <ChevronsUp className={iconClass} aria-hidden />;
-    default:
-      return <AlertTriangle className={iconClass} aria-hidden />;
-  }
-}
+import { TaskPriorityIcon } from './taskPriorityVisual';
 
 export function TaskCardMetaChips({
   task,
@@ -96,7 +79,7 @@ export function TaskCardMetaChips({
         <p
           className={`mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium leading-tight ${priorityRowStyle.bg} ${priorityRowStyle.text}`}
         >
-          <PriorityGlyph priority={priority} />
+          <TaskPriorityIcon priority={priority} />
           <span className="min-w-0">
             <span className="font-semibold opacity-80">Prioridad</span>
             <span className="mx-0.5 font-light opacity-60">·</span>

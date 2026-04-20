@@ -55,10 +55,10 @@ export function votingSummaryFromTask(task: Task) {
   };
 }
 
-export function voteCountPhrase(n: number): string {
-  if (n <= 0) return 'sin votos';
-  if (n === 1) return '1 voto';
-  return `${n} votos`;
+export function voteCountPhrase(voteCount: number): string {
+  if (voteCount <= 0) return 'sin votos';
+  if (voteCount === 1) return '1 voto';
+  return `${voteCount} votos`;
 }
 
 const dueBadgeTitle: Record<'normal' | 'today' | 'overdue', string> = {
@@ -71,16 +71,20 @@ export { dueBadgeTitle };
 
 export function formatDueDate(raw?: string): string | null {
   if (!raw) return null;
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  const parsedDue = new Date(raw);
+  if (Number.isNaN(parsedDue.getTime())) return null;
+  return parsedDue.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
 }
 
 export function dueDateState(raw?: string): 'normal' | 'today' | 'overdue' {
   if (!raw) return 'normal';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return 'normal';
-  const due = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const parsedDue = new Date(raw);
+  if (Number.isNaN(parsedDue.getTime())) return 'normal';
+  const due = new Date(
+    parsedDue.getFullYear(),
+    parsedDue.getMonth(),
+    parsedDue.getDate(),
+  ).getTime();
   const now = new Date();
   const today = new Date(
     now.getFullYear(),
@@ -124,8 +128,8 @@ export function newChecklistRowId(): string {
 
 /** Título visible del enlace: título manual o, si falta, el host de la URL. */
 export function linkDisplayHeading(url: string, title: string): string {
-  const t = title.trim();
-  if (t) return t;
+  const titleText = title.trim();
+  if (titleText) return titleText;
   try {
     return new URL(url).hostname.replace(/^www\./i, '');
   } catch {
@@ -136,8 +140,8 @@ export function linkDisplayHeading(url: string, title: string): string {
 /** Comprueba si la URL es segura para usar en `href` (solo http/https). */
 export function isSafeHttpUrl(url: string): boolean {
   try {
-    const u = new URL(url.trim());
-    return u.protocol === 'http:' || u.protocol === 'https:';
+    const parsedUrl = new URL(url.trim());
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
   } catch {
     return false;
   }
@@ -145,15 +149,16 @@ export function isSafeHttpUrl(url: string): boolean {
 
 /** Normaliza URL de enlace (añade https:// si falta el protocolo). */
 export function normalizeTaskLinkUrl(raw: string): string | null {
-  let t = raw.trim();
-  if (!t) return null;
-  if (!/^https?:\/\//i.test(t)) {
-    t = `https://${t}`;
+  let candidateUrl = raw.trim();
+  if (!candidateUrl) return null;
+  if (!/^https?:\/\//i.test(candidateUrl)) {
+    candidateUrl = `https://${candidateUrl}`;
   }
   try {
-    const u = new URL(t);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return u.href.slice(0, 2048);
+    const parsedUrl = new URL(candidateUrl);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:')
+      return null;
+    return parsedUrl.href.slice(0, 2048);
   } catch {
     return null;
   }

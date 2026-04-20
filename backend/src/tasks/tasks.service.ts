@@ -82,15 +82,15 @@ export class TasksService {
       const urlRaw = (entry as { url?: unknown }).url;
       const titleRaw = (entry as { title?: unknown }).title;
       if (typeof urlRaw !== 'string') continue;
-      let trimmed = urlRaw.trim();
-      if (!trimmed) continue;
-      if (!/^https?:\/\//i.test(trimmed)) {
-        trimmed = `https://${trimmed}`;
+      let candidateUrl = urlRaw.trim();
+      if (!candidateUrl) continue;
+      if (!/^https?:\/\//i.test(candidateUrl)) {
+        candidateUrl = `https://${candidateUrl}`;
       }
       let hrefKey: string;
       let storedUrl: string;
       try {
-        const parsed = new URL(trimmed);
+        const parsed = new URL(candidateUrl);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
           continue;
         hrefKey = parsed.href;
@@ -102,8 +102,8 @@ export class TasksService {
       seen.add(hrefKey);
       const link: TaskLink = { url: storedUrl };
       if (typeof titleRaw === 'string') {
-        const t = titleRaw.trim().slice(0, 200);
-        if (t) link.title = t;
+        const linkTitleText = titleRaw.trim().slice(0, 200);
+        if (linkTitleText) link.title = linkTitleText;
       }
       out.push(link);
     }
@@ -143,9 +143,12 @@ export class TasksService {
     let best: StoryPointValue = STORY_POINT_SCALE[0];
     let bestDistance = Math.abs(mean - best);
     for (const f of STORY_POINT_SCALE) {
-      const d = Math.abs(mean - f);
-      if (d < bestDistance || (d === bestDistance && f < best)) {
-        bestDistance = d;
+      const distance = Math.abs(mean - f);
+      if (
+        distance < bestDistance ||
+        (distance === bestDistance && f < best)
+      ) {
+        bestDistance = distance;
         best = f;
       }
     }
@@ -447,9 +450,9 @@ export class TasksService {
     }
     const uid = String(userId).trim();
     let existingVoteIndex = -1;
-    for (let i = 0; i < task.storyPointVotes.length; i++) {
-      if (String(task.storyPointVotes[i].userId) === uid) {
-        existingVoteIndex = i;
+    for (let voteIndex = 0; voteIndex < task.storyPointVotes.length; voteIndex++) {
+      if (String(task.storyPointVotes[voteIndex].userId) === uid) {
+        existingVoteIndex = voteIndex;
         break;
       }
     }

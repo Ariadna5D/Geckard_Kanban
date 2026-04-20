@@ -41,7 +41,7 @@ import {
   canDeleteBoard,
   canEditBoardSettings,
   canManageBoardMembers,
-  getCurrentUserBoardRole,
+  canMemberLeaveBoard,
   getBoardDocumentId,
 } from "@/types/board.types";
 import {
@@ -118,11 +118,11 @@ function roleLabel(role: string): string {
 }
 
 function userInitials(username: string): string {
-  const trimmed = username.trim();
+  const usernameText = username.trim();
   const parts: string[] = [];
   let current = "";
-  for (let i = 0; i < trimmed.length; i++) {
-    const ch = trimmed[i];
+  for (let i = 0; i < usernameText.length; i++) {
+    const ch = usernameText[i];
     if (ch === " " || ch === "\t") {
       if (current.length > 0) {
         parts.push(current);
@@ -151,9 +151,10 @@ function selectRemoveBoardMember(state: ActiveBoardState) {
 
 function apiErr(e: unknown): string {
   if (isAxiosError(e)) {
-    const d = e.response?.data as { message?: string | string[] };
-    if (Array.isArray(d?.message)) return d.message.join(", ");
-    if (typeof d?.message === "string") return d.message;
+    const errorBody = e.response?.data as { message?: string | string[] };
+    if (Array.isArray(errorBody?.message))
+      return errorBody.message.join(", ");
+    if (typeof errorBody?.message === "string") return errorBody.message;
   }
   return "Algo salió mal. Inténtalo de nuevo.";
 }
@@ -191,6 +192,7 @@ export function BoardSettingsSheet({
     null,
   );
   const [expelling, setExpelling] = useState(false);
+  const [sheetDangerError, setSheetDangerError] = useState('');
 
   const [membersLoading, setMembersLoading] = useState(false);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -205,8 +207,7 @@ export function BoardSettingsSheet({
   const canDelete = canDeleteBoard(board, user);
   /** Invitar / roles / expulsar: propietario, admin del tablero o admin de la app — no editores ni lectores. */
   const canManageParticipantsUI = canManageBoardMembers(board, user);
-  const boardRole = getCurrentUserBoardRole(board, user?.id);
-  const canLeaveBoard = boardRole !== null && boardRole !== "owner";
+  const canLeaveBoard = canMemberLeaveBoard(board, user);
 
   const boardDocId = getBoardDocumentId(board);
 
@@ -215,6 +216,7 @@ export function BoardSettingsSheet({
       setPanel("menu");
       setListError(null);
       setExpelTarget(null);
+      setSheetDangerError('');
     }
   }, [open]);
 
@@ -283,13 +285,14 @@ export function BoardSettingsSheet({
 
   const handleConfirmDelete = async () => {
     if (!boardDocId) return;
+    setSheetDangerError('');
     setDeleting(true);
     try {
       await deleteBoardRequest(boardDocId);
       onOpenChange(false);
       navigate("/dashboard");
     } catch (e) {
-      console.error(e);
+      setSheetDangerError(apiErr(e));
     } finally {
       setDeleting(false);
       setDeleteOpen(false);
@@ -317,11 +320,11 @@ export function BoardSettingsSheet({
       setMembers(function replaceMemberRole(prev) {
         const out: BoardMemberSummary[] = [];
         for (let i = 0; i < prev.length; i++) {
-          const m = prev[i];
-          if (m.userId === memberUserId) {
-            out.push({ ...m, role: nextRole });
+          const member = prev[i];
+          if (member.userId === memberUserId) {
+            out.push({ ...member, role: nextRole });
           } else {
-            out.push(m);
+            out.push(member);
           }
         }
         return out;
@@ -349,10 +352,10 @@ export function BoardSettingsSheet({
         }
         return out;
       });
-      setRoleDraft(function removeRoleDraftKey(d) {
-        const n = { ...d };
-        delete n[memberUserId];
-        return n;
+      setRoleDraft(function removeRoleDraftKey(draft) {
+        const nextDraft = { ...draft };
+        delete nextDraft[memberUserId];
+        return nextDraft;
       });
       setExpelTarget(null);
     } catch (e) {
@@ -378,6 +381,7 @@ export function BoardSettingsSheet({
   }
 
   function handleOpenDeleteDialog() {
+    setSheetDangerError('');
     setDeleteOpen(true);
   }
 
@@ -390,6 +394,7 @@ export function BoardSettingsSheet({
   }
 
   function handleOpenLeaveDialog() {
+    setSheetDangerError('');
     setLeaveOpen(true);
   }
 
@@ -417,11 +422,14 @@ export function BoardSettingsSheet({
 
   async function handleConfirmLeave() {
     if (!boardDocId) return;
+    setSheetDangerError('');
     setLeaving(true);
     try {
       await leaveBoardRequest(boardDocId);
       onOpenChange(false);
       navigate("/dashboard");
+    } catch (e) {
+      setSheetDangerError(apiErr(e));
     } finally {
       setLeaving(false);
       setLeaveOpen(false);
@@ -473,6 +481,11 @@ export function BoardSettingsSheet({
 
           {panel === "menu" && (
             <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
+              {sheetDangerError !== '' ? (
+                <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {sheetDangerError}
+                </p>
+              ) : null}
               {!canSettings && !canDelete && (
                 <p className="text-muted-foreground mb-1 text-sm">
                   Puedes ver los participantes del tablero. La edición avanzada

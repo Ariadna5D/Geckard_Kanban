@@ -20,10 +20,10 @@ import { Transform, Type } from 'class-transformer';
 
 function prependHttpUrl(value: unknown): unknown {
   if (typeof value !== 'string') return value;
-  const t = value.trim();
-  if (!t) return t;
-  if (!/^https?:\/\//i.test(t)) return `https://${t}`;
-  return t;
+  const urlText = value.trim();
+  if (!urlText) return urlText;
+  if (!/^https?:\/\//i.test(urlText)) return `https://${urlText}`;
+  return urlText;
 }
 
 class TaskLabelDto {

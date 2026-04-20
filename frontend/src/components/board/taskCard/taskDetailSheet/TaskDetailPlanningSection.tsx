@@ -1,10 +1,12 @@
 import type { ChangeEvent } from 'react';
 import { CalendarDays, Vote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import type { StoryPointVotingState, Task } from '@/types/board.types';
 import { voteCountPhrase } from '../taskCardHelpers';
 import { PRIORITY_OPTIONS } from '../taskCardConstants';
+import { TaskPriorityIcon } from '../taskPriorityVisual';
 import { FibonacciButtonRow } from '../FibonacciButtonRow';
 import { TaskDetailSection } from '../TaskDetailSection';
 
@@ -47,12 +49,21 @@ export function TaskDetailPlanningSection({
                 variant={editPriority === opt.value ? 'default' : 'outline'}
                 disabled={readOnly}
                 onClick={onSelectPriority.bind(null, opt.value)}
-                className={
-                  editPriority === opt.value
-                    ? 'bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-400'
-                    : ''
-                }
+                className={cn(
+                  'gap-1.5',
+                  editPriority === opt.value &&
+                    'bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-400',
+                )}
               >
+                <TaskPriorityIcon
+                  priority={opt.value}
+                  className={cn(
+                    'size-4 shrink-0',
+                    editPriority === opt.value
+                      ? 'text-white opacity-95'
+                      : 'text-muted-foreground',
+                  )}
+                />
                 {opt.label}
               </Button>
             ))}

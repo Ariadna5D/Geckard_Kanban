@@ -65,8 +65,8 @@ export function BoardInviteBlock({
 
   useEffect(() => {
     if (!enabled) return;
-    const trimmedQuery = query.trim();
-    if (trimmedQuery.length < 2) {
+    const inviteSearchQuery = query.trim();
+    if (inviteSearchQuery.length < 2) {
       setResults([]);
       setSearching(false);
       return;
@@ -76,7 +76,7 @@ export function BoardInviteBlock({
     const timeoutId = window.setTimeout(() => {
       async function runUserSearch() {
         try {
-          setResults(await searchUsersForInviteRequest(trimmedQuery));
+          setResults(await searchUsersForInviteRequest(inviteSearchQuery));
         } catch {
           setResults([]);
         } finally {

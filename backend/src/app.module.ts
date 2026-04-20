@@ -9,16 +9,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CaslModule } from './casl/casl.module';
 import { BoardsModule } from './boards/boards.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BillingModule } from './billing/billing.module';
 
-/**
- *  Crea las opciones de conexión para Mongoose utilizando las variables de entorno.
- * @param configService  El servicio de configuración para acceder a las variables de entorno.
- * @returns  Un objeto con las opciones de conexión para Mongoose.
- */
+// Opciones de conexión a Mongo (usuario, contraseña y host desde variables de entorno).
 function createMongooseOptions(configService: ConfigService) {
   const userRaw = configService.get<string>('MONGO_USERNAME');
   const passRaw = configService.get<string>('MONGO_PASSWORD');
   const dbNameRaw = configService.get<string>('MONGO_DATABASE');
+  const mongoHostRaw = configService.get<string>('MONGO_HOST');
 
   let user = '';
   if (userRaw !== undefined && userRaw !== null) {
@@ -31,9 +29,17 @@ function createMongooseOptions(configService: ConfigService) {
 
   let dbName = 'kanban_db';
   if (dbNameRaw !== undefined && dbNameRaw !== null) {
-    const t = dbNameRaw.trim();
-    if (t !== '') {
-      dbName = t;
+    const dbNameCandidate = dbNameRaw.trim();
+    if (dbNameCandidate !== '') {
+      dbName = dbNameCandidate;
+    }
+  }
+
+  let mongoHost = 'mongodb';
+  if (mongoHostRaw !== undefined && mongoHostRaw !== null) {
+    const mongoHostCandidate = mongoHostRaw.trim();
+    if (mongoHostCandidate !== '') {
+      mongoHost = mongoHostCandidate;
     }
   }
 
@@ -44,7 +50,11 @@ function createMongooseOptions(configService: ConfigService) {
   }
 
   return {
-    uri: 'mongodb://mongodb:27017/' + encodeURIComponent(dbName),
+    uri:
+      'mongodb://' +
+      mongoHost +
+      ':27017/' +
+      encodeURIComponent(dbName),
     user,
     pass,
     authSource: 'admin',
@@ -55,8 +65,8 @@ function createMongooseOptions(configService: ConfigService) {
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      ignoreEnvFile: true,
-      envFilePath: '.env',
+      // Raíz del monorepo (.env) o carpeta backend (.env) al ejecutar nest desde ahí.
+      envFilePath: ['.env', '../.env'],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -74,6 +84,7 @@ function createMongooseOptions(configService: ConfigService) {
     UsersModule,
     CaslModule,
     BoardsModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

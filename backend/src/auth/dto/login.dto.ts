@@ -8,7 +8,7 @@ export class LoginDto {
   email: string;
 
   /** Contraseña en claro enviada por formulario de login */
-  @ApiProperty({ example: 'usuario' })
+  @ApiProperty({ example: 'Usuario123.' })
   @IsString()
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   password: string;

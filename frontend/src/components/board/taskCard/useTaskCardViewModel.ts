@@ -114,13 +114,13 @@ export function useTaskCardViewModel(
   const boardSlug = board?.slug;
 
   const assigneePickCandidates = useMemo(() => {
-    const q = assigneeSearchQuery.trim().toLowerCase();
-    if (q.length < 2) return [];
+    const assigneeQueryLower = assigneeSearchQuery.trim().toLowerCase();
+    if (assigneeQueryLower.length < 2) return [];
     return boardMembers.filter(
       (member) =>
         !editAssigneeIds.includes(member.userId) &&
-        (member.username.toLowerCase().includes(q) ||
-          member.email.toLowerCase().includes(q)),
+        (member.username.toLowerCase().includes(assigneeQueryLower) ||
+          member.email.toLowerCase().includes(assigneeQueryLower)),
     );
   }, [assigneeSearchQuery, boardMembers, editAssigneeIds]);
 
@@ -460,9 +460,9 @@ export function useTaskCardViewModel(
     setEditLinks((prev) => {
       if (prev.length >= 20) return prev;
       const keys = new Set<string>();
-      for (const r of prev) {
-        const n = normalizeTaskLinkUrl(r.url);
-        if (n) keys.add(n);
+      for (const row of prev) {
+        const normalizedUrl = normalizeTaskLinkUrl(row.url);
+        if (normalizedUrl) keys.add(normalizedUrl);
       }
       if (keys.has(normalized)) return prev;
       const title = linkDraftTitle.trim().slice(0, 200);

@@ -131,16 +131,16 @@ export function getBoardDocumentId(
 }
 
 export function boardOwnerUserId(board: Board): string {
-  const o = board.owner as unknown;
-  if (typeof o === "string") return o;
-  if (o && typeof o === "object" && "_id" in (o as object))
-    return String((o as { _id: string })._id);
+  const ownerRaw = board.owner as unknown;
+  if (typeof ownerRaw === "string") return ownerRaw;
+  if (ownerRaw && typeof ownerRaw === "object" && "_id" in (ownerRaw as object))
+    return String((ownerRaw as { _id: string })._id);
   return "";
 }
 
-export function memberUserId(m: BoardMember): string {
-  const u = m.user as unknown;
-  return typeof u === "string" ? u : String(u);
+export function memberUserId(member: BoardMember): string {
+  const userRef = member.user as unknown;
+  return typeof userRef === "string" ? userRef : String(userRef);
 }
 
 /** Roles asignables al invitar (el owner no se invita por este flujo). */
@@ -203,8 +203,8 @@ export function canEditBoardContent(
 ): boolean {
   if (!user) return false;
   if (isAppAdminUser(user)) return true;
-  const r = getCurrentUserBoardRole(board, user.id);
-  return boardRoleAtLeast(r, "editor");
+  const roleOnBoard = getCurrentUserBoardRole(board, user.id);
+  return boardRoleAtLeast(roleOnBoard, "editor");
 }
 
 /** Título / descripción del tablero (admin del tablero o superior). */
@@ -214,8 +214,8 @@ export function canEditBoardSettings(
 ): boolean {
   if (!user) return false;
   if (isAppAdminUser(user)) return true;
-  const r = getCurrentUserBoardRole(board, user.id);
-  return boardRoleAtLeast(r, "admin");
+  const roleOnBoard = getCurrentUserBoardRole(board, user.id);
+  return boardRoleAtLeast(roleOnBoard, "admin");
 }
 
 /** Solo el propietario (o admin de la app) puede borrar el tablero. */
@@ -226,6 +226,18 @@ export function canDeleteBoard(
   if (!user) return false;
   if (isAppAdminUser(user)) return true;
   return boardOwnerUserId(board) === user.id;
+}
+
+/** Miembro del tablero (no propietario) puede abandonarlo por sí mismo. */
+export function canMemberLeaveBoard(
+  board: Board,
+  user: { id: string; role?: string } | null | undefined,
+): boolean {
+  if (!user) return false;
+  const roleOnBoard = getCurrentUserBoardRole(board, user.id);
+  if (roleOnBoard === null) return false;
+  if (roleOnBoard === 'owner') return false;
+  return true;
 }
 
 /**
@@ -243,8 +255,8 @@ export function canManageBoardMembers(
 ): boolean {
   if (!user) return false;
   if (isAppAdminUser(user)) return true;
-  const r = getCurrentUserBoardRole(board, user.id);
-  return boardRoleAtLeast(r, "admin");
+  const roleOnBoard = getCurrentUserBoardRole(board, user.id);
+  return boardRoleAtLeast(roleOnBoard, "admin");
 }
 
 /** Mismo criterio que {@link canManageBoardMembers}: solo quien puede invitar al tablero. */
