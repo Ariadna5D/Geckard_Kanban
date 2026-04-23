@@ -294,7 +294,9 @@ export class BoardsController {
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
   @CheckBoardPolicies(canEditBoardColumns)
-  @ApiOperation({ summary: 'Create active sprint (sprints must be enabled on the board)' })
+  @ApiOperation({
+    summary: 'Create active sprint (sprints must be enabled on the board)',
+  })
   createSprint(
     @Param('id') boardId: string,
     @Body() createSprintDto: CreateSprintDto,

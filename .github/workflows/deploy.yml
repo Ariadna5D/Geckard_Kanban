@@ -27,7 +27,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: 1. Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 2. Generar .env desde secretos
         run: |

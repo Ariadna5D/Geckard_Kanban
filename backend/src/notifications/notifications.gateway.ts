@@ -37,9 +37,16 @@ export class NotificationsGateway
   }
 
   private tokenFromSocket(client: Socket): string | null {
-    const authToken = client.handshake.auth?.token;
-    if (typeof authToken === 'string' && authToken.trim() !== '') {
-      return authToken.trim();
+    const authUnknown: unknown = client.handshake.auth;
+    if (
+      authUnknown !== null &&
+      typeof authUnknown === 'object' &&
+      'token' in authUnknown
+    ) {
+      const tokenVal = (authUnknown as { token?: unknown }).token;
+      if (typeof tokenVal === 'string' && tokenVal.trim() !== '') {
+        return tokenVal.trim();
+      }
     }
 
     const rawAuthorization = client.handshake.headers.authorization;
@@ -61,9 +68,12 @@ export class NotificationsGateway
       return;
     }
 
-    const jwtSecret = this.configService.get<string>('JWT_SECRET')?.trim() ?? '';
+    const jwtSecret =
+      this.configService.get<string>('JWT_SECRET')?.trim() ?? '';
     if (jwtSecret === '') {
-      this.logger.warn('JWT_SECRET vacío: se rechaza conexión de notificaciones.');
+      this.logger.warn(
+        'JWT_SECRET vacío: se rechaza conexión de notificaciones.',
+      );
       client.disconnect(true);
       return;
     }
@@ -78,7 +88,7 @@ export class NotificationsGateway
         return;
       }
       this.socketUsers.set(client.id, userId);
-      client.join(this.roomForUser(userId));
+      void client.join(this.roomForUser(userId));
     } catch {
       client.disconnect(true);
     }
@@ -91,9 +101,10 @@ export class NotificationsGateway
   emitChangedForUser(userId: string): void {
     const targetUserId = userId.trim();
     if (targetUserId === '') return;
-    this.server.to(this.roomForUser(targetUserId)).emit('notifications:changed', {
-      at: new Date().toISOString(),
-    });
+    this.server
+      .to(this.roomForUser(targetUserId))
+      .emit('notifications:changed', {
+        at: new Date().toISOString(),
+      });
   }
 }
-

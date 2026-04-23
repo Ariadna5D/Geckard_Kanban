@@ -54,7 +54,10 @@ export class NotificationsController {
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
   ) {
-    await this.notificationsService.acceptBoardInvite(id.toString(), req.user.sub);
+    await this.notificationsService.acceptBoardInvite(
+      id.toString(),
+      req.user.sub,
+    );
   }
 
   @Post(':id/reject')
@@ -63,6 +66,9 @@ export class NotificationsController {
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
   ) {
-    await this.notificationsService.rejectBoardInvite(id.toString(), req.user.sub);
+    await this.notificationsService.rejectBoardInvite(
+      id.toString(),
+      req.user.sub,
+    );
   }
 }

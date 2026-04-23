@@ -262,7 +262,10 @@ export class BoardsService {
     }
   }
 
-  async getColumnTitle(boardId: string, columnId: string): Promise<string | null> {
+  async getColumnTitle(
+    boardId: string,
+    columnId: string,
+  ): Promise<string | null> {
     const board = await this.boardModel
       .findById(new Types.ObjectId(boardId))
       .select('columns._id columns.title')
@@ -321,7 +324,8 @@ export class BoardsService {
     }
 
     const activeSprintIdString =
-      boardLean.activeSprintId !== undefined && boardLean.activeSprintId !== null
+      boardLean.activeSprintId !== undefined &&
+      boardLean.activeSprintId !== null
         ? boardLean.activeSprintId.toString()
         : '';
 
@@ -698,7 +702,9 @@ export class BoardsService {
     if (body.title !== undefined) {
       const trimmedTitle = body.title.trim();
       if (!trimmedTitle) {
-        throw new BadRequestException('El título de la columna no puede estar vacío.');
+        throw new BadRequestException(
+          'El título de la columna no puede estar vacío.',
+        );
       }
       fieldsToSet['columns.$.title'] = trimmedTitle;
     }
@@ -960,9 +966,7 @@ export class BoardsService {
       );
     }
 
-    await this.taskModel
-      .deleteMany({ columnId: colObjectId })
-      .exec();
+    await this.taskModel.deleteMany({ columnId: colObjectId }).exec();
 
     const updated = await this.boardModel
       .findOneAndUpdate(
@@ -1042,7 +1046,9 @@ export class BoardsService {
     if (createSprintDto.plannedEndAt !== undefined) {
       const parsedEnd = new Date(createSprintDto.plannedEndAt);
       if (Number.isNaN(parsedEnd.getTime())) {
-        throw new BadRequestException('La fecha de fin planificada no es válida.');
+        throw new BadRequestException(
+          'La fecha de fin planificada no es válida.',
+        );
       }
       plannedEndAt = parsedEnd;
       if (plannedEndAt.getTime() < startedAt.getTime()) {
@@ -1155,12 +1161,18 @@ export class BoardsService {
       }
     }
     if (!foundSprint) {
-      throw new BadRequestException('No se encontró el sprint activo en el tablero.');
+      throw new BadRequestException(
+        'No se encontró el sprint activo en el tablero.',
+      );
     }
 
     const columnKindByColumnId = new Map<string, BoardColumnKind>();
     const columnTitleByColumnId = new Map<string, string>();
-    for (let columnIndex = 0; columnIndex < board.columns.length; columnIndex++) {
+    for (
+      let columnIndex = 0;
+      columnIndex < board.columns.length;
+      columnIndex++
+    ) {
       const column = board.columns[columnIndex];
       const columnIdString = column._id.toString();
       columnTitleByColumnId.set(columnIdString, column.title);
@@ -1200,7 +1212,9 @@ export class BoardsService {
         'sky',
         'gray',
       ] as const satisfies readonly SprintClosedTaskLabel['color'][];
-      function parseSnapshotLabelColor(raw: string): SprintClosedTaskLabel['color'] {
+      function parseSnapshotLabelColor(
+        raw: string,
+      ): SprintClosedTaskLabel['color'] {
         for (let ci = 0; ci < LABEL_COLORS.length; ci++) {
           if (LABEL_COLORS[ci] === raw) {
             return LABEL_COLORS[ci];
@@ -1241,7 +1255,10 @@ export class BoardsService {
         snapshot.storyPointsWhenDone = taskRow.storyPoints;
       }
       const updatedAtRaw = (taskRow as { updatedAt?: Date }).updatedAt;
-      if (updatedAtRaw instanceof Date && !Number.isNaN(updatedAtRaw.getTime())) {
+      if (
+        updatedAtRaw instanceof Date &&
+        !Number.isNaN(updatedAtRaw.getTime())
+      ) {
         snapshot.taskUpdatedAtAtClose = updatedAtRaw;
       }
       taskSnapshots.push(snapshot);
@@ -1359,7 +1376,9 @@ export class BoardsService {
     if (dto.name !== undefined) {
       const trimmedName = dto.name.trim();
       if (!trimmedName) {
-        throw new BadRequestException('El nombre del sprint no puede estar vacío.');
+        throw new BadRequestException(
+          'El nombre del sprint no puede estar vacío.',
+        );
       }
       fieldsToSet['sprints.$.name'] = trimmedName;
     }
@@ -1378,7 +1397,9 @@ export class BoardsService {
     if (dto.plannedEndAt !== undefined) {
       const parsedEnd = new Date(dto.plannedEndAt);
       if (Number.isNaN(parsedEnd.getTime())) {
-        throw new BadRequestException('La fecha de fin planificada no es válida.');
+        throw new BadRequestException(
+          'La fecha de fin planificada no es válida.',
+        );
       }
       fieldsToSet['sprints.$.plannedEndAt'] = parsedEnd;
       effectivePlannedEnd = parsedEnd;
@@ -1511,12 +1532,7 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    await this.assertMinBoardRole(
-      boardId,
-      userId,
-      BoardRole.ADMIN,
-      isAppAdmin,
-    );
+    await this.assertMinBoardRole(boardId, userId, BoardRole.ADMIN, isAppAdmin);
 
     const boardObjectId = new Types.ObjectId(boardId);
     const sprintObjectId = new Types.ObjectId(sprintId);
@@ -1576,12 +1592,7 @@ export class BoardsService {
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
-    await this.assertMinBoardRole(
-      boardId,
-      userId,
-      BoardRole.ADMIN,
-      isAppAdmin,
-    );
+    await this.assertMinBoardRole(boardId, userId, BoardRole.ADMIN, isAppAdmin);
 
     const boardObjectId = new Types.ObjectId(boardId);
     const sprintObjectId = new Types.ObjectId(sprintId);
@@ -1682,7 +1693,8 @@ export class BoardsService {
       actorUserId,
       actorEmail,
       entityType: 'member',
-      action: existingMemberIndex >= 0 ? 'member.role.updated' : 'member.invited',
+      action:
+        existingMemberIndex >= 0 ? 'member.role.updated' : 'member.invited',
       message:
         existingMemberIndex >= 0
           ? `Actualizó el rol de «${target.email}» a «${dto.role}».`
@@ -1701,10 +1713,17 @@ export class BoardsService {
   ): Promise<void> {
     const ownerUser = await this.usersService.findById(board.owner.toString());
     let ownerPlan = 'free';
-    if (ownerUser !== null && ownerUser.userPlan !== undefined && ownerUser.userPlan !== null) {
+    if (
+      ownerUser !== null &&
+      ownerUser.userPlan !== undefined &&
+      ownerUser.userPlan !== null
+    ) {
       ownerPlan = ownerUser.userPlan;
     }
-    if (ownerPlan === 'free' && board.members.length >= FREE_PLAN_MAX_BOARD_MEMBERS) {
+    if (
+      ownerPlan === 'free' &&
+      board.members.length >= FREE_PLAN_MAX_BOARD_MEMBERS
+    ) {
       throw new ForbiddenException(
         'Con el plan Free solo puedes tener hasta 10 colaboradores en el tablero. Pasa a Pro para invitar sin límite.',
       );

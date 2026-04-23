@@ -52,11 +52,7 @@ function createMongooseOptions(configService: ConfigService) {
   }
 
   return {
-    uri:
-      'mongodb://' +
-      mongoHost +
-      ':27017/' +
-      encodeURIComponent(dbName),
+    uri: 'mongodb://' + mongoHost + ':27017/' + encodeURIComponent(dbName),
     user,
     pass,
     authSource: 'admin',

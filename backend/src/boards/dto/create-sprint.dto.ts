@@ -8,7 +8,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSprintDto {
-  @ApiProperty({ example: 'Sprint 1', description: 'Short name shown in the board' })
+  @ApiProperty({
+    example: 'Sprint 1',
+    description: 'Short name shown in the board',
+  })
   @IsString()
   @IsNotEmpty({ message: 'El nombre del sprint es obligatorio' })
   @MaxLength(80, { message: 'El nombre del sprint es demasiado largo' })

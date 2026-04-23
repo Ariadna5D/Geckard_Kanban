@@ -146,10 +146,7 @@ export class TasksService {
     let bestDistance = Math.abs(mean - best);
     for (const f of STORY_POINT_SCALE) {
       const distance = Math.abs(mean - f);
-      if (
-        distance < bestDistance ||
-        (distance === bestDistance && f < best)
-      ) {
+      if (distance < bestDistance || (distance === bestDistance && f < best)) {
         bestDistance = distance;
         best = f;
       }
@@ -267,7 +264,11 @@ export class TasksService {
     userId: string,
     isAppAdmin = false,
   ): Promise<TaskDocument[]> {
-    await this.boardsService.assertUserHasBoardAccess(boardId, userId, isAppAdmin);
+    await this.boardsService.assertUserHasBoardAccess(
+      boardId,
+      userId,
+      isAppAdmin,
+    );
     return this.taskModel
       .find({
         boardId: new Types.ObjectId(boardId),
@@ -595,7 +596,9 @@ export class TasksService {
       );
     }
 
-    const result = await this.taskModel.deleteOne({ _id: new Types.ObjectId(id) }).exec();
+    const result = await this.taskModel
+      .deleteOne({ _id: new Types.ObjectId(id) })
+      .exec();
     if (result.deletedCount === 0) {
       throw new NotFoundException('No se pudo borrar definitivamente la tarea');
     }
@@ -694,7 +697,11 @@ export class TasksService {
     }
     const uid = String(userId).trim();
     let existingVoteIndex = -1;
-    for (let voteIndex = 0; voteIndex < task.storyPointVotes.length; voteIndex++) {
+    for (
+      let voteIndex = 0;
+      voteIndex < task.storyPointVotes.length;
+      voteIndex++
+    ) {
       if (String(task.storyPointVotes[voteIndex].userId) === uid) {
         existingVoteIndex = voteIndex;
         break;

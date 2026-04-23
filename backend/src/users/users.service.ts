@@ -109,15 +109,11 @@ export class UsersService {
     return this.userModel.findById(userId).exec();
   }
 
-  async findByStripeCustomerId(
-    stripeCustomerId: string,
-  ): Promise<User | null> {
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<User | null> {
     if (stripeCustomerId.trim() === '') {
       return null;
     }
-    return this.userModel
-      .findOne({ stripeCustomerId })
-      .exec();
+    return this.userModel.findOne({ stripeCustomerId }).exec();
   }
 
   /** Tras cancelación o borrado de suscripción en Stripe: vuelve a plan free. */

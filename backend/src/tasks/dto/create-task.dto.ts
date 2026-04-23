@@ -108,7 +108,8 @@ export class CreateTaskDto {
   @ApiProperty({
     required: false,
     example: '60d0fe4f5311236168a109cc',
-    description: 'Optional active sprint id (only when the board has sprints enabled)',
+    description:
+      'Optional active sprint id (only when the board has sprints enabled)',
   })
   @IsMongoId({ message: 'El sprintId debe ser un ID válido de MongoDB' })
   @IsOptional()

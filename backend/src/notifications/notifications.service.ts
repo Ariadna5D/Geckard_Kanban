@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -96,7 +92,7 @@ export class NotificationsService {
           })
         : null;
       const actorUserId = isPopulatedActor
-        ? populatedActor?._id.toString() ?? row.actorUserId.toString()
+        ? (populatedActor?._id.toString() ?? row.actorUserId.toString())
         : row.actorUserId.toString();
 
       return {
@@ -151,7 +147,10 @@ export class NotificationsService {
     this.notificationsGateway.emitChangedForUser(userId);
   }
 
-  async rejectBoardInvite(notificationId: string, userId: string): Promise<void> {
+  async rejectBoardInvite(
+    notificationId: string,
+    userId: string,
+  ): Promise<void> {
     const updated = await this.notificationModel
       .findOneAndUpdate(
         {
@@ -179,7 +178,10 @@ export class NotificationsService {
     this.notificationsGateway.emitChangedForUser(userId);
   }
 
-  async acceptBoardInvite(notificationId: string, userId: string): Promise<void> {
+  async acceptBoardInvite(
+    notificationId: string,
+    userId: string,
+  ): Promise<void> {
     const notification = await this.notificationModel
       .findOne({
         _id: new Types.ObjectId(notificationId),
@@ -195,9 +197,13 @@ export class NotificationsService {
     }
 
     const boardId = notification.boardInvite.boardId.toString();
-    const board = await this.boardModel.findById(new Types.ObjectId(boardId)).exec();
+    const board = await this.boardModel
+      .findById(new Types.ObjectId(boardId))
+      .exec();
     if (!board) {
-      throw new NotFoundException('El tablero de esta invitación ya no existe.');
+      throw new NotFoundException(
+        'El tablero de esta invitación ya no existe.',
+      );
     }
 
     if (board.owner.toString() !== userId) {

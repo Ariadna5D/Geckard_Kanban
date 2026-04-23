@@ -17,6 +17,25 @@ type RecordBoardActivityInput = {
   entityId?: string;
 };
 
+/** Fila `lean` con `actorUserId` posiblemente populado por `populate`. */
+type BoardActivityActorPopulated = {
+  _id: Types.ObjectId;
+  username?: string;
+  avatarUrl?: string;
+};
+
+type BoardActivityListLeanRow = {
+  _id: Types.ObjectId;
+  boardId: Types.ObjectId;
+  actorUserId: Types.ObjectId | BoardActivityActorPopulated;
+  actorEmail: string;
+  entityType: BoardActivityEntityType;
+  action: string;
+  message: string;
+  entityId?: string;
+  createdAt: Date;
+};
+
 @Injectable()
 export class BoardActivityService {
   constructor(
@@ -46,7 +65,7 @@ export class BoardActivityService {
 
   async listByBoard(boardId: string, limit = 60) {
     const cappedLimit = Math.min(Math.max(limit, 1), 200);
-    const rows = await this.boardActivityModel
+    const rows = (await this.boardActivityModel
       .find({ boardId: new Types.ObjectId(boardId) })
       .populate({
         path: 'actorUserId',
@@ -55,16 +74,12 @@ export class BoardActivityService {
       .sort({ createdAt: -1, _id: -1 })
       .limit(cappedLimit)
       .lean()
-      .exec();
+      .exec()) as BoardActivityListLeanRow[];
 
-    return rows.map((row: any) => {
-      const actorRef = row.actorUserId as
-        | Types.ObjectId
-        | { _id: Types.ObjectId; username?: string; avatarUrl?: string };
+    return rows.map((row) => {
+      const actorRef = row.actorUserId;
       const isPopulatedActor =
-        actorRef !== null &&
-        typeof actorRef === 'object' &&
-        '_id' in actorRef;
+        actorRef !== null && typeof actorRef === 'object' && '_id' in actorRef;
       const populatedActor = isPopulatedActor
         ? (actorRef as {
             _id: Types.ObjectId;
@@ -74,7 +89,7 @@ export class BoardActivityService {
         : null;
       const actorUserId = populatedActor
         ? populatedActor._id.toString()
-        : String(row.actorUserId);
+        : (row.actorUserId as Types.ObjectId).toString();
       const actorUsername =
         populatedActor &&
         typeof populatedActor.username === 'string' &&

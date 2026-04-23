@@ -26,9 +26,8 @@ export class NotificationBoardInvitePayload {
   role: BoardRole.ADMIN | BoardRole.EDITOR | BoardRole.VIEWER;
 }
 
-export const NotificationBoardInvitePayloadSchema = SchemaFactory.createForClass(
-  NotificationBoardInvitePayload,
-);
+export const NotificationBoardInvitePayloadSchema =
+  SchemaFactory.createForClass(NotificationBoardInvitePayload);
 
 @Schema({ timestamps: true })
 export class Notification {
