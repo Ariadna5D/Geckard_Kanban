@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { ChecklistEditRow } from '../taskCardHelpers';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailChecklistSection({
   readOnly,
@@ -75,11 +76,16 @@ export function TaskDetailChecklistSection({
           </div>
         )}
         {editChecklist.length === 0 ? (
-          <p className="text-xs text-surface-500 dark:text-surface-400">
-            {readOnly
-              ? 'Sin ítems.'
-              : 'Escribe un paso y pulsa + o Enter.'}
-          </p>
+          <div className="flex items-center gap-1.5 text-xs text-surface-500 dark:text-surface-400">
+            <span>{readOnly ? 'Sin ítems.' : 'Sin pasos aún.'}</span>
+            {!readOnly ? (
+              <TaskDetailInfoTip
+                label="Cómo añadir pasos"
+                side="right"
+                text="Escribe el texto del paso en el campo de arriba y pulsa el botón + o Enter para añadirlo a la checklist."
+              />
+            ) : null}
+          </div>
         ) : (
           <ul
             className="divide-y divide-surface-200 rounded-md border border-surface-200 bg-surface-50 dark:divide-surface-700 dark:border-surface-700 dark:bg-surface-900"

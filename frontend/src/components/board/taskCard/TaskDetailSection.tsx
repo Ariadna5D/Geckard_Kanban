@@ -10,11 +10,14 @@ export function TaskDetailSection({
   title,
   icon: Icon,
   defaultOpen = false,
+  /** Contenido a la derecha del título (p. ej. icono de ayuda); no debe propagar el clic al acordeón. */
+  titleAccessory,
   children,
 }: {
   title: string;
   icon?: LucideIcon;
   defaultOpen?: boolean;
+  titleAccessory?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -35,10 +38,21 @@ export function TaskDetailSection({
           ) : null}
           <span>{title}</span>
         </span>
-        <ChevronDown
-          className="size-4 shrink-0 text-surface-500 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-surface-400"
-          aria-hidden
-        />
+        <span className="flex shrink-0 items-center gap-1.5">
+          {titleAccessory ? (
+            <span
+              className="inline-flex"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {titleAccessory}
+            </span>
+          ) : null}
+          <ChevronDown
+            className="size-4 shrink-0 text-surface-500 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-surface-400"
+            aria-hidden
+          />
+        </span>
       </CollapsibleTrigger>
       <CollapsibleContent className="border-t border-surface-200 px-4 py-3 dark:border-surface-700">
         {children}

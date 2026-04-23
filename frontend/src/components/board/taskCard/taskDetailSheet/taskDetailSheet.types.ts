@@ -1,4 +1,4 @@
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react';
 import type {
   BoardMemberSummary,
   StoryPointVotingState,
@@ -9,6 +9,10 @@ import type {
 import type { ChecklistEditRow } from '../taskCardHelpers';
 
 export interface TaskDetailSheetProps {
+  /** Reemplaza el título del encabezado del panel (p. ej. vista sprint archivado). */
+  sheetTitle?: string;
+  /** Contenido informativo bajo el encabezado (solo lectura). */
+  readOnlyContextSlot?: ReactNode;
   readOnly: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,4 +73,10 @@ export interface TaskDetailSheetProps {
   onRemoveChecklistRow: (id: string) => void;
   onChecklistTextChange: (id: string, text: string) => void;
   onChecklistToggle: (id: string, checked: boolean) => void;
+  /** When set, shows sprint checkbox for the active sprint. Omit to hide. */
+  sprintSection?: {
+    activeSprintName: string;
+    inActiveSprint: boolean;
+    onInActiveSprintChange: (next: boolean) => void;
+  } | null;
 }

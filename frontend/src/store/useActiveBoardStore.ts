@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   Board,
   Column,
+  CreateTaskPayload,
   UpdateTaskPositionPayload,
   Task,
   InviteBoardMemberPayload,
@@ -12,16 +13,30 @@ import {
   addColumnRequest,
   getBoardBySlugRequest,
   updateColumnRequest,
+  archiveColumnRequest,
+  restoreArchivedColumnRequest,
   deleteColumnRequest,
   updateColumnPositionRequest,
   inviteBoardMemberRequest,
   removeBoardMemberRequest,
   getBoardMembersRequest,
+  createSprintRequest,
+  closeSprintRequest,
+  updateActiveSprintRequest,
+  cancelActiveSprintRequest,
+  updateClosedSprintHistoryRequest,
+  deleteClosedSprintHistoryRequest,
+  type CreateSprintPayload,
+  type UpdateActiveSprintPayload,
+  type UpdateColumnPayload,
 } from '../api/boards.api';
 import {
   updateTaskPosition,
   createTaskRequest,
   deleteTaskRequest,
+  getArchivedTasksByBoardRequest,
+  restoreTaskRequest,
+  purgeTaskRequest,
   updateTaskRequest,
 } from '../api/tasks.api';
 import { compareOrderKey, sortTasksInColumn } from '../utils/boardMath';
@@ -102,6 +117,7 @@ function mergeServerColumnsWithLocalTasks(
 export interface ActiveBoardState {
   board: Board | null;
   boardMembers: BoardMemberSummary[];
+  archivedTasks: Task[];
   isLoading: boolean;
   error: string | null;
 
@@ -127,23 +143,64 @@ export interface ActiveBoardState {
   // --- CRUD de columnas ---
   addColumn: (boardId: string, title: string, order: string) => Promise<void>;
   editColumn: (boardId: string, columnId: string, title: string) => Promise<void>;
-  deleteColumn: (boardId: string, columnId: string) => Promise<void>;
+  /** PATCH column title and/or columnKind (workflow / done / archived). */
+  patchColumn: (
+    boardId: string,
+    columnId: string,
+    payload: UpdateColumnPayload,
+  ) => Promise<void>;
+  archiveColumn: (boardId: string, columnId: string) => Promise<void>;
+  restoreArchivedColumn: (boardId: string, columnId: string) => Promise<void>;
+  /** Borrado definitivo solo si la columna ya está archivada (admin del tablero). */
+  purgeArchivedColumn: (boardId: string, columnId: string) => Promise<void>;
   moveColumnOptimistic: (boardId: string, columnId: string, newOrder: string) => Promise<void>;
-  
+
+  /** Starts the single active sprint (board must have sprints enabled). */
+  startBoardSprint: (
+    boardId: string,
+    payload: CreateSprintPayload,
+  ) => Promise<void>;
+  /** Closes active sprint, saves snapshot, clears sprint tags on tasks. */
+  closeBoardSprint: (boardId: string, sprintId: string) => Promise<void>;
+  /** Updates name or planned dates on the active sprint. */
+  updateActiveSprintBoard: (
+    boardId: string,
+    sprintId: string,
+    payload: UpdateActiveSprintPayload,
+  ) => Promise<void>;
+  /** Drops active sprint without history snapshot. */
+  cancelActiveSprintBoard: (boardId: string, sprintId: string) => Promise<void>;
+  /** Renames a sprint in closed history (board admin). */
+  updateClosedSprintHistoryBoard: (
+    boardId: string,
+    sprintId: string,
+    sprintName: string,
+  ) => Promise<void>;
+  /** Removes one closed sprint from history (board admin). */
+  deleteClosedSprintHistoryBoard: (
+    boardId: string,
+    sprintId: string,
+  ) => Promise<void>;
+
   // --- CRUD de tareas ---
   addTask: (
     boardId: string,
     columnId: string,
     title: string,
     order: string,
+    options?: { sprintId?: string },
   ) => Promise<void>;
-  deleteTask: (taskId: string, columnId: string) => Promise<void>;
+  archiveTask: (taskId: string, columnId: string) => Promise<void>;
+  loadArchivedTasks: (boardId: string) => Promise<void>;
+  restoreArchivedTask: (taskId: string) => Promise<void>;
+  purgeArchivedTask: (taskId: string) => Promise<void>;
   updateTask: (taskId: string, columnId: string, data: Partial<Task>) => Promise<void>;
 }
 
 export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   board: null,
   boardMembers: [],
+  archivedTasks: [],
   isLoading: false,
   error: null,
 
@@ -151,7 +208,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
     if (!silent) {
-      set({ isLoading: true, error: null, boardMembers: [] });
+      set({ isLoading: true, error: null, boardMembers: [], archivedTasks: [] });
     }
     try {
       const board = await getBoardBySlugRequest(slug);
@@ -179,6 +236,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         board: boardPayload,
         isLoading: false,
         error: null,
+        archivedTasks: [],
       });
 
       if (boardDocId) {
@@ -198,6 +256,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           isLoading: false,
           board: null,
           boardMembers: [],
+          archivedTasks: [],
         });
       } else {
         set({ isLoading: false });
@@ -307,8 +366,10 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
    */
   editColumn: async (boardId, columnId, title) => {
     try {
-      const updatedBoard = await updateColumnRequest(boardId, columnId, title);
-      
+      const updatedBoard = await updateColumnRequest(boardId, columnId, {
+        title,
+      });
+
       set(function mergeEditColumn(state) {
         if (!state.board) return state;
         const mergedColumns = mergeServerColumnsWithLocalTasks(
@@ -327,14 +388,15 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     }
   },
 
-  /**
-   * Borra la columna y desaparece de la UI automáticamente junto con sus tareas.
-   */
-  deleteColumn: async (boardId, columnId) => {
+  patchColumn: async (boardId, columnId, payload) => {
     try {
-      const updatedBoard = await deleteColumnRequest(boardId, columnId);
-      
-      set(function mergeDeleteColumn(state) {
+      const updatedBoard = await updateColumnRequest(
+        boardId,
+        columnId,
+        payload,
+      );
+
+      set(function mergePatchColumn(state) {
         if (!state.board) return state;
         const mergedColumns = mergeServerColumnsWithLocalTasks(
           state.board.columns,
@@ -348,21 +410,231 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
         };
       });
     } catch (error) {
-      console.error("Error al borrar la columna:", error);
+      console.error("Error al actualizar la columna:", error);
+    }
+  },
+
+  startBoardSprint: async (boardId, payload) => {
+    try {
+      const updatedBoard = await createSprintRequest(boardId, payload);
+      set(function mergeAfterStartSprint(state) {
+        if (!state.board) return state;
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al crear el sprint:", error);
+    }
+  },
+
+  closeBoardSprint: async (boardId, sprintId) => {
+    try {
+      const updatedBoard = await closeSprintRequest(boardId, sprintId);
+      set(function mergeAfterCloseSprint(state) {
+        if (!state.board) return state;
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al cerrar el sprint:", error);
+      throw error;
+    }
+  },
+
+  updateActiveSprintBoard: async (boardId, sprintId, payload) => {
+    try {
+      const updatedBoard = await updateActiveSprintRequest(
+        boardId,
+        sprintId,
+        payload,
+      );
+      set(function mergeAfterUpdateActiveSprint(state) {
+        if (!state.board) return state;
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergeServerColumnsWithLocalTasks(
+              state.board.columns,
+              updatedBoard.columns,
+            ),
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al actualizar el sprint:", error);
+    }
+  },
+
+  cancelActiveSprintBoard: async (boardId, sprintId) => {
+    try {
+      const updatedBoard = await cancelActiveSprintRequest(boardId, sprintId);
+      set(function mergeAfterCancelSprint(state) {
+        if (!state.board) return state;
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergeServerColumnsWithLocalTasks(
+              state.board.columns,
+              updatedBoard.columns,
+            ),
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al cancelar el sprint:", error);
+    }
+  },
+
+  updateClosedSprintHistoryBoard: async (boardId, sprintId, sprintName) => {
+    try {
+      const updatedBoard = await updateClosedSprintHistoryRequest(
+        boardId,
+        sprintId,
+        { sprintName },
+      );
+      set(function mergeAfterRenameClosedSprint(state) {
+        if (!state.board) return state;
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergeServerColumnsWithLocalTasks(
+              state.board.columns,
+              updatedBoard.columns,
+            ),
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al renombrar sprint del historial:", error);
+    }
+  },
+
+  deleteClosedSprintHistoryBoard: async (boardId, sprintId) => {
+    try {
+      const updatedBoard = await deleteClosedSprintHistoryRequest(
+        boardId,
+        sprintId,
+      );
+      set(function mergeAfterDeleteClosedSprint(state) {
+        if (!state.board) return state;
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergeServerColumnsWithLocalTasks(
+              state.board.columns,
+              updatedBoard.columns,
+            ),
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error al borrar sprint del historial:", error);
+    }
+  },
+
+  archiveColumn: async (boardId, columnId) => {
+    try {
+      const updatedBoard = await archiveColumnRequest(boardId, columnId);
+      set(function mergeArchiveColumn(state) {
+        if (!state.board) return state;
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+          },
+        };
+      });
+      void get().loadArchivedTasks(boardId);
+    } catch (error) {
+      console.error("Error al archivar la columna:", error);
+      throw error;
+    }
+  },
+
+  restoreArchivedColumn: async (boardId, columnId) => {
+    try {
+      const updatedBoard = await restoreArchivedColumnRequest(
+        boardId,
+        columnId,
+      );
+      set(function mergeRestoreColumn(state) {
+        if (!state.board) return state;
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+          },
+        };
+      });
+      void get().loadArchivedTasks(boardId);
+    } catch (error) {
+      console.error("Error al restaurar la columna:", error);
+      throw error;
+    }
+  },
+
+  purgeArchivedColumn: async (boardId, columnId) => {
+    try {
+      const updatedBoard = await deleteColumnRequest(boardId, columnId);
+      set(function mergePurgeColumn(state) {
+        if (!state.board) return state;
+        const mergedColumns = mergeServerColumnsWithLocalTasks(
+          state.board.columns,
+          updatedBoard.columns,
+        );
+        return {
+          board: {
+            ...updatedBoard,
+            columns: mergedColumns,
+          },
+        };
+      });
+      void get().loadArchivedTasks(boardId);
+    } catch (error) {
+      console.error("Error al eliminar la columna:", error);
+      throw error;
     }
   },
 
   /**
    * Crea una tarea y la inserta en estado local al recibir _id real del backend.
    */
-  addTask: async (boardId, columnId, title, order) => {
+  addTask: async (boardId, columnId, title, order, options) => {
     try {
-      const newTask = await createTaskRequest({
+      const createPayload: CreateTaskPayload = {
         boardId,
         columnId,
         title,
         order,
-      });
+      };
+      if (options?.sprintId !== undefined && options.sprintId !== '') {
+        createPayload.sprintId = options.sprintId;
+      }
+      const newTask = await createTaskRequest(createPayload);
       
       set(function applyNewTask(state) {
         if (!state.board) return state;
@@ -388,9 +660,9 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   },
 
   /**
-   * Borra una tarea usando UI Optimista.
+   * Archiva una tarea con UI optimista (desaparece del tablero principal).
    */
-  deleteTask: async (taskId, columnId) => {
+  archiveTask: async (taskId, columnId) => {
     const previousBoard = get().board;
     if (!previousBoard) return;
 
@@ -406,8 +678,55 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
     try {
       await deleteTaskRequest(taskId);
     } catch (error) {
-      console.error("Error al borrar la tarea, revirtiendo...", error);
+      console.error("Error al archivar la tarea, revirtiendo...", error);
       set({ board: previousBoard });
+    }
+  },
+
+  /**
+   * Carga el listado de tareas archivadas del tablero actual.
+   */
+  loadArchivedTasks: async (boardId) => {
+    try {
+      const archivedTasks = await getArchivedTasksByBoardRequest(boardId);
+      set({ archivedTasks });
+    } catch (error) {
+      console.error("Error al cargar archivadas:", error);
+      set({ archivedTasks: [] });
+      throw error;
+    }
+  },
+
+  /**
+   * Restaura una archivada y refresca tablero + listado de archivadas.
+   */
+  restoreArchivedTask: async (taskId) => {
+    const board = get().board;
+    if (!board) return;
+    const boardDocId = getBoardDocumentId(board);
+    if (!boardDocId) return;
+    try {
+      await restoreTaskRequest(taskId);
+      await get().fetchBoard(board.slug, { silent: true });
+      await get().loadArchivedTasks(boardDocId);
+    } catch (error) {
+      console.error("Error al restaurar tarea archivada:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Purga definitivamente una tarea archivada (admin/owner).
+   */
+  purgeArchivedTask: async (taskId) => {
+    try {
+      await purgeTaskRequest(taskId);
+      set((state) => ({
+        archivedTasks: tasksWithoutTaskId(state.archivedTasks, taskId),
+      }));
+    } catch (error) {
+      console.error("Error al borrar definitivamente archivada:", error);
+      throw error;
     }
   },
 

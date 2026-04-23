@@ -51,7 +51,7 @@ export function useTaskCardViewModel(
   readOnly: boolean,
   disableDrag = false,
 ) {
-  const { board, boardMembers, deleteTask, updateTask, fetchBoard } =
+  const { board, boardMembers, archiveTask, updateTask, fetchBoard } =
     useActiveBoardStore();
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
 
@@ -90,6 +90,8 @@ export function useTaskCardViewModel(
   const [linkDraftUrl, setLinkDraftUrl] = useState('');
   const [linkDraftTitle, setLinkDraftTitle] = useState('');
   const [checklistDraftText, setChecklistDraftText] = useState('');
+  /** Tag on the active sprint (only when the board has an active sprint). */
+  const [editSprintInActive, setEditSprintInActive] = useState(false);
   const [descriptionEditMode, setDescriptionEditMode] = useState(false);
   const descriptionSnapshotRef = useRef('');
   const [baselineFingerprint, setBaselineFingerprint] = useState<string | null>(
@@ -113,6 +115,19 @@ export function useTaskCardViewModel(
   const boardLabelSuggestions = Object.values(suggestionByKey);
   const boardSlug = board?.slug;
 
+  const activeSprintDisplayName = useMemo(() => {
+    if (!board?.activeSprintId) {
+      return '';
+    }
+    const sprintRows = board.sprints ?? [];
+    for (let index = 0; index < sprintRows.length; index++) {
+      if (sprintRows[index]._id === board.activeSprintId) {
+        return sprintRows[index].name;
+      }
+    }
+    return 'Sprint activo';
+  }, [board?.activeSprintId, board?.sprints]);
+
   const assigneePickCandidates = useMemo(() => {
     const assigneeQueryLower = assigneeSearchQuery.trim().toLowerCase();
     if (assigneeQueryLower.length < 2) return [];
@@ -123,6 +138,15 @@ export function useTaskCardViewModel(
           member.email.toLowerCase().includes(assigneeQueryLower)),
     );
   }, [assigneeSearchQuery, boardMembers, editAssigneeIds]);
+
+  /** Columna marcada como Hecho o Archivo (misma regla que al cerrar sprint). */
+  const completionColumnKind = useMemo(() => {
+    if (!board?.columns?.length) return null;
+    const col = board.columns.find((c) => c._id === task.columnId);
+    const kind = col?.columnKind;
+    if (kind === 'done' || kind === 'archived') return kind;
+    return null;
+  }, [board?.columns, task.columnId]);
 
   const { teamVoteCount: taskVoteSummaryCount, teamVoteConsensus: taskVoteConsensus } =
     votingSummaryFromTask(task);
@@ -173,8 +197,30 @@ export function useTaskCardViewModel(
     setLinkDraftTitle('');
     setChecklistDraftText('');
     setDescriptionEditMode(false);
-    setBaselineFingerprint(fingerprintTaskDetailBaseline(task));
-  }, [isPanelOpen, task._id, task.updatedAt]);
+
+    const activeSprintIdFromBoard =
+      board?.sprintsEnabled === true &&
+      typeof board.activeSprintId === 'string' &&
+      board.activeSprintId.length > 0
+        ? board.activeSprintId
+        : null;
+    const taskIsInActiveSprint = Boolean(
+      activeSprintIdFromBoard &&
+        task.sprintId &&
+        task.sprintId === activeSprintIdFromBoard,
+    );
+    setEditSprintInActive(taskIsInActiveSprint);
+    setBaselineFingerprint(
+      fingerprintTaskDetailBaseline(task, activeSprintIdFromBoard),
+    );
+  }, [
+    isPanelOpen,
+    task._id,
+    task.updatedAt,
+    task.sprintId,
+    board?.activeSprintId,
+    board?.sprintsEnabled,
+  ]);
 
   const isDirty = useMemo(() => {
     if (!isPanelOpen || readOnly || baselineFingerprint === null) return false;
@@ -190,6 +236,7 @@ export function useTaskCardViewModel(
         text,
         checked,
       })),
+      sprintInActive: editSprintInActive,
       drafts: {
         linkDraftUrl,
         linkDraftTitle,
@@ -209,6 +256,7 @@ export function useTaskCardViewModel(
     editLinks,
     editPriority,
     editTitle,
+    editSprintInActive,
     checklistDraftText,
     editingLabelIndex,
     isPanelOpen,
@@ -289,6 +337,17 @@ export function useTaskCardViewModel(
     const checklistPayload = parseChecklistForSave(
       editChecklist.map(({ text, checked }) => ({ text, checked })),
     );
+    const sprintPatch: { sprintId?: string | null } = {};
+    if (
+      board?.sprintsEnabled === true &&
+      typeof board.activeSprintId === 'string' &&
+      board.activeSprintId.length > 0
+    ) {
+      sprintPatch.sprintId = editSprintInActive
+        ? board.activeSprintId
+        : null;
+    }
+
     await updateTask(task._id, task.columnId, {
       title: editTitle,
       description: editDescription,
@@ -299,6 +358,7 @@ export function useTaskCardViewModel(
       labels: editLabels.slice(0, 6),
       links: linksPayload,
       checklist: checklistPayload,
+      ...sprintPatch,
     });
     closePanelCleanup();
     setIsPanelOpen(false);
@@ -318,6 +378,9 @@ export function useTaskCardViewModel(
     task._id,
     task.columnId,
     taskVoteConsensus,
+    board?.sprintsEnabled,
+    board?.activeSprintId,
+    editSprintInActive,
     updateTask,
   ]);
 
@@ -423,9 +486,9 @@ export function useTaskCardViewModel(
     [sortableTransform, transition],
   );
 
-  function handleDeleteCardClick(event: MouseEvent<HTMLButtonElement>) {
+  function handleArchiveCardClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
-    deleteTask(task._id, task.columnId);
+    archiveTask(task._id, task.columnId);
   }
 
   const canSelfAssignShortcut =
@@ -616,10 +679,25 @@ export function useTaskCardViewModel(
     onRemoveChecklistRow: handleRemoveChecklistRow,
     onChecklistTextChange: handleChecklistTextChange,
     onChecklistToggle: handleChecklistToggle,
+    sprintSection:
+      !readOnly &&
+      board?.sprintsEnabled === true &&
+      typeof board.activeSprintId === 'string' &&
+      board.activeSprintId.length > 0
+        ? {
+            activeSprintName:
+              activeSprintDisplayName.length > 0
+                ? activeSprintDisplayName
+                : 'Sprint activo',
+            inActiveSprint: editSprintInActive,
+            onInActiveSprintChange: setEditSprintInActive,
+          }
+        : null,
   };
 
   return {
     priorityAccent,
+    completionColumnKind,
     normalizedLabels,
     teamVoteConsensusLive,
     teamVoteCount,
@@ -637,6 +715,6 @@ export function useTaskCardViewModel(
     sheetProps,
     handleOpenTaskSheet,
     handleToggleSelfAssign,
-    handleDeleteCardClick,
+    handleArchiveCardClick,
   };
 }

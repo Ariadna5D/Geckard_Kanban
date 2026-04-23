@@ -1,6 +1,7 @@
 import {
   AlignLeft,
   CalendarDays,
+  Check,
   Link2,
   ListChecks,
   DraftingCompass as Sigma,
@@ -13,7 +14,12 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { taskLabelColorClasses } from '@/constants/taskLabels';
-import type { BoardMemberSummary, Task, TaskLabel } from '@/types/board.types';
+import type {
+  BoardColumnKind,
+  BoardMemberSummary,
+  Task,
+  TaskLabel,
+} from '@/types/board.types';
 import {
   dueBadgeTitle,
   dueDateState,
@@ -34,18 +40,22 @@ export function TaskCardMetaChips({
   teamVoteConsensus,
   teamVoteCount,
   boardMembers,
+  completionColumnKind,
 }: {
   task: Task;
   normalizedLabels: TaskLabel[];
   teamVoteConsensus: number | null;
   teamVoteCount: number;
   boardMembers: BoardMemberSummary[];
+  /** Columna Hecho o Archivo: icono discreto en la tarjeta. */
+  completionColumnKind?: BoardColumnKind | null;
 }) {
   const dueDateShort = formatDueDate(task.dueDate);
   const dueState = dueDateState(task.dueDate);
   const assigneeIds = task.assigneeIds ?? [];
   const priority = task.priority || 'medium';
   const priorityRowStyle = PRIORITY_ROW_STYLE[priority];
+  const isCompletedColumn = Boolean(completionColumnKind);
   const storyPointsShown =
     teamVoteCount > 0 && teamVoteConsensus != null
       ? teamVoteConsensus
@@ -70,12 +80,36 @@ export function TaskCardMetaChips({
     checklistCount > 0;
   const showAssigneeRow = assigneeIds.length > 0;
 
+  const completionTitle =
+    completionColumnKind === 'archived'
+      ? 'En columna Archivo (completada)'
+      : completionColumnKind === 'done'
+        ? 'En columna Hecho'
+        : undefined;
+
   return (
     <>
       <div className="pr-7">
-        <p className="text-[15px] font-medium leading-relaxed text-surface-900 dark:text-surface-50">
-          {task.title}
-        </p>
+        <div className="flex items-start gap-1.5">
+          {completionColumnKind ? (
+            <span
+              className="mt-[2px] shrink-0 text-surface-400 dark:text-surface-500"
+              title={completionTitle}
+              aria-label={completionTitle}
+            >
+              <Check className="size-3.5" strokeWidth={2.25} aria-hidden />
+            </span>
+          ) : null}
+          <p
+            className={`min-w-0 flex-1 text-[15px] font-medium leading-relaxed ${
+              isCompletedColumn
+                ? 'text-surface-600 dark:text-surface-400'
+                : 'text-surface-900 dark:text-surface-50'
+            }`}
+          >
+            {task.title}
+          </p>
+        </div>
         <p
           className={`mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium leading-tight ${priorityRowStyle.bg} ${priorityRowStyle.text}`}
         >

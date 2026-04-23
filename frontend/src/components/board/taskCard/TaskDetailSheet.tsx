@@ -14,12 +14,16 @@ import { TaskDetailLinksSection } from "./taskDetailSheet/TaskDetailLinksSection
 import { TaskDetailChecklistSection } from "./taskDetailSheet/TaskDetailChecklistSection";
 import { TaskDetailPlanningSection } from "./taskDetailSheet/TaskDetailPlanningSection";
 import { TaskDetailPersonasSection } from "./taskDetailSheet/TaskDetailPersonasSection";
+import { TaskDetailSprintSection } from "./taskDetailSheet/TaskDetailSprintSection";
 import { TaskDetailLabelsSection } from "./taskDetailSheet/TaskDetailLabelsSection";
+import { TaskDetailInfoTip } from "./taskDetailSheet/TaskDetailInfoTip";
 export type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.types";
 
 export function TaskDetailSheet(props: TaskDetailSheetProps) {
   const formBaseId = useId();
   const {
+    sheetTitle = 'Detalle de la tarea',
+    readOnlyContextSlot,
     readOnly,
     open,
     onOpenChange,
@@ -80,6 +84,7 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
     onRemoveChecklistRow,
     onChecklistTextChange,
     onChecklistToggle,
+    sprintSection,
   } = props;
 
   useEffect(() => {
@@ -107,15 +112,26 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
       <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
         <SheetContent className="z-60 flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900">
           <SheetHeader className="border-b border-surface-200 p-6 dark:border-surface-800">
-            <SheetTitle className="text-left text-xl text-surface-900 dark:text-surface-50">
-              Detalle de la tarea
-            </SheetTitle>
-            {!readOnly && (
-              <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
-                Ctrl/⌘+Enter guarda. Cancelar cierra sin guardar.
-              </p>
-            )}
+            <div className="flex items-start gap-2">
+              <SheetTitle className="flex-1 text-left text-xl text-surface-900 dark:text-surface-50">
+                {sheetTitle}
+              </SheetTitle>
+              {!readOnly ? (
+                <TaskDetailInfoTip
+                  label="Atajos y cierre"
+                  side="left"
+                  className="mt-1 shrink-0"
+                  text="Ctrl o ⌘ + Enter guarda los cambios. Cerrar la ventana sin guardar te preguntará si quieres descartar o guardar antes."
+                />
+              ) : null}
+            </div>
           </SheetHeader>
+
+          {readOnlyContextSlot ? (
+            <div className="border-b border-surface-200 bg-surface-100/90 px-6 py-3 text-sm dark:border-surface-800 dark:bg-surface-950/80">
+              {readOnlyContextSlot}
+            </div>
+          ) : null}
 
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto bg-surface-100 p-6 dark:bg-surface-950">
             <TaskDetailGeneralSection
@@ -189,6 +205,14 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
               onAddAssignee={onAddAssignee}
               onRemoveAssignee={onRemoveAssignee}
             />
+            {sprintSection ? (
+              <TaskDetailSprintSection
+                readOnly={readOnly}
+                activeSprintName={sprintSection.activeSprintName}
+                inActiveSprint={sprintSection.inActiveSprint}
+                onInActiveSprintChange={sprintSection.onInActiveSprintChange}
+              />
+            ) : null}
           </div>
 
           <SheetFooter className="border-t border-surface-200 bg-surface-50 p-6 dark:border-surface-800 dark:bg-surface-900">

@@ -11,9 +11,12 @@ import { Model, QueryFilter, Types } from 'mongoose';
 import {
   Board,
   BoardColumn,
+  BoardColumnKind,
   BoardDocument,
   BoardMember,
   BoardRole,
+  SprintClosedTaskLabel,
+  SprintClosedTaskSnapshot,
 } from './schemas/board.schema';
 import { Task, TaskDocument } from '../tasks/schemas/task.schema';
 import { CreateBoardDto } from './dto/create-board.dto';
@@ -22,6 +25,10 @@ import slugify from 'slugify';
 import { MongoServerError } from 'mongodb';
 import { CreateColumnDto } from './dto/create-column.dto';
 import { InviteBoardMemberDto } from './dto/invite-board-member.dto';
+import { UpdateColumnBodyDto } from './dto/update-column-body.dto';
+import { CreateSprintDto } from './dto/create-sprint.dto';
+import { UpdateActiveSprintDto } from './dto/update-active-sprint.dto';
+import { UpdateClosedSprintDto } from './dto/update-closed-sprint.dto';
 import { UsersService } from '../users/users.service';
 
 /// Convierte un valor desconocido en un array, o devuelve null si no es un array. PARA LINTER
@@ -41,6 +48,31 @@ function asStringKeyedObject(entry: unknown): Record<string, unknown> | null {
     return null;
   }
   return entry as Record<string, unknown>;
+}
+
+/**
+ * Array de subdocumentos de columna: en runtime Mongoose expone `.id(ObjectId)`.
+ * La clase `Board` tipa `columns` como `BoardColumn[]`, sin ese método en TS.
+ */
+function boardColumnSubdocById(
+  board: BoardDocument,
+  columnId: Types.ObjectId,
+): BoardColumn | null | undefined {
+  const columnsWithId = board.columns as unknown as {
+    id: (id: Types.ObjectId) => BoardColumn | null | undefined;
+  };
+  return columnsWithId.id(columnId);
+}
+
+/**
+ * Título típico de columna "hecho": por defecto `columnKind: done` al crear (se puede cambiar en el menú).
+ */
+function inferColumnKindFromTitleForCreate(title: string): BoardColumnKind {
+  const key = title.trim().toLowerCase();
+  if (key === 'done' || key === 'hecho') {
+    return 'done';
+  }
+  return 'workflow';
 }
 
 /** Máximo de filas en `members` (no cuenta al owner) con plan Free. */
@@ -81,6 +113,29 @@ export class BoardsService {
       .countDocuments({ _id: new Types.ObjectId(boardId) })
       .exec();
     return matchingCount > 0;
+  }
+
+  /** Columna existe y no está archivada (no se puede editar ni reordenar en el tablero). */
+  private async assertColumnEditable(
+    boardId: string,
+    columnId: string,
+  ): Promise<void> {
+    const board = await this.boardModel
+      .findById(new Types.ObjectId(boardId))
+      .exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    const sub = boardColumnSubdocById(board, new Types.ObjectId(columnId));
+    if (!sub) {
+      throw new NotFoundException('La columna no existe.');
+    }
+    const archivedAt = (sub as { archivedAt?: Date }).archivedAt;
+    if (archivedAt != null) {
+      throw new BadRequestException(
+        'Esta columna está archivada. Restáurala desde los ajustes del tablero para poder editarla.',
+      );
+    }
   }
 
   // Dado el slug de un tablero, devuelve su id o null si no existe. PARA RUTAS CON SLUG
@@ -188,6 +243,55 @@ export class BoardsService {
     if (matchingCount === 0) {
       throw new NotFoundException(
         'La columna no existe o no tienes permiso en este tablero.',
+      );
+    }
+  }
+
+  /**
+   * Validates sprint assignment on a task: disabled boards reject non-null ids;
+   * when enabled, only the active sprint id is accepted (null always clears the tag).
+   */
+  async assertTaskSprintAssignmentAllowed(
+    boardId: string,
+    sprintId: string | null | undefined,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<void> {
+    if (sprintId === undefined) {
+      return;
+    }
+    if (typeof sprintId === 'string' && sprintId.trim() === '') {
+      throw new BadRequestException('El sprintId no es válido.');
+    }
+
+    await this.assertUserHasBoardAccess(boardId, userId, isAppAdmin);
+
+    const boardFilter = this.boardAccessFilter(boardId, userId, isAppAdmin);
+    const boardLean = await this.boardModel.findOne(boardFilter).lean().exec();
+    if (!boardLean) {
+      throw new NotFoundException('El tablero no existe o no tienes permiso.');
+    }
+
+    const sprintsAreEnabled = boardLean.sprintsEnabled === true;
+
+    if (sprintId === null) {
+      return;
+    }
+
+    if (!sprintsAreEnabled) {
+      throw new BadRequestException(
+        'Los sprints están desactivados en este tablero.',
+      );
+    }
+
+    const activeSprintIdString =
+      boardLean.activeSprintId !== undefined && boardLean.activeSprintId !== null
+        ? boardLean.activeSprintId.toString()
+        : '';
+
+    if (!activeSprintIdString || activeSprintIdString !== sprintId) {
+      throw new BadRequestException(
+        'Solo puedes asignar la tarea al sprint activo del tablero.',
       );
     }
   }
@@ -302,6 +406,7 @@ export class BoardsService {
       _id: Types.ObjectId;
       boardId: Types.ObjectId;
       columnId: Types.ObjectId;
+      sprintId?: Types.ObjectId;
       assigneeIds?: Types.ObjectId[];
       storyPointVotes?: { userId: Types.ObjectId; value: number }[];
       [key: string]: unknown;
@@ -334,7 +439,9 @@ export class BoardsService {
       links: this.normalizeTaskLinksForClient(typedTask.links),
       checklist: this.normalizeTaskChecklistForClient(typedTask.checklist),
     };
-    delete mapped.sprintId;
+    if (typedTask.sprintId !== undefined && typedTask.sprintId !== null) {
+      mapped['sprintId'] = typedTask.sprintId.toString();
+    }
     return mapped;
   }
 
@@ -354,18 +461,45 @@ export class BoardsService {
       throw new NotFoundException(`El tablero no existe o no tienes permiso.`);
 
     const tasks = await this.taskModel
-      .find({ boardId: boardDoc._id })
+      .find({
+        boardId: boardDoc._id,
+        $or: [{ archivedAt: { $exists: false } }, { archivedAt: null }],
+      })
       .lean()
       .exec();
 
     type ColumnWithId = BoardColumn & { _id: Types.ObjectId };
 
     const columnsOut: unknown[] = [];
+    const archivedColumnsOut: unknown[] = [];
     const rawColumns = boardDoc.columns;
     for (let columnIndex = 0; columnIndex < rawColumns.length; columnIndex++) {
       const column = rawColumns[columnIndex];
       const columnWithId = column as ColumnWithId;
       const columnIdString = columnWithId._id.toString();
+      const columnArchivedAt = (column as { archivedAt?: Date }).archivedAt;
+      const columnArchivedBy = (column as { archivedBy?: Types.ObjectId })
+        .archivedBy;
+      const columnKindValue: BoardColumnKind =
+        column.columnKind === 'done' || column.columnKind === 'archived'
+          ? column.columnKind
+          : 'workflow';
+      if (columnArchivedAt != null) {
+        archivedColumnsOut.push({
+          _id: columnIdString,
+          title: column.title,
+          order: column.order,
+          columnKind: columnKindValue,
+          archivedAt:
+            columnArchivedAt instanceof Date
+              ? columnArchivedAt.toISOString()
+              : String(columnArchivedAt),
+          ...(columnArchivedBy
+            ? { archivedBy: columnArchivedBy.toString() }
+            : {}),
+        });
+        continue;
+      }
       const columnTasksRaw: (typeof tasks)[number][] = [];
       for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
         const taskRow = tasks[taskIndex];
@@ -391,6 +525,7 @@ export class BoardsService {
       }
       columnsOut.push({
         ...column,
+        columnKind: columnKindValue,
         tasks: mappedTasks,
       });
     }
@@ -398,6 +533,7 @@ export class BoardsService {
     return {
       ...boardDoc,
       columns: columnsOut,
+      archivedColumns: archivedColumnsOut,
     };
   }
 
@@ -450,6 +586,9 @@ export class BoardsService {
       BoardRole.EDITOR,
       isAppAdmin,
     );
+    const trimmedTitle = createColumnDto.title.trim();
+    const initialColumnKind = inferColumnKindFromTitleForCreate(trimmedTitle);
+
     const board = await this.boardModel
       .findOneAndUpdate(
         { _id: new Types.ObjectId(boardId) },
@@ -457,9 +596,10 @@ export class BoardsService {
           $push: {
             columns: {
               _id: new Types.ObjectId(),
-              title: createColumnDto.title,
+              title: trimmedTitle,
               order: createColumnDto.order,
               tasks: [],
+              columnKind: initialColumnKind,
             },
           },
         },
@@ -474,12 +614,12 @@ export class BoardsService {
   }
 
   /**
-   * Cambia solo el título de una columna.
+   * Updates column title and/or column kind (workflow vs done vs archived).
    */
   async updateColumn(
     boardId: string,
     columnId: string,
-    title: string,
+    body: UpdateColumnBodyDto,
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
@@ -489,13 +629,33 @@ export class BoardsService {
       BoardRole.EDITOR,
       isAppAdmin,
     );
+    await this.assertColumnEditable(boardId, columnId);
+
+    if (body.title === undefined && body.columnKind === undefined) {
+      throw new BadRequestException(
+        'Debes enviar al menos title o columnKind para actualizar la columna.',
+      );
+    }
+
+    const fieldsToSet: Record<string, string> = {};
+    if (body.title !== undefined) {
+      const trimmedTitle = body.title.trim();
+      if (!trimmedTitle) {
+        throw new BadRequestException('El título de la columna no puede estar vacío.');
+      }
+      fieldsToSet['columns.$.title'] = trimmedTitle;
+    }
+    if (body.columnKind !== undefined) {
+      fieldsToSet['columns.$.columnKind'] = body.columnKind;
+    }
+
     const board = await this.boardModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(boardId),
           'columns._id': new Types.ObjectId(columnId),
         },
-        { $set: { 'columns.$.title': title } },
+        { $set: fieldsToSet },
         { new: true },
       )
       .exec();
@@ -524,6 +684,7 @@ export class BoardsService {
       BoardRole.EDITOR,
       isAppAdmin,
     );
+    await this.assertColumnEditable(boardId, columnId);
     const board = await this.boardModel
       .findOneAndUpdate(
         {
@@ -544,11 +705,180 @@ export class BoardsService {
   }
 
   /**
-   * Quita la columna y borra en cascada las tareas que había dentro.
+   * Archiva la columna (oculta del tablero) y archiva las tareas no archivadas de esa columna.
+   */
+  async archiveColumn(
+    boardId: string,
+    columnId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<unknown> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+    const boardObjectId = new Types.ObjectId(boardId);
+    const colObjectId = new Types.ObjectId(columnId);
+    const userObjectId = new Types.ObjectId(userId);
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    const columnSub = boardColumnSubdocById(board, colObjectId);
+    if (!columnSub) {
+      throw new NotFoundException('La columna no existe.');
+    }
+    if ((columnSub as { archivedAt?: Date }).archivedAt != null) {
+      return this.findOneBySlug(board.slug, userId);
+    }
+
+    await this.boardModel
+      .updateOne(
+        { _id: boardObjectId, 'columns._id': colObjectId },
+        {
+          $set: {
+            'columns.$.archivedAt': new Date(),
+            'columns.$.archivedBy': userObjectId,
+          },
+        },
+      )
+      .exec();
+
+    await this.taskModel
+      .updateMany(
+        {
+          boardId: boardObjectId,
+          columnId: colObjectId,
+          $or: [{ archivedAt: { $exists: false } }, { archivedAt: null }],
+        },
+        {
+          $set: {
+            archivedAt: new Date(),
+            archivedBy: userObjectId,
+            archivedWithColumnId: colObjectId,
+          },
+          $unset: { sprintId: '' },
+        },
+      )
+      .exec();
+
+    return this.findOneBySlug(board.slug, userId);
+  }
+
+  /**
+   * Restaura una columna archivada y las tareas que se archivaron junto con ella.
+   */
+  async restoreColumn(
+    boardId: string,
+    columnId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<unknown> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+    const boardObjectId = new Types.ObjectId(boardId);
+    const colObjectId = new Types.ObjectId(columnId);
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    const columnSub = boardColumnSubdocById(board, colObjectId);
+    if (!columnSub) {
+      throw new NotFoundException('La columna no existe.');
+    }
+    if ((columnSub as { archivedAt?: Date }).archivedAt == null) {
+      return this.findOneBySlug(board.slug, userId);
+    }
+
+    await this.boardModel
+      .updateOne(
+        { _id: boardObjectId, 'columns._id': colObjectId },
+        { $unset: { 'columns.$.archivedAt': '', 'columns.$.archivedBy': '' } },
+      )
+      .exec();
+
+    await this.taskModel
+      .updateMany(
+        {
+          boardId: boardObjectId,
+          columnId: colObjectId,
+          archivedWithColumnId: colObjectId,
+        },
+        {
+          $unset: {
+            archivedAt: '',
+            archivedBy: '',
+            archivedWithColumnId: '',
+          },
+        },
+      )
+      .exec();
+
+    return this.findOneBySlug(board.slug, userId);
+  }
+
+  /**
+   * Elimina definitivamente una columna **ya archivada** y todas las tareas con ese columnId.
    */
   async removeColumn(
     boardId: string,
     columnId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<unknown> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+    const boardObjectId = new Types.ObjectId(boardId);
+    const colObjectId = new Types.ObjectId(columnId);
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    const columnSub = boardColumnSubdocById(board, colObjectId);
+    if (!columnSub) {
+      throw new NotFoundException('La columna no existe.');
+    }
+    if ((columnSub as { archivedAt?: Date }).archivedAt == null) {
+      throw new BadRequestException(
+        'Archiva la columna primero. Las columnas activas no se pueden borrar definitivamente.',
+      );
+    }
+
+    await this.taskModel
+      .deleteMany({ columnId: colObjectId })
+      .exec();
+
+    const updated = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        { $pull: { columns: { _id: colObjectId } } },
+        { new: true },
+      )
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    return this.findOneBySlug(board.slug, userId);
+  }
+
+  /**
+   * Starts a new sprint (board must have sprints enabled and no active sprint yet).
+   */
+  async createSprint(
+    boardId: string,
+    createSprintDto: CreateSprintDto,
     userId: string,
     isAppAdmin = false,
   ): Promise<BoardDocument> {
@@ -558,23 +888,551 @@ export class BoardsService {
       BoardRole.EDITOR,
       isAppAdmin,
     );
-    const board = await this.boardModel
-      .findOneAndUpdate(
-        { _id: new Types.ObjectId(boardId) },
-        { $pull: { columns: { _id: new Types.ObjectId(columnId) } } },
-        { new: true },
-      )
-      .exec();
 
+    const boardObjectId = new Types.ObjectId(boardId);
+    const board = await this.boardModel.findById(boardObjectId).exec();
     if (!board) {
       throw new NotFoundException('El tablero no existe.');
     }
 
-    await this.taskModel
-      .deleteMany({ columnId: new Types.ObjectId(columnId) })
+    if (!board.sprintsEnabled) {
+      throw new BadRequestException(
+        'Activa los sprints en la configuración del tablero antes de crear uno.',
+      );
+    }
+
+    const hasActiveSprintAlready =
+      board.activeSprintId !== undefined &&
+      board.activeSprintId !== null &&
+      String(board.activeSprintId).length > 0;
+    if (hasActiveSprintAlready || board.sprints.length > 0) {
+      throw new BadRequestException('Ya hay un sprint activo en este tablero.');
+    }
+
+    const trimmedSprintName = createSprintDto.name.trim();
+    const newSprintId = new Types.ObjectId();
+
+    let startedAt = new Date();
+    if (createSprintDto.startedAt !== undefined) {
+      const parsedStart = new Date(createSprintDto.startedAt);
+      if (Number.isNaN(parsedStart.getTime())) {
+        throw new BadRequestException('La fecha de inicio no es válida.');
+      }
+      startedAt = parsedStart;
+    }
+
+    let plannedEndAt: Date | undefined;
+    if (createSprintDto.plannedEndAt !== undefined) {
+      const parsedEnd = new Date(createSprintDto.plannedEndAt);
+      if (Number.isNaN(parsedEnd.getTime())) {
+        throw new BadRequestException('La fecha de fin planificada no es válida.');
+      }
+      plannedEndAt = parsedEnd;
+      if (plannedEndAt.getTime() < startedAt.getTime()) {
+        throw new BadRequestException(
+          'La fecha de fin debe ser posterior a la fecha de inicio.',
+        );
+      }
+    }
+
+    const sprintSubdocument: Record<string, unknown> = {
+      _id: newSprintId,
+      name: trimmedSprintName,
+      startedAt,
+    };
+    if (plannedEndAt !== undefined) {
+      sprintSubdocument['plannedEndAt'] = plannedEndAt;
+    }
+    if (createSprintDto.objective !== undefined) {
+      const trimmedObjective = createSprintDto.objective.trim();
+      if (trimmedObjective.length > 0) {
+        sprintSubdocument['objective'] = trimmedObjective;
+      }
+    }
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        {
+          $push: {
+            sprints: sprintSubdocument,
+          },
+          $set: { activeSprintId: newSprintId },
+        },
+        { new: true },
+      )
       .exec();
 
-    return board;
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    return updatedBoard;
+  }
+
+  /**
+   * Closes the active sprint: saves a frozen snapshot and removes sprintId from tasks.
+   */
+  async closeSprint(
+    boardId: string,
+    sprintId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+
+    const boardObjectId = new Types.ObjectId(boardId);
+    const sprintObjectId = new Types.ObjectId(sprintId);
+
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    if (!board.sprintsEnabled) {
+      throw new BadRequestException(
+        'Los sprints están desactivados en este tablero.',
+      );
+    }
+
+    const activeIdString =
+      board.activeSprintId !== undefined && board.activeSprintId !== null
+        ? board.activeSprintId.toString()
+        : '';
+    if (!activeIdString || activeIdString !== sprintId) {
+      throw new BadRequestException('Ese sprint no es el sprint activo.');
+    }
+
+    let activeSprintName = '';
+    let sprintStartedAt: Date | undefined;
+    let sprintPlannedEndAt: Date | undefined;
+    let sprintObjective: string | undefined;
+    let foundSprint = false;
+    for (let index = 0; index < board.sprints.length; index++) {
+      const row = board.sprints[index];
+      if (row._id.toString() === sprintId) {
+        activeSprintName = row.name;
+        sprintStartedAt = row.startedAt;
+        sprintPlannedEndAt = row.plannedEndAt;
+        const rawObj = row.objective;
+        sprintObjective =
+          typeof rawObj === 'string' && rawObj.trim().length > 0
+            ? rawObj.trim()
+            : undefined;
+        foundSprint = true;
+        break;
+      }
+    }
+    if (!foundSprint) {
+      throw new BadRequestException('No se encontró el sprint activo en el tablero.');
+    }
+
+    const columnKindByColumnId = new Map<string, BoardColumnKind>();
+    const columnTitleByColumnId = new Map<string, string>();
+    for (let columnIndex = 0; columnIndex < board.columns.length; columnIndex++) {
+      const column = board.columns[columnIndex];
+      const columnIdString = column._id.toString();
+      columnTitleByColumnId.set(columnIdString, column.title);
+      const rawKind = column.columnKind as BoardColumnKind | undefined;
+      if (rawKind === 'done' || rawKind === 'archived') {
+        columnKindByColumnId.set(columnIdString, rawKind);
+      } else {
+        columnKindByColumnId.set(columnIdString, 'workflow');
+      }
+    }
+
+    const tasksInSprint = await this.taskModel
+      .find({
+        boardId: boardObjectId,
+        sprintId: sprintObjectId,
+        $or: [{ archivedAt: { $exists: false } }, { archivedAt: null }],
+      })
+      .lean()
+      .exec();
+
+    const taskSnapshots: SprintClosedTaskSnapshot[] = [];
+    for (let taskIndex = 0; taskIndex < tasksInSprint.length; taskIndex++) {
+      const taskRow = tasksInSprint[taskIndex];
+      const columnIdString = taskRow.columnId.toString();
+      const columnTitle =
+        columnTitleByColumnId.get(columnIdString) ?? '(unknown column)';
+      const columnKind = columnKindByColumnId.get(columnIdString) ?? 'workflow';
+      const wasCompleted = columnKind === 'done' || columnKind === 'archived';
+
+      const LABEL_COLORS = [
+        'green',
+        'yellow',
+        'orange',
+        'red',
+        'purple',
+        'blue',
+        'sky',
+        'gray',
+      ] as const satisfies readonly SprintClosedTaskLabel['color'][];
+      function parseSnapshotLabelColor(raw: string): SprintClosedTaskLabel['color'] {
+        for (let ci = 0; ci < LABEL_COLORS.length; ci++) {
+          if (LABEL_COLORS[ci] === raw) {
+            return LABEL_COLORS[ci];
+          }
+        }
+        return 'blue';
+      }
+      const rawLabels = Array.isArray(
+        (taskRow as { labels?: { name?: string; color?: string }[] }).labels,
+      )
+        ? (taskRow as { labels: { name?: string; color?: string }[] }).labels
+        : [];
+      const labelsAtClose: SprintClosedTaskLabel[] = [];
+      for (let li = 0; li < rawLabels.length; li++) {
+        const lab = rawLabels[li];
+        const nameRaw =
+          typeof lab?.name === 'string' ? lab.name.trim().slice(0, 24) : '';
+        if (!nameRaw) continue;
+        const c = typeof lab?.color === 'string' ? lab.color : '';
+        labelsAtClose.push({
+          name: nameRaw,
+          color: parseSnapshotLabelColor(c),
+        });
+      }
+
+      const snapshot: SprintClosedTaskSnapshot = {
+        taskId: taskRow._id,
+        title: taskRow.title,
+        columnId: taskRow.columnId,
+        columnTitleAtClose: columnTitle,
+        wasCompleted,
+        assigneeIdsAtClose: Array.isArray(taskRow.assigneeIds)
+          ? taskRow.assigneeIds
+          : [],
+        labelsAtClose,
+      };
+      if (wasCompleted && typeof taskRow.storyPoints === 'number') {
+        snapshot.storyPointsWhenDone = taskRow.storyPoints;
+      }
+      const updatedAtRaw = (taskRow as { updatedAt?: Date }).updatedAt;
+      if (updatedAtRaw instanceof Date && !Number.isNaN(updatedAtRaw.getTime())) {
+        snapshot.taskUpdatedAtAtClose = updatedAtRaw;
+      }
+      taskSnapshots.push(snapshot);
+    }
+
+    const closedRecord: Record<string, unknown> = {
+      sprintId: sprintObjectId,
+      sprintName: activeSprintName,
+      closedAt: new Date(),
+      taskSnapshots,
+    };
+    if (sprintStartedAt !== undefined) {
+      closedRecord['startedAt'] = sprintStartedAt;
+    }
+    if (sprintPlannedEndAt !== undefined) {
+      closedRecord['plannedEndAt'] = sprintPlannedEndAt;
+    }
+    if (sprintObjective !== undefined) {
+      closedRecord['objective'] = sprintObjective;
+    }
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        {
+          $pull: { sprints: { _id: sprintObjectId } },
+          $push: { closedSprintRecords: closedRecord },
+          $unset: { activeSprintId: '' },
+        },
+        { new: true },
+      )
+      .exec();
+
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    await this.taskModel
+      .updateMany(
+        { boardId: boardObjectId, sprintId: sprintObjectId },
+        { $unset: { sprintId: '' } },
+      )
+      .exec();
+
+    return updatedBoard;
+  }
+
+  /**
+   * Renames or changes planned dates on the active sprint (editors and up).
+   */
+  async updateActiveSprint(
+    boardId: string,
+    sprintId: string,
+    dto: UpdateActiveSprintDto,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+
+    if (
+      dto.name === undefined &&
+      dto.startedAt === undefined &&
+      dto.plannedEndAt === undefined &&
+      dto.objective === undefined
+    ) {
+      throw new BadRequestException('No hay cambios que guardar.');
+    }
+
+    const boardObjectId = new Types.ObjectId(boardId);
+    const sprintObjectId = new Types.ObjectId(sprintId);
+
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    const activeIdString =
+      board.activeSprintId !== undefined && board.activeSprintId !== null
+        ? board.activeSprintId.toString()
+        : '';
+    if (!activeIdString || activeIdString !== sprintId) {
+      throw new BadRequestException('Solo puedes editar el sprint activo.');
+    }
+
+    let sprintRow: (typeof board.sprints)[number] | null = null;
+    for (let index = 0; index < board.sprints.length; index++) {
+      if (board.sprints[index]._id.toString() === sprintId) {
+        sprintRow = board.sprints[index];
+        break;
+      }
+    }
+    if (sprintRow === null) {
+      throw new BadRequestException('No se encontró el sprint en el tablero.');
+    }
+
+    const fieldsToSet: Record<string, unknown> = {};
+    const fieldsToUnset: Record<string, ''> = {};
+
+    if (dto.name !== undefined) {
+      const trimmedName = dto.name.trim();
+      if (!trimmedName) {
+        throw new BadRequestException('El nombre del sprint no puede estar vacío.');
+      }
+      fieldsToSet['sprints.$.name'] = trimmedName;
+    }
+
+    let effectiveStartedAt = sprintRow.startedAt;
+    if (dto.startedAt !== undefined) {
+      const parsedStart = new Date(dto.startedAt);
+      if (Number.isNaN(parsedStart.getTime())) {
+        throw new BadRequestException('La fecha de inicio no es válida.');
+      }
+      fieldsToSet['sprints.$.startedAt'] = parsedStart;
+      effectiveStartedAt = parsedStart;
+    }
+
+    let effectivePlannedEnd = sprintRow.plannedEndAt;
+    if (dto.plannedEndAt !== undefined) {
+      const parsedEnd = new Date(dto.plannedEndAt);
+      if (Number.isNaN(parsedEnd.getTime())) {
+        throw new BadRequestException('La fecha de fin planificada no es válida.');
+      }
+      fieldsToSet['sprints.$.plannedEndAt'] = parsedEnd;
+      effectivePlannedEnd = parsedEnd;
+    }
+
+    if (
+      effectivePlannedEnd !== undefined &&
+      effectivePlannedEnd !== null &&
+      effectivePlannedEnd.getTime() < effectiveStartedAt.getTime()
+    ) {
+      throw new BadRequestException(
+        'La fecha de fin debe ser posterior a la fecha de inicio.',
+      );
+    }
+
+    if (dto.objective !== undefined) {
+      const trimmedObjective = dto.objective.trim();
+      if (trimmedObjective.length > 0) {
+        fieldsToSet['sprints.$.objective'] = trimmedObjective;
+      } else {
+        fieldsToUnset['sprints.$.objective'] = '';
+      }
+    }
+
+    const updateOps: Record<string, unknown> = {};
+    if (Object.keys(fieldsToSet).length > 0) {
+      updateOps['$set'] = fieldsToSet;
+    }
+    if (Object.keys(fieldsToUnset).length > 0) {
+      updateOps['$unset'] = fieldsToUnset;
+    }
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId, 'sprints._id': sprintObjectId },
+        updateOps,
+        { new: true },
+      )
+      .exec();
+
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    return updatedBoard;
+  }
+
+  /**
+   * Drops the active sprint without saving history (tasks lose sprint tag).
+   */
+  async cancelActiveSprint(
+    boardId: string,
+    sprintId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+
+    const boardObjectId = new Types.ObjectId(boardId);
+    const sprintObjectId = new Types.ObjectId(sprintId);
+
+    const board = await this.boardModel.findById(boardObjectId).exec();
+    if (!board) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    const activeIdString =
+      board.activeSprintId !== undefined && board.activeSprintId !== null
+        ? board.activeSprintId.toString()
+        : '';
+    if (!activeIdString || activeIdString !== sprintId) {
+      throw new BadRequestException('Solo puedes cancelar el sprint activo.');
+    }
+
+    await this.taskModel
+      .updateMany(
+        { boardId: boardObjectId, sprintId: sprintObjectId },
+        { $unset: { sprintId: '' } },
+      )
+      .exec();
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        {
+          $pull: { sprints: { _id: sprintObjectId } },
+          $unset: { activeSprintId: '' },
+        },
+        { new: true },
+      )
+      .exec();
+
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    return updatedBoard;
+  }
+
+  /**
+   * Renames one closed sprint entry (board admins / app admin).
+   */
+  async updateClosedSprintRecord(
+    boardId: string,
+    sprintId: string,
+    dto: UpdateClosedSprintDto,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.ADMIN,
+      isAppAdmin,
+    );
+
+    const boardObjectId = new Types.ObjectId(boardId);
+    const sprintObjectId = new Types.ObjectId(sprintId);
+    const trimmedName = dto.sprintName.trim();
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        {
+          $set: {
+            'closedSprintRecords.$[record].sprintName': trimmedName,
+          },
+        },
+        {
+          arrayFilters: [{ 'record.sprintId': sprintObjectId }],
+          new: true,
+        },
+      )
+      .exec();
+
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+
+    let foundClosed = false;
+    const closedList = updatedBoard.closedSprintRecords ?? [];
+    for (let index = 0; index < closedList.length; index++) {
+      if (closedList[index].sprintId.toString() === sprintId) {
+        foundClosed = true;
+        break;
+      }
+    }
+    if (!foundClosed) {
+      throw new NotFoundException('No se encontró ese sprint en el historial.');
+    }
+
+    return updatedBoard;
+  }
+
+  /**
+   * Removes one closed sprint from history (board admins / app admin).
+   */
+  async deleteClosedSprintRecord(
+    boardId: string,
+    sprintId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<BoardDocument> {
+    await this.assertMinBoardRole(
+      boardId,
+      userId,
+      BoardRole.ADMIN,
+      isAppAdmin,
+    );
+
+    const boardObjectId = new Types.ObjectId(boardId);
+    const sprintObjectId = new Types.ObjectId(sprintId);
+
+    const updatedBoard = await this.boardModel
+      .findOneAndUpdate(
+        { _id: boardObjectId },
+        {
+          $pull: {
+            closedSprintRecords: { sprintId: sprintObjectId },
+          },
+        },
+        { new: true },
+      )
+      .exec();
+
+    if (!updatedBoard) {
+      throw new NotFoundException('El tablero no existe.');
+    }
+    return updatedBoard;
   }
 
   /**

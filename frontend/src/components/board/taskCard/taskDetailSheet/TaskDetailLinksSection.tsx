@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { linkDisplayHeading, isSafeHttpUrl } from '../taskCardHelpers';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailLinksSection({
   readOnly,
@@ -37,12 +38,19 @@ export function TaskDetailLinksSection({
             </p>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label
-                  htmlFor={`${formBaseId}-link-draft-title`}
-                  className="text-xs font-medium text-surface-700 dark:text-surface-300"
-                >
-                  Título (opcional)
-                </Label>
+                <div className="flex items-center gap-1">
+                  <Label
+                    htmlFor={`${formBaseId}-link-draft-title`}
+                    className="text-xs font-medium text-surface-700 dark:text-surface-300"
+                  >
+                    Título
+                  </Label>
+                  <TaskDetailInfoTip
+                    label="Título del enlace"
+                    side="right"
+                    text="Opcional. Si lo dejas vacío, se usará la URL como texto visible del enlace."
+                  />
+                </div>
                 <Input
                   id={`${formBaseId}-link-draft-title`}
                   value={linkDraftTitle}
@@ -58,12 +66,19 @@ export function TaskDetailLinksSection({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label
-                  htmlFor={`${formBaseId}-link-draft-url`}
-                  className="text-xs font-medium text-surface-700 dark:text-surface-300"
-                >
-                  URL
-                </Label>
+                <div className="flex items-center gap-1">
+                  <Label
+                    htmlFor={`${formBaseId}-link-draft-url`}
+                    className="text-xs font-medium text-surface-700 dark:text-surface-300"
+                  >
+                    URL
+                  </Label>
+                  <TaskDetailInfoTip
+                    label="Formato de URL"
+                    side="right"
+                    text="Puedes pegar una dirección https://… o solo el dominio; al guardar se valida que sea un enlace seguro (http/https)."
+                  />
+                </div>
                 <Input
                   id={`${formBaseId}-link-draft-url`}
                   value={linkDraftUrl}

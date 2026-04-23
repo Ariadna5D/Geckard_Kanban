@@ -148,11 +148,12 @@
   /* Focus: alineado con primary */
   --ring: oklch(0.53 0.13 245);
   
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Paleta para Recharts / shadcn Chart (datos legibles en claro) */
+  --chart-1: oklch(0.55 0.14 245);
+  --chart-2: oklch(0.58 0.2 25);
+  --chart-3: oklch(0.55 0.16 305);
+  --chart-4: oklch(0.55 0.12 200);
+  --chart-5: oklch(0.62 0.15 85);
   --radius: 0.625rem;
   --sidebar: oklch(0.945 0.005 264);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -187,11 +188,11 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.7 0.11 245);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: oklch(0.72 0.12 245);
+  --chart-2: oklch(0.68 0.18 25);
+  --chart-3: oklch(0.7 0.14 305);
+  --chart-4: oklch(0.72 0.11 200);
+  --chart-5: oklch(0.75 0.14 85);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.7 0.11 245);

@@ -215,6 +215,8 @@ export type TaskDetailEditSlice = {
   editLabels: TaskLabel[];
   editLinks: { url: string; title: string }[];
   editChecklist: { text: string; checked: boolean }[];
+  /** True when the task is tagged to the board active sprint. */
+  sprintInActive: boolean;
   drafts: TaskDetailDraftSlice;
 };
 
@@ -239,6 +241,7 @@ export function fingerprintTaskDetailForm(slice: TaskDetailEditSlice): string {
     labelsKey,
     linksKey,
     checklistKey,
+    sprintInActive: slice.sprintInActive,
     linkDraftUrl: slice.drafts.linkDraftUrl.trim(),
     linkDraftTitle: slice.drafts.linkDraftTitle.trim(),
     checklistDraft: slice.drafts.checklistDraftText.trim(),
@@ -247,8 +250,21 @@ export function fingerprintTaskDetailForm(slice: TaskDetailEditSlice): string {
   });
 }
 
-/** Huella al abrir el panel (contenido de la tarea + borradores vacíos). */
-export function fingerprintTaskDetailBaseline(task: Task): string {
+/**
+ * Huella al abrir el panel (contenido de la tarea + borradores vacíos).
+ * `activeSprintId` viene del tablero para saber si la tarea está en el sprint activo.
+ */
+export function fingerprintTaskDetailBaseline(
+  task: Task,
+  activeSprintId?: string | null,
+): string {
+  const activeId =
+    typeof activeSprintId === 'string' && activeSprintId.length > 0
+      ? activeSprintId
+      : null;
+  const sprintInActive = Boolean(
+    activeId && task.sprintId && task.sprintId === activeId,
+  );
   return fingerprintTaskDetailForm({
     editTitle: task.title,
     editDescription: task.description || '',
@@ -269,6 +285,7 @@ export function fingerprintTaskDetailBaseline(task: Task): string {
       text: c.text || '',
       checked: Boolean(c.checked),
     })),
+    sprintInActive,
     drafts: {
       linkDraftUrl: '',
       linkDraftTitle: '',

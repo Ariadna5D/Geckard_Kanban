@@ -1,6 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Archive } from 'lucide-react';
 import type { Task } from '@/types/board.types';
+import { COMPLETED_PRIORITY_ACCENT_BORDER } from './taskCard/taskCardConstants';
 import { TaskCardMetaChips } from './taskCard/TaskCardMetaChips';
 import { TaskDetailSheet } from './taskCard/TaskDetailSheet';
 import { useTaskCardViewModel } from './taskCard/useTaskCardViewModel';
@@ -22,6 +23,11 @@ export const TaskCard = ({
 }: TaskCardProps) => {
   const viewModel = useTaskCardViewModel(task, readOnly, disableDrag);
   const [isPointerOverCard, setIsPointerOverCard] = useState(false);
+  const isCompletedColumn = Boolean(viewModel.completionColumnKind);
+  const taskPriority = task.priority ?? 'medium';
+  const cardLeftAccent = isCompletedColumn
+    ? COMPLETED_PRIORITY_ACCENT_BORDER[taskPriority]
+    : viewModel.priorityAccent;
 
   function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Enter') {
@@ -66,7 +72,7 @@ export const TaskCard = ({
   if (isOverlay) {
     return (
       <div
-        className={`relative z-50 scale-105 cursor-grabbing rotate-2 rounded-lg border border-primary-500/35 border-l-4 bg-surface-50 p-3 text-base shadow-2xl ring-2 ring-primary-500/25 dark:border-primary-400/40 dark:bg-surface-800 dark:ring-primary-400/20 ${viewModel.priorityAccent}`}
+        className={`relative z-50 scale-105 cursor-grabbing rotate-2 rounded-lg border border-primary-500/35 border-l-4 bg-surface-50 p-3 text-base shadow-2xl ring-2 ring-primary-500/25 dark:border-primary-400/40 dark:bg-surface-800 dark:ring-primary-400/20 ${cardLeftAccent}`}
       >
         <TaskCardMetaChips
           task={viewModel.task}
@@ -74,6 +80,7 @@ export const TaskCard = ({
           teamVoteConsensus={viewModel.overlayVoting.teamVoteConsensus}
           teamVoteCount={viewModel.overlayVoting.teamVoteCount}
           boardMembers={viewModel.boardMembers}
+          completionColumnKind={viewModel.completionColumnKind}
         />
       </div>
     );
@@ -101,7 +108,7 @@ export const TaskCard = ({
         onPointerLeave={() => setIsPointerOverCard(false)}
         onKeyDown={handleCardKeyDown}
         onClick={viewModel.handleOpenTaskSheet}
-        className={`group relative select-none rounded-lg border border-surface-200 border-l-4 bg-surface-50 p-3 text-base shadow-sm outline-none transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary-500/35 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45 dark:focus-visible:ring-primary-400/35 ${viewModel.priorityAccent} ${
+        className={`group relative select-none rounded-lg border border-surface-200 border-l-4 bg-surface-50 p-3 text-base shadow-sm outline-none transition-[border-color,box-shadow] hover:border-primary-500/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary-500/35 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-400/45 dark:focus-visible:ring-primary-400/35 ${cardLeftAccent} ${
           readOnly
             ? 'cursor-default'
             : disableDrag
@@ -124,15 +131,18 @@ export const TaskCard = ({
           teamVoteConsensus={viewModel.teamVoteConsensusLive}
           teamVoteCount={viewModel.teamVoteCount}
           boardMembers={viewModel.boardMembers}
+          completionColumnKind={viewModel.completionColumnKind}
         />
         {!readOnly && (
           <button
             type="button"
-            onClick={viewModel.handleDeleteCardClick}
+            onClick={viewModel.handleArchiveCardClick}
             onPointerDown={(e) => e.stopPropagation()}
             className="absolute top-3 right-2 rounded-md p-1 text-surface-500 opacity-0 transition-opacity hover:bg-danger/10 hover:text-danger group-hover:opacity-100 dark:text-surface-400"
+            aria-label="Archivar tarea"
+            title="Archivar tarea"
           >
-            <Trash2 size={16} />
+            <Archive size={16} />
           </button>
         )}
       </div>

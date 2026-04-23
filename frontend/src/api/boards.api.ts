@@ -52,24 +52,135 @@ export const addColumnRequest = async (
   return response.data;
 };
 
-/**
- * Renombra una columna existente.
- */
+/** PATCH /boards/:boardId/columns/:columnId — title and/or columnKind for sprint rules. */
+export type UpdateColumnPayload = {
+  title?: string;
+  columnKind?: 'workflow' | 'done' | 'archived';
+};
+
 export const updateColumnRequest = async (
-  boardId: string, 
-  columnId: string, 
-  title: string
+  boardId: string,
+  columnId: string,
+  payload: UpdateColumnPayload,
 ): Promise<Board> => {
-  const response = await api.patch(`/boards/${boardId}/columns/${columnId}`, { title });
+  const response = await api.patch(
+    `/boards/${boardId}/columns/${columnId}`,
+    payload,
+  );
+  return response.data;
+};
+
+export type CreateSprintPayload = {
+  name: string;
+  startedAt?: string;
+  plannedEndAt?: string;
+  objective?: string;
+};
+
+/** POST /boards/:boardId/sprints — starts the single active sprint (board must enable sprints first). */
+export const createSprintRequest = async (
+  boardId: string,
+  payload: CreateSprintPayload,
+): Promise<Board> => {
+  const response = await api.post<Board>(`/boards/${boardId}/sprints`, payload);
+  return response.data;
+};
+
+/** POST /boards/:boardId/sprints/:sprintId/close — freezes snapshot and clears sprintId on tasks. */
+export const closeSprintRequest = async (
+  boardId: string,
+  sprintId: string,
+): Promise<Board> => {
+  const response = await api.post<Board>(
+    `/boards/${boardId}/sprints/${encodeURIComponent(sprintId)}/close`,
+  );
+  return response.data;
+};
+
+export type UpdateActiveSprintPayload = {
+  name?: string;
+  startedAt?: string;
+  plannedEndAt?: string;
+  /** Cadena vacía borra el objetivo en el servidor. */
+  objective?: string;
+};
+
+/** PATCH active sprint (name / start / planned end). */
+export const updateActiveSprintRequest = async (
+  boardId: string,
+  sprintId: string,
+  payload: UpdateActiveSprintPayload,
+): Promise<Board> => {
+  const response = await api.patch<Board>(
+    `/boards/${boardId}/sprints/${encodeURIComponent(sprintId)}`,
+    payload,
+  );
+  return response.data;
+};
+
+/** DELETE active sprint without archiving (clears sprint tags on tasks). */
+export const cancelActiveSprintRequest = async (
+  boardId: string,
+  sprintId: string,
+): Promise<Board> => {
+  const response = await api.delete<Board>(
+    `/boards/${boardId}/sprints/${encodeURIComponent(sprintId)}`,
+  );
+  return response.data;
+};
+
+/** PATCH closed sprint display name (board admin). */
+export const updateClosedSprintHistoryRequest = async (
+  boardId: string,
+  sprintId: string,
+  payload: { sprintName: string },
+): Promise<Board> => {
+  const response = await api.patch<Board>(
+    `/boards/${boardId}/sprints/history/${encodeURIComponent(sprintId)}`,
+    payload,
+  );
+  return response.data;
+};
+
+/** DELETE one sprint from history (board admin). */
+export const deleteClosedSprintHistoryRequest = async (
+  boardId: string,
+  sprintId: string,
+): Promise<Board> => {
+  const response = await api.delete<Board>(
+    `/boards/${boardId}/sprints/history/${encodeURIComponent(sprintId)}`,
+  );
+  return response.data;
+};
+
+/** Oculta la columna del tablero y archiva las tareas activas de esa columna. */
+export const archiveColumnRequest = async (
+  boardId: string,
+  columnId: string,
+): Promise<Board> => {
+  const response = await api.patch<Board>(
+    `/boards/${boardId}/columns/${columnId}/archive`,
+  );
+  return response.data;
+};
+
+/** Devuelve una columna archivada al tablero y restaura las tareas archivadas con ella. */
+export const restoreArchivedColumnRequest = async (
+  boardId: string,
+  columnId: string,
+): Promise<Board> => {
+  const response = await api.patch<Board>(
+    `/boards/${boardId}/columns/${columnId}/restore`,
+  );
   return response.data;
 };
 
 /**
- * Borra una columna y desencadena el borrado en cascada de sus tareas en el backend.
+ * Elimina definitivamente una columna **ya archivada** y todas las tareas con ese columnId.
  */
 export const deleteColumnRequest = async (
-  boardId: string, 
-  columnId: string
+  boardId: string,
+  columnId: string,
 ): Promise<Board> => {
   const response = await api.delete(`/boards/${boardId}/columns/${columnId}`);
   return response.data;

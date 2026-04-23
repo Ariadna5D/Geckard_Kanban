@@ -1,14 +1,19 @@
 import type { ChangeEvent } from 'react';
 import { CalendarDays, Vote } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import type { StoryPointVotingState, Task } from '@/types/board.types';
 import { voteCountPhrase } from '../taskCardHelpers';
-import { PRIORITY_OPTIONS } from '../taskCardConstants';
+import {
+  PRIORITY_OPTIONS,
+  PRIORITY_PILL_BORDER,
+  PRIORITY_ROW_STYLE,
+  PRIORITY_SELECTION_RING,
+} from '../taskCardConstants';
 import { TaskPriorityIcon } from '../taskPriorityVisual';
 import { FibonacciButtonRow } from '../FibonacciButtonRow';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailPlanningSection({
   readOnly,
@@ -40,33 +45,41 @@ export function TaskDetailPlanningSection({
           <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
             Prioridad
           </label>
-          <div className="flex flex-wrap gap-2">
-            {PRIORITY_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                type="button"
-                size="sm"
-                variant={editPriority === opt.value ? 'default' : 'outline'}
-                disabled={readOnly}
-                onClick={onSelectPriority.bind(null, opt.value)}
-                className={cn(
-                  'gap-1.5',
-                  editPriority === opt.value &&
-                    'bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-400',
-                )}
-              >
-                <TaskPriorityIcon
-                  priority={opt.value}
+          <div
+            className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            role="radiogroup"
+            aria-label="Prioridad de la tarea"
+          >
+            {PRIORITY_OPTIONS.map((opt) => {
+              const row = PRIORITY_ROW_STYLE[opt.value];
+              const selected = editPriority === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={readOnly}
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => onSelectPriority(opt.value)}
                   className={cn(
-                    'size-4 shrink-0',
-                    editPriority === opt.value
-                      ? 'text-white opacity-95'
-                      : 'text-muted-foreground',
+                    'flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-sm font-medium transition-[box-shadow,opacity,border-color]',
+                    'outline-none focus-visible:ring-2 focus-visible:ring-primary-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-50 dark:focus-visible:ring-offset-surface-950',
+                    row.bg,
+                    row.text,
+                    PRIORITY_PILL_BORDER[opt.value],
+                    selected && PRIORITY_SELECTION_RING[opt.value],
+                    !selected && 'opacity-[0.88] hover:opacity-100',
+                    readOnly && 'cursor-not-allowed opacity-60',
                   )}
-                />
-                {opt.label}
-              </Button>
-            ))}
+                >
+                  <TaskPriorityIcon
+                    priority={opt.value}
+                    className="size-4 shrink-0 opacity-90"
+                  />
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -84,9 +97,16 @@ export function TaskDetailPlanningSection({
         </div>
 
         <div className="space-y-3 pt-4">
-          <p className="text-sm font-semibold text-surface-800 dark:text-surface-200">
-            Story points
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+              Story points
+            </p>
+            <TaskDetailInfoTip
+              label="Cómo funcionan los story points"
+              side="right"
+              text="Cada persona con acceso puede votar un valor de la escala. Se muestra el consenso (media ajustada a Fibonacci) y cuántas personas han votado."
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-surface-800 dark:text-surface-200">
             <Vote
               className="size-4 shrink-0 text-violet-600 dark:text-violet-400"

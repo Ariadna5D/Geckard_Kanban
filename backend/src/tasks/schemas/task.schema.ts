@@ -96,6 +96,24 @@ export class Task {
   })
   columnId: Types.ObjectId;
 
+  /** Optional link to the board active sprint (only meaningful when the board enables sprints). */
+  @Prop({ type: Types.ObjectId, required: false, index: true })
+  sprintId?: Types.ObjectId;
+
+  /** Hidden from board views, but still restorable. */
+  @Prop({ type: Date, required: false, index: true })
+  archivedAt?: Date;
+
+  /** Who archived the task (for audit and archive panel context). */
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  archivedBy?: Types.ObjectId;
+
+  /**
+   * Si se archivó junto con una columna; al restaurar la columna se restauran estas tareas.
+   */
+  @Prop({ type: Types.ObjectId, required: false, index: true })
+  archivedWithColumnId?: Types.ObjectId;
+
   // Orden dentro de la columna para mantener el orden de las tareas (se actualiza al mover tareas)
   @Prop({ type: String, required: true })
   order: string;

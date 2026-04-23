@@ -105,6 +105,15 @@ export class CreateTaskDto {
   @IsNotEmpty()
   columnId: string;
 
+  @ApiProperty({
+    required: false,
+    example: '60d0fe4f5311236168a109cc',
+    description: 'Optional active sprint id (only when the board has sprints enabled)',
+  })
+  @IsMongoId({ message: 'El sprintId debe ser un ID válido de MongoDB' })
+  @IsOptional()
+  sprintId?: string;
+
   // El motor del Drag & Drop. Usaremos números flotantes o enteros espaciados para reordenar.
   // --- EL MOTOR DEL DRAG & DROP ---
   @ApiProperty({

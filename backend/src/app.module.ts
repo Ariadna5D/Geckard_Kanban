@@ -35,7 +35,8 @@ function createMongooseOptions(configService: ConfigService) {
     }
   }
 
-  let mongoHost = 'mongodb';
+  /** Por defecto `localhost`: seed y `nest start` en tu PC. Docker Compose inyecta `MONGO_HOST=mongodb`. */
+  let mongoHost = 'localhost';
   if (mongoHostRaw !== undefined && mongoHostRaw !== null) {
     const mongoHostCandidate = mongoHostRaw.trim();
     if (mongoHostCandidate !== '') {

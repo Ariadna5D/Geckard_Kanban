@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useMemo,
   useCallback,
+  useRef,
 } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useActiveBoardStore } from '../store/useActiveBoardStore';
@@ -44,6 +45,15 @@ import {
   type BoardSortDirection,
 } from '../utils/boardTaskView';
 import { BoardViewToolbar } from '../components/board/BoardViewToolbar';
+import {
+  BoardSprintHeaderControls,
+  type BoardSprintHeaderControlsHandle,
+  type SprintViewValue,
+} from '../components/board/BoardSprintHeaderControls';
+import {
+  ClosedSprintHistoryView,
+  type ClosedSprintFlowNavState,
+} from '../components/board/ClosedSprintHistoryView';
 
 // DND-KIT
 import {
@@ -102,6 +112,10 @@ export const BoardPage = () => {
   const [sortKey, setSortKey] = useState<BoardTaskSortKey>('manual');
   const [sortDirection, setSortDirection] =
     useState<BoardSortDirection>('asc');
+  /** Sprint navigation: all tasks, active sprint filter, or read-only closed sprint. */
+  const [sprintView, setSprintView] = useState<SprintViewValue>('all');
+
+  const sprintHeaderRef = useRef<BoardSprintHeaderControlsHandle | null>(null);
 
   useLayoutEffect(() => {
     if (!slug) return;
@@ -176,6 +190,99 @@ export const BoardPage = () => {
     [board],
   );
 
+  const selectedClosedSprintRecord = useMemo(() => {
+    if (!board || !sprintView.startsWith('closed:')) {
+      return null;
+    }
+    const sprintHistoryId = sprintView.slice('closed:'.length);
+    const list = board.closedSprintRecords ?? [];
+    for (let index = 0; index < list.length; index++) {
+      if (list[index].sprintId === sprintHistoryId) {
+        return list[index];
+      }
+    }
+    return null;
+  }, [board, sprintView]);
+
+  const closedSprintFlowNav = useMemo((): ClosedSprintFlowNavState | null => {
+    if (!board || !selectedClosedSprintRecord) {
+      return null;
+    }
+    const list = board.closedSprintRecords ?? [];
+    let idx = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].sprintId === selectedClosedSprintRecord.sprintId) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      return null;
+    }
+    const olderClosed = idx > 0 ? list[idx - 1]! : null;
+    const newerClosed = idx < list.length - 1 ? list[idx + 1]! : null;
+    const isNewestClosed = idx === list.length - 1;
+    const userCanEdit = user ? canEditBoardContent(board, user) : false;
+    const hasActive =
+      typeof board.activeSprintId === 'string' &&
+      board.activeSprintId.length > 0;
+
+    let startNextSprintBlockedReason: string | null = null;
+    if (!board.sprintsEnabled) {
+      startNextSprintBlockedReason =
+        'Activa los sprints en la configuración del tablero.';
+    } else if (!userCanEdit) {
+      startNextSprintBlockedReason =
+        'Necesitas permisos de edición para iniciar un sprint.';
+    } else if (hasActive) {
+      startNextSprintBlockedReason =
+        'Cierra o cancela el sprint activo antes de iniciar otro.';
+    }
+
+    const canStartNextSprint = startNextSprintBlockedReason === null;
+
+    return {
+      olderClosed,
+      newerClosed,
+      isNewestClosed,
+      canStartNextSprint,
+      startNextSprintBlockedReason,
+    };
+  }, [board, selectedClosedSprintRecord, user]);
+
+  useEffect(() => {
+    if (!board) {
+      return;
+    }
+    if (!board.sprintsEnabled && sprintView !== 'all') {
+      setSprintView('all');
+      return;
+    }
+    if (sprintView === 'active') {
+      const hasActive =
+        typeof board.activeSprintId === 'string' &&
+        board.activeSprintId.length > 0;
+      if (!hasActive) {
+        setSprintView('all');
+      }
+      return;
+    }
+    if (sprintView.startsWith('closed:')) {
+      const sprintHistoryId = sprintView.slice('closed:'.length);
+      const list = board.closedSprintRecords ?? [];
+      let found = false;
+      for (let index = 0; index < list.length; index++) {
+        if (list[index].sprintId === sprintHistoryId) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        setSprintView('all');
+      }
+    }
+  }, [board, sprintView]);
+
   /**
    * Por columna: primero filtro (menú), luego orden de vista (menú).
    * El store sigue guardando el orden real (`task.order`) para cuando vuelves a “manual”.
@@ -186,17 +293,36 @@ export const BoardPage = () => {
     for (let i = 0; i < board.columns.length; i++) {
       const column = board.columns[i];
       const afterFilter = applyBoardTaskFilter(column.tasks ?? [], taskFilter);
+      let forSprintView = afterFilter;
+      if (
+        board.sprintsEnabled === true &&
+        sprintView === 'active' &&
+        typeof board.activeSprintId === 'string' &&
+        board.activeSprintId.length > 0
+      ) {
+        const activeId = board.activeSprintId;
+        const onlySprint: Task[] = [];
+        for (let taskIndex = 0; taskIndex < afterFilter.length; taskIndex++) {
+          const taskRow = afterFilter[taskIndex];
+          if (taskRow.sprintId === activeId) {
+            onlySprint.push(taskRow);
+          }
+        }
+        forSprintView = onlySprint;
+      }
       const visibleTasks = sortTasksForBoardView(
-        afterFilter,
+        forSprintView,
         sortKey,
         sortDirection,
       );
       out.push({ column, visibleTasks });
     }
     return out;
-  }, [board, taskFilter, sortKey, sortDirection]);
+  }, [board, taskFilter, sortKey, sortDirection, sprintView]);
 
+  /** Vista sprint activo = filtro visual; las tareas siguen siendo las mismas en el backend (cf. sprint cerrado = solo lectura). */
   const taskDragLocked = shouldLockTaskDrag(taskFilter, sortKey);
+  const columnDragLocked = sprintView !== 'all';
 
   /** Detección de colisión custom: columnas solo contra columnas al reordenar. */
   const collisionDetection = useMemo(
@@ -239,6 +365,9 @@ export const BoardPage = () => {
 
     // --- Reorden de columnas ---
     if (activeType === 'Column') {
+      if (columnDragLocked) {
+        return;
+      }
       // Índices actual y destino dentro del orden visual de columnas.
       const oldIndex = columnIndexById(board.columns, activeId);
       const newIndex = columnIndexById(board.columns, overId);
@@ -333,18 +462,30 @@ export const BoardPage = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-surface-100 dark:bg-surface-950">
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-surface-200 bg-surface-50 px-4 py-3 sm:px-6 sm:py-4 lg:px-8 dark:border-surface-800 dark:bg-surface-900">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <h1 className="min-w-0 truncate text-xl font-bold text-surface-900 dark:text-surface-50">
-            {board.title}
-          </h1>
-          {!canEdit && (
-            <span className="hidden shrink-0 rounded-md border border-surface-200 bg-surface-100 px-2 py-0.5 text-xs font-medium text-surface-600 sm:inline dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400">
-              Solo lectura
-            </span>
-          )}
+      <header className="relative z-10 flex shrink-0 flex-col gap-3 border-b border-surface-200 bg-surface-50 px-4 py-3 sm:px-6 sm:py-4 lg:px-8 dark:border-surface-800 dark:bg-surface-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="min-w-0 truncate text-xl font-bold text-surface-900 dark:text-surface-50">
+              {board.title}
+            </h1>
+            {!canEdit && (
+              <span className="hidden shrink-0 rounded-md border border-surface-200 bg-surface-100 px-2 py-0.5 text-xs font-medium text-surface-600 sm:inline dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400">
+                Solo lectura
+              </span>
+            )}
+          </div>
+          {board.sprintsEnabled === true && slug ? (
+            <BoardSprintHeaderControls
+              ref={sprintHeaderRef}
+              board={board}
+              slug={slug}
+              canEdit={canEdit}
+              sprintView={sprintView}
+              onSprintViewChange={setSprintView}
+            />
+          ) : null}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -390,6 +531,10 @@ export const BoardPage = () => {
                 user={user}
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
+                onViewClosedSprint={(sprintId) => {
+                  setSprintView(`closed:${sprintId}` as SprintViewValue);
+                  setSettingsOpen(false);
+                }}
               />
             </>
           )}
@@ -430,6 +575,20 @@ export const BoardPage = () => {
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-100 dark:bg-surface-950">
+        {selectedClosedSprintRecord ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ClosedSprintHistoryView
+              record={selectedClosedSprintRecord}
+              flowNav={closedSprintFlowNav}
+              onSelectClosedSprint={(sprintId) =>
+                setSprintView(`closed:${sprintId}` as SprintViewValue)
+              }
+              onStartNextSprint={() =>
+                sprintHeaderRef.current?.openNewSprintDialog()
+              }
+            />
+          </div>
+        ) : (
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetection}
@@ -445,6 +604,7 @@ export const BoardPage = () => {
                     column={column}
                     visibleTasks={visibleTasks}
                     taskDragDisabled={taskDragLocked}
+                    columnDragDisabled={columnDragLocked}
                     boardId={board._id}
                     canEdit={canEdit}
                   />
@@ -468,6 +628,7 @@ export const BoardPage = () => {
             )}
           </DragOverlay>
         </DndContext>
+        )}
       </main>
     </div>
   );

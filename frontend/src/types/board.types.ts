@@ -49,6 +49,11 @@ export interface Task {
   storyPointVotingStatus?: StoryPointVotingStatus;
   /** Votos crudos (pueden venir ocultos por API de resumen). */
   storyPointVotes?: { userId: string; value: number }[];
+  /** Present when the board runs sprints and this task is tagged to the active sprint. */
+  sprintId?: string;
+  /** Present only in archive endpoints; hidden from normal board views. */
+  archivedAt?: string;
+  archivedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,11 +77,64 @@ export interface StoryPointVotingState {
   votes: StoryPointVoteSummary[];
 }
 
+export type BoardColumnKind = 'workflow' | 'done' | 'archived';
+
 export interface Column {
   _id: string;
   title: string;
   order: string;
-  tasks?: Task[]; 
+  /** How this column counts when a sprint closes (`done` and `archived` = completed). */
+  columnKind?: BoardColumnKind;
+  tasks?: Task[];
+}
+
+/** Columna oculta del tablero (`PATCH .../archive`); distinto de `columnKind === 'archived'`. */
+export interface ArchivedBoardColumnSummary {
+  _id: string;
+  title: string;
+  order: string;
+  columnKind?: BoardColumnKind;
+  archivedAt: string;
+  archivedBy?: string;
+}
+
+/** Row stored while a sprint is active (at most one per board). */
+export interface BoardSprintSummary {
+  _id: string;
+  name: string;
+  startedAt: string;
+  /** Planned end (ISO); real end is `closedAt` on the history record. */
+  plannedEndAt?: string;
+  /** Foco u objetivo del sprint (opcional). */
+  objective?: string;
+}
+
+/** Frozen task row inside a closed sprint report. */
+export interface ClosedSprintTaskSnapshot {
+  taskId: string;
+  title: string;
+  columnId: string;
+  columnTitleAtClose: string;
+  wasCompleted: boolean;
+  storyPointsWhenDone?: number;
+  /** ISO: última actualización de la tarea al cerrar (aprox. actividad; gráficos). */
+  taskUpdatedAtAtClose?: string;
+  /** IDs de asignados al momento de cierre del sprint (para métricas por persona). */
+  assigneeIdsAtClose?: string[];
+  /** Etiquetas de la tarea al cerrar el sprint (sprints cerrados desde esta versión). */
+  labelsAtClose?: TaskLabel[];
+}
+
+/** One closed sprint with its saved task list. */
+export interface ClosedSprintRecord {
+  sprintId: string;
+  sprintName: string;
+  closedAt: string;
+  startedAt?: string;
+  plannedEndAt?: string;
+  /** Objetivo guardado al cerrar el sprint (si existía). */
+  objective?: string;
+  taskSnapshots: ClosedSprintTaskSnapshot[];
 }
 
 export interface BoardMember {
@@ -92,6 +150,13 @@ export interface Board {
   owner: string;
   members: BoardMember[];
   columns: Column[];
+  /** Columnas archivadas (no visibles en el tablero). */
+  archivedColumns?: ArchivedBoardColumnSummary[];
+  /** Board admins enable sprint mode in settings. */
+  sprintsEnabled?: boolean;
+  sprints?: BoardSprintSummary[];
+  activeSprintId?: string;
+  closedSprintRecords?: ClosedSprintRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -103,6 +168,8 @@ export interface CreateTaskPayload {
   boardId: string;
   columnId: string;
   order: string;
+  /** When set, task is tagged to this sprint (must be the board active sprint). */
+  sprintId?: string;
 }
 
 export interface UpdateTaskPositionPayload {
@@ -119,6 +186,7 @@ export interface CreateBoardPayload {
 export interface UpdateBoardPayload {
   title?: string;
   description?: string;
+  sprintsEnabled?: boolean;
 }
 
 /** `_id` del documento en Mongo (PATCH/DELETE /boards/:id). */

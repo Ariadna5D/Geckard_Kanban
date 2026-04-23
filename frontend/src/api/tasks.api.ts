@@ -12,6 +12,14 @@ export const getTasksByBoardRequest = async (boardId: string): Promise<Task[]> =
   return response.data;
 };
 
+/** Devuelve solo tareas archivadas del tablero (panel de archivo). */
+export const getArchivedTasksByBoardRequest = async (
+  boardId: string,
+): Promise<Task[]> => {
+  const response = await api.get(`/tasks/board/${boardId}/archived`);
+  return response.data;
+};
+
 /** Crea tarea en columna concreta. */
 export const createTaskRequest = async (data: CreateTaskPayload): Promise<Task> => {
   const response = await api.post('/tasks', data);
@@ -27,15 +35,29 @@ export const updateTaskPosition = async (
   return response.data;
 };
 
-/** Actualiza campos editables de tarea (title, description, labels, etc.). */
-export const updateTaskRequest = async (taskId: string, data: Partial<Task>): Promise<Task> => {
+/** Actualiza campos editables de tarea (title, description, labels, sprintId con null para quitar, etc.). */
+export const updateTaskRequest = async (
+  taskId: string,
+  data: Partial<Task> & { sprintId?: string | null },
+): Promise<Task> => {
   const response = await api.patch(`/tasks/${taskId}`, data);
   return response.data;
 };
 
-/** Borra tarea por id. */
+/** Archiva tarea por id (sale del tablero principal). */
 export const deleteTaskRequest = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
+};
+
+/** Restaura una tarea archivada al tablero. */
+export const restoreTaskRequest = async (taskId: string): Promise<Task> => {
+  const response = await api.patch(`/tasks/${taskId}/restore`);
+  return response.data;
+};
+
+/** Borrado definitivo (solo admin/owner). */
+export const purgeTaskRequest = async (taskId: string): Promise<void> => {
+  await api.delete(`/tasks/${taskId}/purge`);
 };
 
 /** Lee estado de votación de story points de una tarea. */

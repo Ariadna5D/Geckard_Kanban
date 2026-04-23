@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import type { BoardMemberSummary } from '@/types/board.types';
 import { cn } from '@/lib/utils';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailPersonasSection({
   readOnly,
@@ -68,21 +69,30 @@ export function TaskDetailPersonasSection({
 
         {!readOnly && (
           <div className="space-y-2 border-t border-surface-200 pt-3 dark:border-surface-700">
-            <Label
-              htmlFor="task-assignee-search"
-              className="text-sm font-semibold text-surface-800 dark:text-surface-200"
-            >
-              Buscar y añadir
-            </Label>
+            <div className="flex items-center gap-1.5">
+              <Label
+                htmlFor="task-assignee-search"
+                className="text-sm font-semibold text-surface-800 dark:text-surface-200"
+              >
+                Buscar y añadir
+              </Label>
+              <TaskDetailInfoTip
+                label="Búsqueda de asignados"
+                side="right"
+                text="Escribe al menos 2 caracteres del nombre o del email. Solo aparecen miembros del tablero que aún no estén asignados a esta tarea."
+              />
+            </div>
             {boardMembers.length === 0 ? (
-              <p className="text-xs text-surface-500 dark:text-surface-400">
-                Este tablero aún no tiene otros miembros.
-              </p>
+              <div className="flex items-center gap-1.5 text-xs text-surface-500 dark:text-surface-400">
+                <span>Sin otros miembros en el tablero.</span>
+                <TaskDetailInfoTip
+                  label="Miembros del tablero"
+                  side="right"
+                  text="Para asignar a alguien, tiene que ser miembro del tablero. Invítalos desde Compartir en la cabecera del tablero."
+                />
+              </div>
             ) : (
               <>
-                <p className="text-xs text-surface-500 dark:text-surface-400">
-                  Mín. 2 caracteres; solo miembros del tablero.
-                </p>
                 <Input
                   id="task-assignee-search"
                   autoComplete="off"
@@ -93,10 +103,14 @@ export function TaskDetailPersonasSection({
                 />
                 {assigneeSearchQuery.trim().length >= 2 &&
                   assigneePickCandidates.length === 0 && (
-                    <p className="text-muted-foreground text-xs">
-                      No quedan miembros con ese criterio (o ya están
-                      asignados).
-                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>Sin coincidencias.</span>
+                      <TaskDetailInfoTip
+                        label="Por qué no hay resultados"
+                        side="right"
+                        text="No hay miembros del tablero que coincidan con la búsqueda, o ya están todos asignados a esta tarea."
+                      />
+                    </div>
                   )}
                 {assigneePickCandidates.length > 0 && (
                   <ul

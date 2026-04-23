@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { TASK_LABEL_COLORS, taskLabelColorClasses } from '@/constants/taskLabels';
 import type { TaskLabel, TaskLabelColor } from '@/types/board.types';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailLabelsSection({
   readOnly,
@@ -38,7 +39,20 @@ export function TaskDetailLabelsSection({
   onReuseBoardLabel: (label: TaskLabel) => void;
 }) {
   return (
-    <TaskDetailSection title="Etiquetas" icon={Tag} defaultOpen>
+    <TaskDetailSection
+      title="Etiquetas"
+      icon={Tag}
+      defaultOpen
+      titleAccessory={
+        !readOnly ? (
+          <TaskDetailInfoTip
+            label="Cómo añadir etiquetas"
+            side="left"
+            text="Hasta 6 etiquetas por tarea. Pulsa Enter o el botón + para añadir. Elige el color con los cuadrados debajo del campo."
+          />
+        ) : null
+      }
+    >
       <div className="space-y-2">
         <div className="flex flex-wrap gap-1.5">
           {editLabels.map((label, idx) => (
@@ -74,8 +88,8 @@ export function TaskDetailLabelsSection({
                 value={newLabelName}
                 onChange={onNewLabelNameChange}
                 onKeyDown={onNewLabelKeyDown}
-                placeholder="Etiqueta (máx. 6, Enter)"
-                className="h-10 bg-surface-50 text-sm shadow-sm focus-visible:ring-ring dark:bg-surface-900"
+                placeholder="Nueva etiqueta"
+                className="h-10 min-w-0 flex-1 bg-surface-50 text-sm shadow-sm focus-visible:ring-ring dark:bg-surface-900"
               />
               <Button
                 type="button"
@@ -126,9 +140,14 @@ export function TaskDetailLabelsSection({
             </div>
             {boardLabelSuggestions.length > 0 && (
               <div className="space-y-1">
-                <p className="text-xs text-surface-500 dark:text-surface-400">
-                  Del tablero:
-                </p>
+                <div className="flex items-center gap-1 text-xs font-medium text-surface-600 dark:text-surface-400">
+                  <span>Sugerencias del tablero</span>
+                  <TaskDetailInfoTip
+                    label="Sugerencias de etiquetas"
+                    side="right"
+                    text="Etiquetas que ya aparecen en otras tareas de este tablero. Un clic reutiliza nombre y color."
+                  />
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {boardLabelSuggestions.map((label, idx) => (
                     <button

@@ -86,6 +86,26 @@ export class TasksController {
   }
 
   /**
+   * Devuelve solo tareas archivadas del tablero (panel de archivo).
+   */
+  @Get('board/:boardId/archived')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamBoardId)
+  @CheckBoardPolicies(canReadTask)
+  @ApiOperation({ summary: 'Obtener tareas archivadas de un tablero' })
+  @ApiParam({ name: 'boardId', type: 'string', description: 'ID del tablero' })
+  findArchivedByBoard(
+    @Param('boardId', ParseObjectIdPipe) boardId: Types.ObjectId,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.tasksService.findArchivedByBoard(
+      boardId.toString(),
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
    * Cambia título, descripción, prioridad, etc. (no mueve de columna).
    */
   @Patch(':id')
@@ -131,20 +151,61 @@ export class TasksController {
   }
 
   /**
-   * Borra la tarjeta del tablero.
+   * Archiva la tarjeta (sale del tablero principal, pero se puede restaurar).
    */
   @Delete(':id')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.TaskParamId)
   @CheckBoardPolicies(canDeleteTask)
-  @ApiOperation({ summary: 'Eliminar una tarea' })
-  @ApiResponse({ status: 204, description: 'Tarea fulminada.' })
+  @ApiOperation({ summary: 'Archivar una tarea' })
+  @ApiResponse({ status: 204, description: 'Tarea archivada.' })
   @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' })
   remove(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Request() req: ValidatedRequest,
   ) {
     return this.tasksService.remove(
+      id.toString(),
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Restaura una tarea archivada para volver a verla en el tablero.
+   */
+  @Patch(':id/restore')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.TaskParamId)
+  @CheckBoardPolicies(canUpdateTask)
+  @ApiOperation({ summary: 'Restaurar una tarea archivada' })
+  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' })
+  restore(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.tasksService.restore(
+      id.toString(),
+      req.user.sub,
+      req.user.role === 'admin',
+    );
+  }
+
+  /**
+   * Borra definitivamente una tarea archivada (admin/owner del tablero).
+   */
+  @Delete(':id/purge')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.TaskParamId)
+  @CheckBoardPolicies(canDeleteTask)
+  @ApiOperation({ summary: 'Borrar permanentemente una tarea archivada' })
+  @ApiResponse({ status: 204, description: 'Tarea eliminada permanentemente.' })
+  @ApiParam({ name: 'id', type: 'string', description: 'ID de la tarea' })
+  purge(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Request() req: ValidatedRequest,
+  ) {
+    return this.tasksService.purge(
       id.toString(),
       req.user.sub,
       req.user.role === 'admin',

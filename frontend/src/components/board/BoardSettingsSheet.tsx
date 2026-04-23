@@ -2,13 +2,21 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import {
+  ArchiveRestore,
   ArrowLeft,
+  Check,
+  ChevronRight,
+  Info,
   Keyboard,
+  LayoutGrid,
   LogOut,
   Loader2,
   Pencil,
+  Search,
   Trash2,
   Users,
+  Flag,
+  X,
 } from "lucide-react";
 import {
   Sheet,
@@ -34,11 +42,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  type ArchivedBoardColumnSummary,
   type Board,
   type BoardInviteRole,
   type BoardMemberSummary,
+  type ClosedSprintRecord,
+  type Task,
   boardOwnerUserId,
   canDeleteBoard,
+  canEditBoardContent,
   canEditBoardSettings,
   canManageBoardMembers,
   canMemberLeaveBoard,
@@ -49,14 +61,27 @@ import {
   getBoardMembersRequest,
   leaveBoardRequest,
   updateBoardRequest,
+  type UpdateActiveSprintPayload,
 } from "@/api/boards.api";
 import {
   useActiveBoardStore,
   type ActiveBoardState,
 } from "@/store/useActiveBoardStore";
 import { BoardInviteBlock } from "./BoardInviteBlock";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-type Panel = "menu" | "edit" | "members" | "shortcuts";
+type Panel =
+  | "menu"
+  | "edit"
+  | "members"
+  | "shortcuts"
+  | "sprints"
+  | "archivedTasks"
+  | "archivedColumns";
 
 const MANAGEABLE_ROLES: { value: BoardInviteRole; label: string }[] = [
   { value: "admin", label: "Administrador" },
@@ -149,6 +174,36 @@ function selectRemoveBoardMember(state: ActiveBoardState) {
   return state.removeBoardMember;
 }
 
+function isoToDateInput(iso: string | undefined): string {
+  if (!iso) {
+    return "";
+  }
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateInputToIsoStart(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return new Date(`${trimmed}T08:00:00`).toISOString();
+}
+
+function dateInputToIsoEnd(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return new Date(`${trimmed}T23:59:59`).toISOString();
+}
+
 function apiErr(e: unknown): string {
   if (isAxiosError(e)) {
     const errorBody = e.response?.data as { message?: string | string[] };
@@ -165,6 +220,8 @@ type Props = {
   user: { id: string; role: string };
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Cierra el sheet y muestra el resumen del sprint cerrado en el tablero. */
+  onViewClosedSprint?: (sprintId: string) => void;
 };
 
 export function BoardSettingsSheet({
@@ -173,10 +230,33 @@ export function BoardSettingsSheet({
   user,
   open,
   onOpenChange,
+  onViewClosedSprint,
 }: Props) {
   const navigate = useNavigate();
   const inviteMember = useActiveBoardStore(selectInviteMember);
   const removeBoardMember = useActiveBoardStore(selectRemoveBoardMember);
+  const fetchBoard = useActiveBoardStore((state) => state.fetchBoard);
+  const archivedTasks = useActiveBoardStore((state) => state.archivedTasks);
+  const loadArchivedTasks = useActiveBoardStore((state) => state.loadArchivedTasks);
+  const restoreArchivedTask = useActiveBoardStore(
+    (state) => state.restoreArchivedTask,
+  );
+  const purgeArchivedTask = useActiveBoardStore((state) => state.purgeArchivedTask);
+  const restoreArchivedColumn = useActiveBoardStore(
+    (state) => state.restoreArchivedColumn,
+  );
+  const purgeArchivedColumn = useActiveBoardStore(
+    (state) => state.purgeArchivedColumn,
+  );
+  const updateActiveSprintBoard = useActiveBoardStore(
+    (state) => state.updateActiveSprintBoard,
+  );
+  const updateClosedSprintHistoryBoard = useActiveBoardStore(
+    (state) => state.updateClosedSprintHistoryBoard,
+  );
+  const deleteClosedSprintHistoryBoard = useActiveBoardStore(
+    (state) => state.deleteClosedSprintHistoryBoard,
+  );
 
   const [panel, setPanel] = useState<Panel>("menu");
   const [editTitle, setEditTitle] = useState(board.title);
@@ -202,7 +282,41 @@ export function BoardSettingsSheet({
   );
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [sprintsToggleBusy, setSprintsToggleBusy] = useState(false);
+  const [sprintsPanelError, setSprintsPanelError] = useState<string | null>(
+    null,
+  );
+  const [activeSprintNameDraft, setActiveSprintNameDraft] = useState("");
+  const [activeSprintStartDraft, setActiveSprintStartDraft] = useState("");
+  const [activeSprintEndDraft, setActiveSprintEndDraft] = useState("");
+  const [activeSprintObjectiveDraft, setActiveSprintObjectiveDraft] =
+    useState("");
+  const [activeSprintSaveBusy, setActiveSprintSaveBusy] = useState(false);
+  const [closedNameDrafts, setClosedNameDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [closedRowBusy, setClosedRowBusy] = useState<string | null>(null);
+  const [deleteClosedTarget, setDeleteClosedTarget] =
+    useState<ClosedSprintRecord | null>(null);
+  const [deleteClosedBusy, setDeleteClosedBusy] = useState(false);
+  const [editingClosedSprintId, setEditingClosedSprintId] = useState<
+    string | null
+  >(null);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState<string | null>(null);
+  const [archivedQuery, setArchivedQuery] = useState("");
+  const [archivedRowBusy, setArchivedRowBusy] = useState<string | null>(null);
+  const [archivedPurgeTarget, setArchivedPurgeTarget] = useState<Task | null>(null);
+  const [archivedPurgeBusy, setArchivedPurgeBusy] = useState(false);
+  const [archivedColumnsError, setArchivedColumnsError] = useState<string | null>(
+    null,
+  );
+  const [columnRowBusy, setColumnRowBusy] = useState<string | null>(null);
+  const [columnPurgeTarget, setColumnPurgeTarget] =
+    useState<ArchivedBoardColumnSummary | null>(null);
+  const [columnPurgeBusy, setColumnPurgeBusy] = useState(false);
 
+  const canEditContent = canEditBoardContent(board, user);
   const canSettings = canEditBoardSettings(board, user);
   const canDelete = canDeleteBoard(board, user);
   /** Invitar / roles / expulsar: propietario, admin del tablero o admin de la app — no editores ni lectores. */
@@ -217,6 +331,15 @@ export function BoardSettingsSheet({
       setListError(null);
       setExpelTarget(null);
       setSheetDangerError('');
+      setSprintsPanelError(null);
+      setEditingClosedSprintId(null);
+      setArchivedError(null);
+      setArchivedQuery("");
+      setArchivedRowBusy(null);
+      setArchivedPurgeTarget(null);
+      setArchivedColumnsError(null);
+      setColumnRowBusy(null);
+      setColumnPurgeTarget(null);
     }
   }, [open]);
 
@@ -226,6 +349,39 @@ export function BoardSettingsSheet({
       setEditDescription(board.description ?? "");
     }
   }, [open, board.title, board.description]);
+
+  useEffect(() => {
+    if (!open || panel !== "sprints") {
+      return;
+    }
+    const activeId = board.activeSprintId;
+    const sprintRows = board.sprints ?? [];
+    let activeRow = null;
+    for (let index = 0; index < sprintRows.length; index++) {
+      if (activeId && sprintRows[index]._id === activeId) {
+        activeRow = sprintRows[index];
+        break;
+      }
+    }
+    if (activeRow) {
+      setActiveSprintNameDraft(activeRow.name);
+      setActiveSprintStartDraft(isoToDateInput(activeRow.startedAt));
+      setActiveSprintEndDraft(isoToDateInput(activeRow.plannedEndAt));
+      setActiveSprintObjectiveDraft(activeRow.objective ?? "");
+    } else {
+      setActiveSprintNameDraft("");
+      setActiveSprintStartDraft("");
+      setActiveSprintEndDraft("");
+      setActiveSprintObjectiveDraft("");
+    }
+    const nextDrafts: Record<string, string> = {};
+    const closedList = board.closedSprintRecords ?? [];
+    for (let index = 0; index < closedList.length; index++) {
+      const record = closedList[index];
+      nextDrafts[record.sprintId] = record.sprintName;
+    }
+    setClosedNameDrafts(nextDrafts);
+  }, [open, panel, board.activeSprintId, board.sprints, board.closedSprintRecords]);
 
   const loadMembers = useCallback(async function loadMembers(
     opts?: { showSpinner?: boolean },
@@ -265,6 +421,36 @@ export function BoardSettingsSheet({
     if (!open || panel !== "members" || !boardDocId) return;
     void loadMembers({ showSpinner: true });
   }, [open, panel, boardDocId, loadMembers]);
+
+  useEffect(() => {
+    if (!open || panel !== "archivedTasks") {
+      return;
+    }
+    if (boardDocId == null || boardDocId === "") {
+      return;
+    }
+    const idForArchivedTasks: string = boardDocId;
+    let cancelled = false;
+    async function loadArchivedRows() {
+      setArchivedLoading(true);
+      setArchivedError(null);
+      try {
+        await loadArchivedTasks(idForArchivedTasks);
+      } catch (errorUnknown) {
+        if (!cancelled) {
+          setArchivedError(apiErr(errorUnknown));
+        }
+      } finally {
+        if (!cancelled) {
+          setArchivedLoading(false);
+        }
+      }
+    }
+    void loadArchivedRows();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, panel, boardDocId, loadArchivedTasks]);
 
   const handleSaveBoard = async () => {
     if (!boardDocId || !editTitle.trim()) return;
@@ -374,6 +560,7 @@ export function BoardSettingsSheet({
   function handleBackToMenu() {
     setPanel("menu");
     setListError(null);
+    setEditingClosedSprintId(null);
   }
 
   function handleOpenEditPanel() {
@@ -391,6 +578,166 @@ export function BoardSettingsSheet({
 
   function handleOpenShortcutsPanel() {
     setPanel("shortcuts");
+  }
+
+  function handleOpenSprintsPanel() {
+    setSprintsPanelError(null);
+    setEditingClosedSprintId(null);
+    setPanel("sprints");
+  }
+
+  function handleOpenArchivedTasksPanel() {
+    setArchivedError(null);
+    setArchivedQuery("");
+    setPanel("archivedTasks");
+  }
+
+  function handleOpenArchivedColumnsPanel() {
+    setArchivedColumnsError(null);
+    setPanel("archivedColumns");
+  }
+
+  async function handleRestoreArchivedBoardColumn(columnId: string) {
+    if (!boardDocId) return;
+    setColumnRowBusy(columnId);
+    setArchivedColumnsError(null);
+    try {
+      await restoreArchivedColumn(boardDocId, columnId);
+    } catch (errorUnknown) {
+      setArchivedColumnsError(apiErr(errorUnknown));
+    } finally {
+      setColumnRowBusy(null);
+    }
+  }
+
+  async function handleConfirmPurgeArchivedColumn() {
+    if (!boardDocId || !columnPurgeTarget) {
+      return;
+    }
+    setColumnPurgeBusy(true);
+    setArchivedColumnsError(null);
+    try {
+      await purgeArchivedColumn(boardDocId, columnPurgeTarget._id);
+      setColumnPurgeTarget(null);
+    } catch (errorUnknown) {
+      setArchivedColumnsError(apiErr(errorUnknown));
+    } finally {
+      setColumnPurgeBusy(false);
+    }
+  }
+
+  async function handleSprintsEnabledChange(nextEnabled: boolean) {
+    if (!boardDocId) {
+      return;
+    }
+    setSprintsToggleBusy(true);
+    setSprintsPanelError(null);
+    try {
+      await updateBoardRequest(boardDocId, {
+        sprintsEnabled: nextEnabled,
+      });
+      await useActiveBoardStore.getState().fetchBoard(slug, { silent: true });
+    } catch (errorUnknown) {
+      setSprintsPanelError(apiErr(errorUnknown));
+    } finally {
+      setSprintsToggleBusy(false);
+    }
+  }
+
+  async function handleSaveActiveSprintSettings() {
+    if (!boardDocId || !board.activeSprintId) {
+      return;
+    }
+    const trimmedName = activeSprintNameDraft.trim();
+    if (!trimmedName) {
+      setSprintsPanelError("El nombre del sprint no puede estar vacío.");
+      return;
+    }
+    setActiveSprintSaveBusy(true);
+    setSprintsPanelError(null);
+    try {
+      const payload: UpdateActiveSprintPayload = { name: trimmedName };
+      const startedIso = dateInputToIsoStart(activeSprintStartDraft);
+      const endIso = dateInputToIsoEnd(activeSprintEndDraft);
+      if (startedIso !== undefined) {
+        payload.startedAt = startedIso;
+      }
+      if (endIso !== undefined) {
+        payload.plannedEndAt = endIso;
+      }
+      payload.objective = activeSprintObjectiveDraft.trim();
+      await updateActiveSprintBoard(
+        boardDocId,
+        board.activeSprintId,
+        payload,
+      );
+      await fetchBoard(slug, { silent: true });
+    } catch (errorUnknown) {
+      setSprintsPanelError(apiErr(errorUnknown));
+    } finally {
+      setActiveSprintSaveBusy(false);
+    }
+  }
+
+  async function handleSaveClosedSprintName(sprintId: string) {
+    if (!boardDocId) {
+      return;
+    }
+    const trimmedName = (closedNameDrafts[sprintId] ?? "").trim();
+    if (!trimmedName) {
+      setSprintsPanelError("El nombre no puede estar vacío.");
+      return;
+    }
+    setClosedRowBusy(sprintId);
+    setSprintsPanelError(null);
+    try {
+      await updateClosedSprintHistoryBoard(boardDocId, sprintId, trimmedName);
+      await fetchBoard(slug, { silent: true });
+      setEditingClosedSprintId((current) =>
+        current === sprintId ? null : current,
+      );
+    } catch (errorUnknown) {
+      setSprintsPanelError(apiErr(errorUnknown));
+    } finally {
+      setClosedRowBusy(null);
+    }
+  }
+
+  function handleStartClosedSprintEdit(record: ClosedSprintRecord) {
+    setEditingClosedSprintId(record.sprintId);
+    setClosedNameDrafts((previous) => ({
+      ...previous,
+      [record.sprintId]: record.sprintName,
+    }));
+  }
+
+  function handleCancelClosedSprintEdit() {
+    setEditingClosedSprintId(null);
+  }
+
+  function handleViewClosedSprintSummary(sprintId: string) {
+    onViewClosedSprint?.(sprintId);
+    onOpenChange(false);
+  }
+
+  async function handleConfirmDeleteClosedSprint() {
+    if (!boardDocId || !deleteClosedTarget) {
+      return;
+    }
+    setDeleteClosedBusy(true);
+    setSprintsPanelError(null);
+    try {
+      await deleteClosedSprintHistoryBoard(
+        boardDocId,
+        deleteClosedTarget.sprintId,
+      );
+      setDeleteClosedTarget(null);
+      await fetchBoard(slug, { silent: true });
+    } catch (errorUnknown) {
+      setSprintsPanelError(apiErr(errorUnknown));
+    } finally {
+      setDeleteClosedBusy(false);
+    }
   }
 
   function handleOpenLeaveDialog() {
@@ -441,6 +788,34 @@ export function BoardSettingsSheet({
     void handleConfirmLeave();
   }
 
+  async function handleRestoreArchivedTask(taskId: string) {
+    setArchivedRowBusy(taskId);
+    setArchivedError(null);
+    try {
+      await restoreArchivedTask(taskId);
+    } catch (errorUnknown) {
+      setArchivedError(apiErr(errorUnknown));
+    } finally {
+      setArchivedRowBusy(null);
+    }
+  }
+
+  async function handleConfirmPurgeArchivedTask() {
+    if (!archivedPurgeTarget) {
+      return;
+    }
+    setArchivedPurgeBusy(true);
+    setArchivedError(null);
+    try {
+      await purgeArchivedTask(archivedPurgeTarget._id);
+      setArchivedPurgeTarget(null);
+    } catch (errorUnknown) {
+      setArchivedError(apiErr(errorUnknown));
+    } finally {
+      setArchivedPurgeBusy(false);
+    }
+  }
+
   return (
     <>
       <Sheet
@@ -470,6 +845,9 @@ export function BoardSettingsSheet({
                 {panel === "edit" && "Editar tablero"}
                 {panel === "members" && "Participantes"}
                 {panel === "shortcuts" && "Atajos de teclado"}
+                {panel === "sprints" && "Sprints"}
+                {panel === "archivedTasks" && "Tareas archivadas"}
+                {panel === "archivedColumns" && "Columnas archivadas"}
               </SheetTitle>
             </div>
             {panel === "menu" && (
@@ -543,6 +921,544 @@ export function BoardSettingsSheet({
                 <Keyboard className="size-4 shrink-0 opacity-80" />
                 <span className="text-left">Atajos de teclado</span>
               </Button>
+              {canEditContent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 py-3"
+                  onClick={handleOpenArchivedTasksPanel}
+                >
+                  <ArchiveRestore className="size-4 shrink-0 opacity-80" />
+                  <span className="text-left">Tareas archivadas</span>
+                </Button>
+              )}
+              {canEditContent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 py-3"
+                  onClick={handleOpenArchivedColumnsPanel}
+                >
+                  <LayoutGrid className="size-4 shrink-0 opacity-80" />
+                  <span className="text-left">Columnas archivadas</span>
+                </Button>
+              )}
+              {canSettings && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 py-3"
+                  onClick={handleOpenSprintsPanel}
+                >
+                  <Flag className="size-4 shrink-0 opacity-80" />
+                  <span className="text-left">Sprints</span>
+                </Button>
+              )}
+            </div>
+          )}
+
+          {panel === "archivedTasks" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="shrink-0 border-b border-surface-200 p-4 dark:border-surface-800">
+                <div className="relative">
+                  <Search
+                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+                    aria-hidden
+                  />
+                  <Input
+                    value={archivedQuery}
+                    onChange={(event) => setArchivedQuery(event.target.value)}
+                    placeholder="Buscar por título..."
+                    className="pl-8"
+                  />
+                </div>
+                {archivedError ? (
+                  <p className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {archivedError}
+                  </p>
+                ) : null}
+              </div>
+              {archivedLoading ? (
+                <div className="flex flex-1 items-center justify-center p-8">
+                  <Loader2 className="text-muted-foreground size-8 animate-spin" />
+                </div>
+              ) : (
+                <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                  {(() => {
+                    const queryLower = archivedQuery.trim().toLowerCase();
+                    const rows = archivedTasks.filter((task) =>
+                      queryLower.length === 0
+                        ? true
+                        : task.title.toLowerCase().includes(queryLower),
+                    );
+                    if (rows.length === 0) {
+                      return (
+                        <li className="text-muted-foreground rounded-lg border border-surface-200 bg-surface-100/70 px-4 py-6 text-center text-sm dark:border-surface-700 dark:bg-surface-950/40">
+                          No hay tareas archivadas que coincidan.
+                        </li>
+                      );
+                    }
+                    return rows.map((task) => {
+                      const busy = archivedRowBusy === task._id;
+                      const archivedLabel = task.archivedAt
+                        ? new Date(task.archivedAt).toLocaleDateString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—";
+                      return (
+                        <li
+                          key={task._id}
+                          className="rounded-lg border border-surface-200 bg-surface-100/80 p-3 dark:border-surface-700 dark:bg-surface-950/40"
+                        >
+                          <p className="truncate font-medium text-surface-900 dark:text-surface-50">
+                            {task.title}
+                          </p>
+                          <p className="text-muted-foreground mt-1 text-xs">
+                            Archivada: {archivedLabel}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {canEditContent ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                disabled={busy || archivedPurgeBusy}
+                                onClick={() =>
+                                  void handleRestoreArchivedTask(task._id)
+                                }
+                              >
+                                {busy ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  "Restaurar"
+                                )}
+                              </Button>
+                            ) : null}
+                            {canSettings ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-danger/40 text-danger hover:bg-danger/10 dark:hover:bg-danger/15"
+                                disabled={busy || archivedPurgeBusy}
+                                onClick={() => setArchivedPurgeTarget(task)}
+                              >
+                                Borrar definitivamente
+                              </Button>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    });
+                  })()}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {panel === "archivedColumns" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+              {archivedColumnsError ? (
+                <p className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {archivedColumnsError}
+                </p>
+              ) : null}
+              <p className="text-muted-foreground mb-4 text-sm">
+                Las columnas archivadas no aparecen en el tablero. Restaurarlas
+                devuelve también las tareas que se archivaron al archivar la columna.
+                Solo los administradores del tablero pueden borrarlas definitivamente.
+              </p>
+              <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+                {(() => {
+                  const rows = board.archivedColumns ?? [];
+                  if (rows.length === 0) {
+                    return (
+                      <li className="text-muted-foreground rounded-lg border border-surface-200 bg-surface-100/70 px-4 py-6 text-center text-sm dark:border-surface-700 dark:bg-surface-950/40">
+                        No hay columnas archivadas.
+                      </li>
+                    );
+                  }
+                  return rows.map((col) => {
+                    const busy = columnRowBusy === col._id;
+                    const archivedLabel = col.archivedAt
+                      ? new Date(col.archivedAt).toLocaleDateString("es-ES", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—";
+                    return (
+                      <li
+                        key={col._id}
+                        className="rounded-lg border border-surface-200 bg-surface-100/80 p-3 dark:border-surface-700 dark:bg-surface-950/40"
+                      >
+                        <p className="truncate font-medium text-surface-900 dark:text-surface-50">
+                          {col.title}
+                        </p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          Archivada: {archivedLabel}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {canEditContent ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={busy || columnPurgeBusy}
+                              onClick={() =>
+                                void handleRestoreArchivedBoardColumn(col._id)
+                              }
+                            >
+                              {busy ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                "Restaurar"
+                              )}
+                            </Button>
+                          ) : null}
+                          {canSettings ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-danger/40 text-danger hover:bg-danger/10 dark:hover:bg-danger/15"
+                              disabled={busy || columnPurgeBusy}
+                              onClick={() => setColumnPurgeTarget(col)}
+                            >
+                              Borrar definitivamente
+                            </Button>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  });
+                })()}
+              </ul>
+            </div>
+          )}
+
+          {panel === "sprints" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+              {sprintsPanelError ? (
+                <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {sprintsPanelError}
+                </p>
+              ) : null}
+              <div className="rounded-lg border border-surface-200 bg-surface-100/80 p-4 dark:border-surface-700 dark:bg-surface-950/40">
+                <div className="mb-3 flex items-center gap-2 text-sm text-surface-800 dark:text-surface-100">
+                  <span>Habilita sprints para usar el flujo de sprint en este tablero.</span>
+                  <Tooltip delayDuration={250}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-surface-200/80 hover:text-surface-700 dark:hover:bg-surface-700/80 dark:hover:text-surface-200"
+                        aria-label="Más información sobre sprints"
+                      >
+                        <Info className="size-3.5" aria-hidden />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                      Los editores pueden iniciar/cerrar sprints. Marca columnas como
+                      <strong> Hecho</strong> para contar tareas al cierre. Si una
+                      columna se llama <strong>Hecho</strong> o <strong>Done</strong>,
+                      se marca automáticamente como Hecho.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 size-4 rounded border-surface-400"
+                    checked={board.sprintsEnabled === true}
+                    disabled={sprintsToggleBusy}
+                    onChange={(event) =>
+                      void handleSprintsEnabledChange(event.target.checked)
+                    }
+                  />
+                  <span className="text-sm leading-snug text-surface-800 dark:text-surface-100">
+                    Permitir sprints en este tablero
+                    {sprintsToggleBusy ? (
+                      <Loader2
+                        className="ml-2 inline size-4 animate-spin align-middle text-muted-foreground"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </span>
+                </label>
+              </div>
+
+              {board.activeSprintId ? (
+                <div className="rounded-lg border border-surface-200 bg-surface-100/80 p-4 dark:border-surface-700 dark:bg-surface-950/40">
+                  <h3 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Sprint activo
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="settings-active-sprint-name">Nombre</Label>
+                      <Input
+                        id="settings-active-sprint-name"
+                        value={activeSprintNameDraft}
+                        onChange={(event) =>
+                          setActiveSprintNameDraft(event.target.value)
+                        }
+                        maxLength={80}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="settings-active-sprint-start">
+                        Fecha de inicio
+                      </Label>
+                      <Input
+                        id="settings-active-sprint-start"
+                        type="date"
+                        value={activeSprintStartDraft}
+                        onChange={(event) =>
+                          setActiveSprintStartDraft(event.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="settings-active-sprint-end">
+                        Fecha de fin planificada
+                      </Label>
+                      <Input
+                        id="settings-active-sprint-end"
+                        type="date"
+                        value={activeSprintEndDraft}
+                        onChange={(event) =>
+                          setActiveSprintEndDraft(event.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="settings-active-sprint-objective">
+                        Objetivo del sprint
+                      </Label>
+                      <Textarea
+                        id="settings-active-sprint-objective"
+                        value={activeSprintObjectiveDraft}
+                        onChange={(event) =>
+                          setActiveSprintObjectiveDraft(event.target.value)
+                        }
+                        placeholder="Foco u objetivo de este sprint (opcional)"
+                        maxLength={2000}
+                        rows={3}
+                        className="min-h-[4.5rem] resize-y"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={activeSprintSaveBusy}
+                      onClick={() => void handleSaveActiveSprintSettings()}
+                    >
+                      {activeSprintSaveBusy ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        "Guardar cambios del sprint"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="min-h-0">
+                <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Sprints cerrados (historial)
+                </h3>
+                {(() => {
+                  const records = board.closedSprintRecords ?? [];
+                  if (records.length === 0) {
+                    return (
+                      <p className="text-muted-foreground mt-2 text-sm">
+                        Aún no hay sprints cerrados.
+                      </p>
+                    );
+                  }
+                  const ordered = records.slice().reverse();
+                  return (
+                    <ul className="mt-2 space-y-3 pr-1">
+                      {ordered.map((record) => {
+                        let completedPoints = 0;
+                        for (
+                          let snapshotIndex = 0;
+                          snapshotIndex < record.taskSnapshots.length;
+                          snapshotIndex++
+                        ) {
+                          const snapshot =
+                            record.taskSnapshots[snapshotIndex];
+                          if (
+                            snapshot.wasCompleted &&
+                            typeof snapshot.storyPointsWhenDone === "number"
+                          ) {
+                            completedPoints += snapshot.storyPointsWhenDone;
+                          }
+                        }
+                        const closedDate = new Date(record.closedAt);
+                        const dateLabel = Number.isNaN(closedDate.getTime())
+                          ? record.closedAt
+                          : closedDate.toLocaleDateString("es-ES", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            });
+                        const isEditing =
+                          editingClosedSprintId === record.sprintId;
+                        const draftName =
+                          closedNameDrafts[record.sprintId] ?? record.sprintName;
+                        const rowBusy = closedRowBusy === record.sprintId;
+
+                        return (
+                          <li
+                            key={record.sprintId}
+                            className="rounded-lg border border-surface-200 bg-surface-100/80 p-3 text-sm dark:border-surface-700 dark:bg-surface-950/40"
+                          >
+                            <div className="flex gap-2">
+                              <div className="min-w-0 flex-1">
+                                {isEditing ? (
+                                  <Input
+                                    value={draftName}
+                                    onChange={(event) =>
+                                      setClosedNameDrafts((previous) => ({
+                                        ...previous,
+                                        [record.sprintId]: event.target.value,
+                                      }))
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        void handleSaveClosedSprintName(
+                                          record.sprintId,
+                                        );
+                                      }
+                                      if (event.key === "Escape") {
+                                        event.preventDefault();
+                                        handleCancelClosedSprintEdit();
+                                      }
+                                    }}
+                                    maxLength={80}
+                                    disabled={rowBusy}
+                                    aria-label="Nombre del sprint cerrado"
+                                  />
+                                ) : (
+                                  <p className="truncate font-medium text-surface-900 dark:text-surface-50">
+                                    {record.sprintName}
+                                  </p>
+                                )}
+                                <p className="text-muted-foreground mt-1.5 text-xs">
+                                  Cerrado: {dateLabel} · Puntos completados:{" "}
+                                  {completedPoints}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-0.5 sm:flex-row sm:items-start">
+                                {onViewClosedSprint ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                                    aria-label="Ver resumen del sprint en el tablero"
+                                    title="Ver resumen"
+                                    disabled={isEditing}
+                                    onClick={() =>
+                                      handleViewClosedSprintSummary(
+                                        record.sprintId,
+                                      )
+                                    }
+                                  >
+                                    <ChevronRight
+                                      className="size-4"
+                                      aria-hidden
+                                    />
+                                  </Button>
+                                ) : null}
+                                {canSettings ? (
+                                  isEditing ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0 text-primary"
+                                        aria-label="Guardar nombre"
+                                        title="Aceptar"
+                                        disabled={
+                                          rowBusy || !draftName.trim()
+                                        }
+                                        onClick={() =>
+                                          void handleSaveClosedSprintName(
+                                            record.sprintId,
+                                          )
+                                        }
+                                      >
+                                        {rowBusy ? (
+                                          <Loader2
+                                            className="size-4 animate-spin"
+                                            aria-hidden
+                                          />
+                                        ) : (
+                                          <Check
+                                            className="size-4"
+                                            aria-hidden
+                                          />
+                                        )}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0"
+                                        aria-label="Cancelar edición"
+                                        title="Cancelar"
+                                        disabled={rowBusy}
+                                        onClick={handleCancelClosedSprintEdit}
+                                      >
+                                        <X className="size-4" aria-hidden />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="shrink-0"
+                                      aria-label="Renombrar sprint"
+                                      title="Renombrar"
+                                      onClick={() =>
+                                        handleStartClosedSprintEdit(record)
+                                      }
+                                    >
+                                      <Pencil className="size-4" aria-hidden />
+                                    </Button>
+                                  )
+                                ) : null}
+                                {canSettings ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0 text-danger hover:bg-danger/10 hover:text-danger"
+                                    aria-label="Eliminar del historial"
+                                    title="Eliminar del historial"
+                                    disabled={isEditing}
+                                    onClick={() =>
+                                      setDeleteClosedTarget(record)
+                                    }
+                                  >
+                                    <Trash2 className="size-4" aria-hidden />
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
+              </div>
             </div>
           )}
 
@@ -807,6 +1723,133 @@ export function BoardSettingsSheet({
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 "Eliminar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteClosedTarget}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !deleteClosedBusy) {
+            setDeleteClosedTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Quitar este sprint del historial?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteClosedTarget ? (
+                <>
+                  Se eliminará <strong>{deleteClosedTarget.sprintName}</strong> de
+                  la lista. No se borran tareas del tablero.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteClosedBusy}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={deleteClosedBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDeleteClosedSprint();
+              }}
+            >
+              {deleteClosedBusy ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                "Eliminar del historial"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!columnPurgeTarget}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !columnPurgeBusy) {
+            setColumnPurgeTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar definitivamente esta columna?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {columnPurgeTarget ? (
+                <>
+                  Se eliminarán de forma permanente la columna{" "}
+                  <strong>{columnPurgeTarget.title}</strong> y todas las tareas que
+                  sigan asociadas a ella. Esta acción no se puede deshacer.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={columnPurgeBusy}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={columnPurgeBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmPurgeArchivedColumn();
+              }}
+            >
+              {columnPurgeBusy ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                "Borrar permanentemente"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!archivedPurgeTarget}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !archivedPurgeBusy) {
+            setArchivedPurgeTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar definitivamente esta tarea?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archivedPurgeTarget ? (
+                <>
+                  Se eliminará <strong>{archivedPurgeTarget.title}</strong> de forma
+                  permanente. Esta acción no se puede deshacer.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archivedPurgeBusy}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={archivedPurgeBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmPurgeArchivedTask();
+              }}
+            >
+              {archivedPurgeBusy ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                "Borrar permanentemente"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

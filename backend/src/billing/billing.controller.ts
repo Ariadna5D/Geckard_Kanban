@@ -26,10 +26,10 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Crear sesión de pago Stripe (pro o team)' })
-  async createCheckoutSession(
+  createCheckoutSession(
     @Request() req: ValidatedRequest,
     @Body() dto: CreateCheckoutSessionDto,
-  ) {
+  ): Promise<{ url: string }> {
     return this.billingService.createCheckoutSession(req.user.sub, dto.plan);
   }
 
@@ -39,17 +39,19 @@ export class BillingController {
   @ApiOperation({
     summary: 'Abrir portal de Stripe (cancelar suscripción, facturas, tarjeta)',
   })
-  async createCustomerPortalSession(@Request() req: ValidatedRequest) {
+  createCustomerPortalSession(
+    @Request() req: ValidatedRequest,
+  ): Promise<{ url: string }> {
     return this.billingService.createCustomerPortalSession(req.user.sub);
   }
 
   @Post('webhook')
   @HttpCode(200)
   @ApiOperation({ summary: 'Webhook de Stripe para confirmar pagos' })
-  async handleWebhook(
+  handleWebhook(
     @Req() req: RawBodyRequest<ExpressRequest>,
     @Headers('stripe-signature') signature: string | undefined,
-  ) {
+  ): Promise<{ received: true }> {
     if (signature === undefined || signature.trim() === '') {
       throw new BadRequestException('Falta cabecera stripe-signature.');
     }

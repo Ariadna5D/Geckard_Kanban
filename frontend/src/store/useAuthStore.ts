@@ -64,13 +64,19 @@ export const useAuthStore = create<AuthState>()(
         }
       },
     }),
-    { 
+    {
       name: 'auth-storage',
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.setHasHydrated(true);
+      /**
+       * Tras leer localStorage, Zustand llama a esta función con `get()` o con
+       * `(undefined, error)` si la lectura/deserialización falla. En ambos casos
+       * hay que marcar hidratación: si no, `App` se queda en el spinner para siempre.
+       */
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[auth-storage] Rehidratación con aviso:', error);
         }
+        useAuthStore.getState().setHasHydrated(true);
       },
-    } 
-  )
+    },
+  ),
 );

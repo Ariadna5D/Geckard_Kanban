@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { DescriptionMarkdownPreview } from '../DescriptionMarkdownPreview';
 import { TaskDetailSection } from '../TaskDetailSection';
+import { TaskDetailInfoTip } from './TaskDetailInfoTip';
 
 export function TaskDetailGeneralSection({
   readOnly,
@@ -45,9 +46,18 @@ export function TaskDetailGeneralSection({
         </div>
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
-              Descripción
-            </label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+                Descripción
+              </label>
+              {!readOnly ? (
+                <TaskDetailInfoTip
+                  label="Formato de la descripción"
+                  side="right"
+                  text="Puedes usar Markdown: negrita, listas, enlaces [texto](url), etc. En vista previa los enlaces se abren en pestaña nueva."
+                />
+              ) : null}
+            </div>
             {!readOnly && !descriptionEditMode && (
               <Button
                 type="button"

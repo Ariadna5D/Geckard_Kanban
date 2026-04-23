@@ -56,7 +56,8 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 max-w-xs rounded-md border border-border/80 bg-popover px-2.5 py-1.5 text-xs leading-snug text-popover-foreground shadow-md ring-1 ring-foreground/5',
+          /* Por encima de Sheet/paneles (p. ej. z-60 en detalle de tarea), por debajo de AlertDialog z-[110] */
+          'z-[100] max-w-xs rounded-md border border-border/80 bg-popover px-2.5 py-1.5 text-xs leading-snug text-popover-foreground shadow-md ring-1 ring-foreground/5',
           'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95',
           'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           className,

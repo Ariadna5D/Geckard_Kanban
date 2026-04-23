@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -92,10 +93,7 @@ export class BillingService {
 
       return { url: session.url };
     } catch (err: unknown) {
-      if (
-        err instanceof BadRequestException ||
-        err instanceof NotFoundException
-      ) {
+      if (err instanceof HttpException) {
         throw err;
       }
       const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -147,10 +145,7 @@ export class BillingService {
       }
       return { url: portalSession.url };
     } catch (err: unknown) {
-      if (
-        err instanceof BadRequestException ||
-        err instanceof NotFoundException
-      ) {
+      if (err instanceof HttpException) {
         throw err;
       }
       const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -191,7 +186,8 @@ export class BillingService {
         customer?: unknown;
         subscription?: unknown;
       };
-      const appUserId = session.metadata?.appUserId ?? session.client_reference_id ?? '';
+      const appUserId =
+        session.metadata?.appUserId ?? session.client_reference_id ?? '';
       const targetPlan = session.metadata?.targetPlan ?? '';
 
       if (appUserId.trim() === '') {
@@ -245,9 +241,7 @@ export class BillingService {
     return value;
   }
 
-  private getStripeObjectId(
-    value: unknown,
-  ): string | null {
+  private getStripeObjectId(value: unknown): string | null {
     if (value === null || value === undefined) {
       return null;
     }

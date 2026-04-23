@@ -188,20 +188,35 @@ export class TasksService {
         checklist: rawChecklist,
         boardId,
         columnId,
+        sprintId: sprintIdFromClient,
         ...rest
       } = createTaskDto;
       const labels = this.normalizeLabels(rawLabels) ?? [];
       const links = this.normalizeLinks(rawLinks) ?? [];
       const checklist = this.normalizeChecklist(rawChecklist) ?? [];
 
-      const newTask = await this.taskModel.create({
+      if (sprintIdFromClient !== undefined && sprintIdFromClient !== null) {
+        await this.boardsService.assertTaskSprintAssignmentAllowed(
+          boardId,
+          sprintIdFromClient,
+          userId,
+          isAppAdmin,
+        );
+      }
+
+      const newTaskPayload: Record<string, unknown> = {
         ...rest,
         labels,
         links,
         checklist,
         boardId: new Types.ObjectId(boardId),
         columnId: new Types.ObjectId(columnId),
-      });
+      };
+      if (sprintIdFromClient !== undefined && sprintIdFromClient !== null) {
+        newTaskPayload['sprintId'] = new Types.ObjectId(sprintIdFromClient);
+      }
+
+      const newTask = await this.taskModel.create(newTaskPayload);
 
       return newTask;
     } catch {
@@ -223,8 +238,29 @@ export class TasksService {
       isAppAdmin,
     );
     return this.taskModel
-      .find({ boardId: new Types.ObjectId(boardId) })
+      .find({
+        boardId: new Types.ObjectId(boardId),
+        $or: [{ archivedAt: { $exists: false } }, { archivedAt: null }],
+      })
       .sort({ columnId: 1, order: 1 })
+      .exec();
+  }
+
+  /**
+   * Lista tareas archivadas de un tablero (fuera de columnas del Kanban principal).
+   */
+  async findArchivedByBoard(
+    boardId: string,
+    userId: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument[]> {
+    await this.boardsService.assertUserHasBoardAccess(boardId, userId, isAppAdmin);
+    return this.taskModel
+      .find({
+        boardId: new Types.ObjectId(boardId),
+        archivedAt: { $exists: true, $ne: null },
+      })
+      .sort({ archivedAt: -1, updatedAt: -1 })
       .exec();
   }
 
@@ -254,16 +290,33 @@ export class TasksService {
       isAppAdmin,
     );
 
+    const requestedSprintId = updateTaskDto.sprintId;
+
     const updatePayload: Record<string, unknown> = {};
     const keys = Object.keys(updateTaskDto) as (keyof UpdateTaskDto)[];
     for (const key of keys) {
-      if (key === 'boardId' || key === 'columnId') {
+      if (key === 'boardId' || key === 'columnId' || key === 'sprintId') {
         continue;
       }
       if (key === 'labels' || key === 'links' || key === 'checklist') {
         continue;
       }
       updatePayload[key as string] = updateTaskDto[key];
+    }
+
+    let shouldUnsetSprintId = false;
+    if (requestedSprintId !== undefined) {
+      await this.boardsService.assertTaskSprintAssignmentAllowed(
+        task.boardId.toString(),
+        requestedSprintId,
+        userId,
+        isAppAdmin,
+      );
+      if (requestedSprintId === null) {
+        shouldUnsetSprintId = true;
+      } else {
+        updatePayload['sprintId'] = new Types.ObjectId(requestedSprintId);
+      }
     }
 
     const cleanedLabels = this.normalizeLabels(updateTaskDto.labels);
@@ -279,8 +332,20 @@ export class TasksService {
       updatePayload.checklist = cleanedChecklist;
     }
 
+    const mongoUpdate: Record<string, unknown> = {};
+    if (Object.keys(updatePayload).length > 0) {
+      mongoUpdate['$set'] = updatePayload;
+    }
+    if (shouldUnsetSprintId) {
+      mongoUpdate['$unset'] = { sprintId: '' };
+    }
+
+    if (Object.keys(mongoUpdate).length === 0) {
+      return task;
+    }
+
     const updatedTask = await this.taskModel
-      .findByIdAndUpdate(id, updatePayload, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, mongoUpdate, { returnDocument: 'after' })
       .exec();
 
     if (!updatedTask) {
@@ -340,12 +405,12 @@ export class TasksService {
   }
 
   /**
-   * Borra la tarea de la base de datos.
+   * Archiva la tarea (desaparece del Kanban, pero sigue recuperable).
    */
   async remove(id: string, userId: string, isAppAdmin = false): Promise<void> {
     const task = await this.taskModel.findById(id).exec();
     if (!task) {
-      throw new NotFoundException('No se pudo eliminar la tarea');
+      throw new NotFoundException('No se encontró la tarea');
     }
     await this.boardsService.assertUserHasBoardAccess(
       task.boardId.toString(),
@@ -359,11 +424,100 @@ export class TasksService {
       isAppAdmin,
     );
 
-    const result = await this.taskModel
-      .deleteOne({ _id: new Types.ObjectId(id) })
+    if (task.archivedAt) {
+      return;
+    }
+
+    const archived = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            archivedAt: new Date(),
+            archivedBy: new Types.ObjectId(userId),
+          },
+          // Evita que tareas ocultas sigan afectando cierres de sprint.
+          $unset: { sprintId: '' },
+        },
+        { returnDocument: 'after' },
+      )
       .exec();
+    if (!archived) {
+      throw new NotFoundException('No se pudo archivar la tarea');
+    }
+  }
+
+  /**
+   * Restaura una tarea archivada para que vuelva al tablero activo.
+   */
+  async restore(id: string, userId: string, isAppAdmin = false): Promise<TaskDocument> {
+    const task = await this.taskModel.findById(id).exec();
+    if (!task) {
+      throw new NotFoundException('No se encontró la tarea');
+    }
+    await this.boardsService.assertUserHasBoardAccess(
+      task.boardId.toString(),
+      userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertMinBoardRole(
+      task.boardId.toString(),
+      userId,
+      BoardRole.EDITOR,
+      isAppAdmin,
+    );
+
+    if (!task.archivedAt) {
+      return task;
+    }
+
+    const restored = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $unset: {
+            archivedAt: '',
+            archivedBy: '',
+            archivedWithColumnId: '',
+          },
+        },
+        { returnDocument: 'after' },
+      )
+      .exec();
+    if (!restored) {
+      throw new NotFoundException('No se pudo restaurar la tarea');
+    }
+    return restored;
+  }
+
+  /**
+   * Borra de forma permanente una tarea ya archivada (solo admin/owner de tablero).
+   */
+  async purge(id: string, userId: string, isAppAdmin = false): Promise<void> {
+    const task = await this.taskModel.findById(id).exec();
+    if (!task) {
+      throw new NotFoundException('No se encontró la tarea');
+    }
+    await this.boardsService.assertUserHasBoardAccess(
+      task.boardId.toString(),
+      userId,
+      isAppAdmin,
+    );
+    await this.boardsService.assertMinBoardRole(
+      task.boardId.toString(),
+      userId,
+      BoardRole.ADMIN,
+      isAppAdmin,
+    );
+    if (!task.archivedAt) {
+      throw new BadRequestException(
+        'Solo puedes borrar definitivamente tareas que ya estén archivadas.',
+      );
+    }
+
+    const result = await this.taskModel.deleteOne({ _id: new Types.ObjectId(id) }).exec();
     if (result.deletedCount === 0) {
-      throw new NotFoundException('No se pudo eliminar la tarea');
+      throw new NotFoundException('No se pudo borrar definitivamente la tarea');
     }
   }
 

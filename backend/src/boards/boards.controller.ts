@@ -33,6 +33,10 @@ import { ParseObjectIdPipe } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { CreateColumnDto } from './dto/create-column.dto';
 import { InviteBoardMemberDto } from './dto/invite-board-member.dto';
+import { UpdateColumnBodyDto } from './dto/update-column-body.dto';
+import { CreateSprintDto } from './dto/create-sprint.dto';
+import { UpdateActiveSprintDto } from './dto/update-active-sprint.dto';
+import { UpdateClosedSprintDto } from './dto/update-closed-sprint.dto';
 import {
   canCreateBoard,
   canReadBoard,
@@ -205,6 +209,42 @@ export class BoardsController {
     );
   }
 
+  @Patch(':id/columns/:columnId/archive')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({ summary: 'Archivar columna y sus tareas activas' })
+  archiveColumn(
+    @Param('id') boardId: string,
+    @Param('columnId') columnId: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.archiveColumn(
+      boardId,
+      columnId,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Patch(':id/columns/:columnId/restore')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({ summary: 'Restaurar columna archivada y tareas vinculadas' })
+  restoreColumn(
+    @Param('id') boardId: string,
+    @Param('columnId') columnId: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.restoreColumn(
+      boardId,
+      columnId,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
   // EDITAR TÍTULO DE COLUMNA
   @Patch(':id/columns/:columnId')
   @UseGuards(BoardPolicyGuard)
@@ -214,13 +254,13 @@ export class BoardsController {
   updateColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
-    @Body('title') title: string,
+    @Body() body: UpdateColumnBodyDto,
     @Request() authenticatedRequest: ValidatedRequest,
   ) {
     return this.boardsService.updateColumn(
       boardId,
       columnId,
-      title,
+      body,
       authenticatedRequest.user.sub,
       authenticatedRequest.user.role === 'admin',
     );
@@ -231,7 +271,10 @@ export class BoardsController {
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
   @CheckBoardPolicies(canEditBoardColumns)
-  @ApiOperation({ summary: 'Eliminar una columna y sus tareas (Cascada)' })
+  @ApiOperation({
+    summary:
+      'Eliminar definitivamente una columna ya archivada y todas sus tareas',
+  })
   removeColumn(
     @Param('id') boardId: string,
     @Param('columnId') columnId: string,
@@ -246,6 +289,120 @@ export class BoardsController {
   }
 
   // POSICION COLUMNA
+  @Post(':id/sprints')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({ summary: 'Create active sprint (sprints must be enabled on the board)' })
+  createSprint(
+    @Param('id') boardId: string,
+    @Body() createSprintDto: CreateSprintDto,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.createSprint(
+      boardId,
+      createSprintDto,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Post(':id/sprints/:sprintId/close')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({ summary: 'Close active sprint and store a frozen snapshot' })
+  closeSprint(
+    @Param('id') boardId: string,
+    @Param('sprintId') sprintId: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.closeSprint(
+      boardId,
+      sprintId,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Patch(':id/sprints/history/:sprintId')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canUpdateBoardSettings)
+  @ApiOperation({ summary: 'Rename a sprint in closed history' })
+  updateClosedSprintRecord(
+    @Param('id') boardId: string,
+    @Param('sprintId') sprintId: string,
+    @Body() body: UpdateClosedSprintDto,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.updateClosedSprintRecord(
+      boardId,
+      sprintId,
+      body,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Delete(':id/sprints/history/:sprintId')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canUpdateBoardSettings)
+  @ApiOperation({ summary: 'Remove one sprint from closed history' })
+  deleteClosedSprintRecord(
+    @Param('id') boardId: string,
+    @Param('sprintId') sprintId: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.deleteClosedSprintRecord(
+      boardId,
+      sprintId,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Patch(':id/sprints/:sprintId')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({ summary: 'Update active sprint name or planned dates' })
+  updateActiveSprint(
+    @Param('id') boardId: string,
+    @Param('sprintId') sprintId: string,
+    @Body() body: UpdateActiveSprintDto,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.updateActiveSprint(
+      boardId,
+      sprintId,
+      body,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
+  @Delete(':id/sprints/:sprintId')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canEditBoardColumns)
+  @ApiOperation({
+    summary: 'Cancel active sprint (no snapshot; tasks lose sprint tag)',
+  })
+  cancelActiveSprint(
+    @Param('id') boardId: string,
+    @Param('sprintId') sprintId: string,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    return this.boardsService.cancelActiveSprint(
+      boardId,
+      sprintId,
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+    );
+  }
+
   @Patch(':id/columns/:columnId/position')
   @UseGuards(BoardPolicyGuard)
   @BoardIdFrom(BoardIdSource.ParamId)
