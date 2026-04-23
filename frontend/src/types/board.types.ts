@@ -137,6 +137,27 @@ export interface ClosedSprintRecord {
   taskSnapshots: ClosedSprintTaskSnapshot[];
 }
 
+export type BoardActivityEntityType =
+  | 'board'
+  | 'column'
+  | 'task'
+  | 'sprint'
+  | 'member';
+
+export interface BoardActivityEntry {
+  _id: string;
+  boardId: string;
+  actorUserId: string;
+  actorUsername?: string;
+  actorEmail: string;
+  actorAvatarUrl?: string;
+  entityType: BoardActivityEntityType;
+  action: string;
+  message: string;
+  entityId?: string;
+  createdAt: string;
+}
+
 export interface BoardMember {
   user: string;
   role: 'owner' | 'admin' | 'editor' | 'viewer';

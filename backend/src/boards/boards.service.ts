@@ -30,6 +30,7 @@ import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateActiveSprintDto } from './dto/update-active-sprint.dto';
 import { UpdateClosedSprintDto } from './dto/update-closed-sprint.dto';
 import { UsersService } from '../users/users.service';
+import { BoardActivityService } from './board-activity.service';
 
 /// Convierte un valor desconocido en un array, o devuelve null si no es un array. PARA LINTER
 function asUnknownArray(raw: unknown): unknown[] | null {
@@ -86,7 +87,19 @@ export class BoardsService {
     @InjectModel(Board.name) private readonly boardModel: Model<BoardDocument>,
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     private readonly usersService: UsersService,
+    private readonly boardActivityService: BoardActivityService,
   ) {}
+
+  private async resolveActorEmail(userId: string): Promise<string> {
+    try {
+      const user = await this.usersService.findById(userId);
+      const email =
+        user && typeof user.email === 'string' ? user.email.trim() : '';
+      return email.length > 0 ? email : '(sin-email)';
+    } catch {
+      return '(sin-email)';
+    }
+  }
 
   // Rango de roles para comparar quién tiene más permisos (owner > admin > editor > viewer).
   private boardRoleRank(r: BoardRole): number {
@@ -245,6 +258,27 @@ export class BoardsService {
         'La columna no existe o no tienes permiso en este tablero.',
       );
     }
+  }
+
+  async getColumnTitle(boardId: string, columnId: string): Promise<string | null> {
+    const board = await this.boardModel
+      .findById(new Types.ObjectId(boardId))
+      .select('columns._id columns.title')
+      .lean()
+      .exec();
+    if (!board) return null;
+    const rows = Array.isArray(board.columns)
+      ? (board.columns as { _id: Types.ObjectId; title?: string }[])
+      : [];
+    for (let index = 0; index < rows.length; index++) {
+      if (rows[index]._id.toString() === columnId) {
+        const rawTitle = rows[index].title;
+        return typeof rawTitle === 'string' && rawTitle.trim() !== ''
+          ? rawTitle.trim()
+          : null;
+      }
+    }
+    return null;
   }
 
   /**
@@ -554,6 +588,17 @@ export class BoardsService {
 
     if (!updatedBoard)
       throw new NotFoundException('No se encontró el tablero.');
+
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId: id,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'board',
+      action: 'board.updated',
+      message: `Actualizó la configuración del tablero «${updatedBoard.title}».`,
+      entityId: id,
+    });
     return updatedBoard;
   }
 
@@ -610,6 +655,16 @@ export class BoardsService {
     if (!board) {
       throw new NotFoundException('El tablero no existe.');
     }
+
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.created',
+      message: `Creó la columna «${trimmedTitle}».`,
+    });
     return board;
   }
 
@@ -665,6 +720,23 @@ export class BoardsService {
         'La columna no existe o no pertenece a este tablero.',
       );
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    const changeParts: string[] = [];
+    if (body.title !== undefined) {
+      changeParts.push(`nombre a «${body.title.trim()}»`);
+    }
+    if (body.columnKind !== undefined) {
+      changeParts.push(`tipo a «${body.columnKind}»`);
+    }
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.updated',
+      message: `Actualizó la columna (${changeParts.join(', ')}).`,
+      entityId: columnId,
+    });
     return board;
   }
 
@@ -701,6 +773,16 @@ export class BoardsService {
         'La columna no existe o no pertenece a este tablero.',
       );
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.reordered',
+      message: 'Reordenó una columna del tablero.',
+      entityId: columnId,
+    });
     return board;
   }
 
@@ -764,6 +846,17 @@ export class BoardsService {
       )
       .exec();
 
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.archived',
+      message: `Archivó la columna «${columnSub.title}».`,
+      entityId: columnId,
+    });
+
     return this.findOneBySlug(board.slug, userId);
   }
 
@@ -820,6 +913,17 @@ export class BoardsService {
       )
       .exec();
 
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.restored',
+      message: `Restauró la columna «${columnSub.title}».`,
+      entityId: columnId,
+    });
+
     return this.findOneBySlug(board.slug, userId);
   }
 
@@ -869,6 +973,17 @@ export class BoardsService {
     if (!updated) {
       throw new NotFoundException('El tablero no existe.');
     }
+
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'column',
+      action: 'column.deleted',
+      message: `Eliminó definitivamente la columna «${columnSub.title}».`,
+      entityId: columnId,
+    });
 
     return this.findOneBySlug(board.slug, userId);
   }
@@ -966,6 +1081,16 @@ export class BoardsService {
     if (!updatedBoard) {
       throw new NotFoundException('El tablero no existe.');
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.created',
+      message: `Inició el sprint «${trimmedSprintName}».`,
+      entityId: newSprintId.toString(),
+    });
     return updatedBoard;
   }
 
@@ -1159,6 +1284,17 @@ export class BoardsService {
       )
       .exec();
 
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.closed',
+      message: `Cerró el sprint «${activeSprintName}».`,
+      entityId: sprintId,
+    });
+
     return updatedBoard;
   }
 
@@ -1284,6 +1420,16 @@ export class BoardsService {
     if (!updatedBoard) {
       throw new NotFoundException('El tablero no existe.');
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.updated',
+      message: `Actualizó el sprint activo «${sprintRow.name}».`,
+      entityId: sprintId,
+    });
     return updatedBoard;
   }
 
@@ -1340,6 +1486,16 @@ export class BoardsService {
     if (!updatedBoard) {
       throw new NotFoundException('El tablero no existe.');
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.cancelled',
+      message: 'Canceló el sprint activo sin guardar historial.',
+      entityId: sprintId,
+    });
     return updatedBoard;
   }
 
@@ -1395,6 +1551,17 @@ export class BoardsService {
       throw new NotFoundException('No se encontró ese sprint en el historial.');
     }
 
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.history.renamed',
+      message: `Renombró un sprint cerrado a «${trimmedName}».`,
+      entityId: sprintId,
+    });
+
     return updatedBoard;
   }
 
@@ -1432,6 +1599,16 @@ export class BoardsService {
     if (!updatedBoard) {
       throw new NotFoundException('El tablero no existe.');
     }
+    const actorEmail = await this.resolveActorEmail(userId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'sprint',
+      action: 'sprint.history.deleted',
+      message: 'Eliminó un sprint del historial.',
+      entityId: sprintId,
+    });
     return updatedBoard;
   }
 
@@ -1491,8 +1668,21 @@ export class BoardsService {
         role: dto.role,
       });
     }
-
-    return board.save();
+    const saved = await board.save();
+    const actorEmail = await this.resolveActorEmail(actorUserId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId,
+      actorEmail,
+      entityType: 'member',
+      action: existingMemberIndex >= 0 ? 'member.role.updated' : 'member.invited',
+      message:
+        existingMemberIndex >= 0
+          ? `Actualizó el rol de «${target.email}» a «${dto.role}».`
+          : `Invitó a «${target.email}» como «${dto.role}».`,
+      entityId: dto.userId,
+    });
+    return saved;
   }
 
   /**
@@ -1656,6 +1846,16 @@ export class BoardsService {
     return { ownerId, members };
   }
 
+  async listBoardActivity(
+    boardId: string,
+    userId: string,
+    isAppAdmin = false,
+    limit = 60,
+  ) {
+    await this.assertUserHasBoardAccess(boardId, userId, isAppAdmin);
+    return this.boardActivityService.listByBoard(boardId, limit);
+  }
+
   // Expulsa a un miembro del tablero
   async removeMember(
     boardId: string,
@@ -1695,6 +1895,16 @@ export class BoardsService {
     }
 
     await board.save();
+    const actorEmail = await this.resolveActorEmail(actorUserId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId,
+      actorEmail,
+      entityType: 'member',
+      action: 'member.removed',
+      message: 'Expulsó a un miembro del tablero.',
+      entityId: memberUserId,
+    });
   }
 
   /**
@@ -1736,5 +1946,15 @@ export class BoardsService {
     }
 
     await board.save();
+    const actorEmail = await this.resolveActorEmail(actorUserId);
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId,
+      actorEmail,
+      entityType: 'member',
+      action: 'member.left',
+      message: 'Abandonó el tablero.',
+      entityId: actorUserId,
+    });
   }
 }

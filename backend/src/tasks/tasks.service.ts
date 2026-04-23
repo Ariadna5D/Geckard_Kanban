@@ -19,6 +19,7 @@ import {
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { BoardsService } from '../boards/boards.service';
+import { BoardActivityService } from '../boards/board-activity.service';
 import { BoardRole } from '../boards/schemas/board.schema';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class TasksService {
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     private readonly boardsService: BoardsService,
+    private readonly boardActivityService: BoardActivityService,
   ) {}
 
   /**
@@ -161,6 +163,7 @@ export class TasksService {
   async create(
     createTaskDto: CreateTaskDto,
     userId: string,
+    actorEmail: string,
     isAppAdmin = false,
   ): Promise<TaskDocument> {
     await this.boardsService.assertUserHasBoardAccess(
@@ -218,6 +221,16 @@ export class TasksService {
 
       const newTask = await this.taskModel.create(newTaskPayload);
 
+      await this.boardActivityService.record({
+        boardId,
+        actorUserId: userId,
+        actorEmail,
+        entityType: 'task',
+        action: 'task.created',
+        message: `Creó la tarea «${newTask.title}».`,
+        entityId: newTask._id.toString(),
+      });
+
       return newTask;
     } catch {
       throw new InternalServerErrorException('Error al crear la tarea');
@@ -272,6 +285,7 @@ export class TasksService {
     id: string,
     updateTaskDto: UpdateTaskDto,
     userId: string,
+    actorEmail: string,
     isAppAdmin = false,
   ): Promise<TaskDocument> {
     const task = await this.taskModel.findById(id).exec();
@@ -352,6 +366,16 @@ export class TasksService {
       throw new NotFoundException('Tarea no encontrada');
     }
 
+    await this.boardActivityService.record({
+      boardId: task.boardId.toString(),
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.updated',
+      message: `Actualizó la tarea «${updatedTask.title}».`,
+      entityId: updatedTask._id.toString(),
+    });
+
     return updatedTask;
   }
 
@@ -363,6 +387,7 @@ export class TasksService {
     newColumnId: string,
     newOrder: string,
     userId: string,
+    actorEmail: string,
     isAppAdmin = false,
   ): Promise<TaskDocument> {
     const task = await this.taskModel.findById(taskId).exec();
@@ -387,6 +412,7 @@ export class TasksService {
       userId,
       isAppAdmin,
     );
+    const previousColumnId = task.columnId.toString();
 
     const updatedTask = await this.taskModel
       .findByIdAndUpdate(
@@ -401,13 +427,39 @@ export class TasksService {
 
     if (!updatedTask) throw new NotFoundException('Tarea no encontrada');
 
+    const fromColumnTitle =
+      (await this.boardsService.getColumnTitle(boardId, previousColumnId)) ??
+      '(columna desconocida)';
+    const toColumnTitle =
+      (await this.boardsService.getColumnTitle(boardId, newColumnId)) ??
+      '(columna desconocida)';
+    const moveMessage =
+      previousColumnId === newColumnId
+        ? `Reordenó la tarea «${updatedTask.title}» dentro de «${toColumnTitle}».`
+        : `Movió la tarea «${updatedTask.title}» de «${fromColumnTitle}» a «${toColumnTitle}».`;
+
+    await this.boardActivityService.record({
+      boardId,
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.moved',
+      message: moveMessage,
+      entityId: updatedTask._id.toString(),
+    });
+
     return updatedTask;
   }
 
   /**
    * Archiva la tarea (desaparece del Kanban, pero sigue recuperable).
    */
-  async remove(id: string, userId: string, isAppAdmin = false): Promise<void> {
+  async remove(
+    id: string,
+    userId: string,
+    actorEmail: string,
+    isAppAdmin = false,
+  ): Promise<void> {
     const task = await this.taskModel.findById(id).exec();
     if (!task) {
       throw new NotFoundException('No se encontró la tarea');
@@ -445,12 +497,26 @@ export class TasksService {
     if (!archived) {
       throw new NotFoundException('No se pudo archivar la tarea');
     }
+    await this.boardActivityService.record({
+      boardId: task.boardId.toString(),
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.archived',
+      message: `Archivó la tarea «${task.title}».`,
+      entityId: id,
+    });
   }
 
   /**
    * Restaura una tarea archivada para que vuelva al tablero activo.
    */
-  async restore(id: string, userId: string, isAppAdmin = false): Promise<TaskDocument> {
+  async restore(
+    id: string,
+    userId: string,
+    actorEmail: string,
+    isAppAdmin = false,
+  ): Promise<TaskDocument> {
     const task = await this.taskModel.findById(id).exec();
     if (!task) {
       throw new NotFoundException('No se encontró la tarea');
@@ -487,13 +553,27 @@ export class TasksService {
     if (!restored) {
       throw new NotFoundException('No se pudo restaurar la tarea');
     }
+    await this.boardActivityService.record({
+      boardId: task.boardId.toString(),
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.restored',
+      message: `Restauró la tarea «${restored.title}».`,
+      entityId: id,
+    });
     return restored;
   }
 
   /**
    * Borra de forma permanente una tarea ya archivada (solo admin/owner de tablero).
    */
-  async purge(id: string, userId: string, isAppAdmin = false): Promise<void> {
+  async purge(
+    id: string,
+    userId: string,
+    actorEmail: string,
+    isAppAdmin = false,
+  ): Promise<void> {
     const task = await this.taskModel.findById(id).exec();
     if (!task) {
       throw new NotFoundException('No se encontró la tarea');
@@ -519,6 +599,15 @@ export class TasksService {
     if (result.deletedCount === 0) {
       throw new NotFoundException('No se pudo borrar definitivamente la tarea');
     }
+    await this.boardActivityService.record({
+      boardId: task.boardId.toString(),
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.deleted.permanent',
+      message: `Borró definitivamente la tarea «${task.title}».`,
+      entityId: id,
+    });
   }
 
   /**
@@ -578,6 +667,7 @@ export class TasksService {
   async voteStoryPoints(
     taskId: string,
     userId: string,
+    actorEmail: string,
     value: number,
     isAppAdmin = false,
   ): Promise<void> {
@@ -624,5 +714,14 @@ export class TasksService {
       task.storyPointVotes.length > 0 ? 'voting' : 'idle';
     task.markModified('storyPointVotes');
     await task.save();
+    await this.boardActivityService.record({
+      boardId: task.boardId.toString(),
+      actorUserId: userId,
+      actorEmail,
+      entityType: 'task',
+      action: 'task.storypoints.voted',
+      message: `Votó story points (${allowedValue}) en «${task.title}».`,
+      entityId: taskId,
+    });
   }
 }

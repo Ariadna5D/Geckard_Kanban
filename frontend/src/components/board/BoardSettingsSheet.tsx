@@ -2,21 +2,36 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import {
+  Archive,
   ArchiveRestore,
   ArrowLeft,
+  ArrowRightLeft,
+  ClipboardList,
+  Columns3,
   Check,
+  CheckCircle2,
   ChevronRight,
+  History,
   Info,
   Keyboard,
   LayoutGrid,
   LogOut,
   Loader2,
+  LogOut as LogOutIcon,
   Pencil,
+  Plus,
+  Settings2,
   Search,
+  UserRound,
+  UserPlus,
+  UserX,
+  Undo2,
+  Vote,
   Trash2,
   Users,
   Flag,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Sheet,
@@ -78,6 +93,7 @@ type Panel =
   | "menu"
   | "edit"
   | "members"
+  | "activity"
   | "shortcuts"
   | "sprints"
   | "archivedTasks"
@@ -140,6 +156,187 @@ function roleLabel(role: string): string {
     }
   }
   return role;
+}
+
+function activityIconForEntry(entry: {
+  entityType: string;
+  action: string;
+}): LucideIcon {
+  const action = entry.action;
+  if (action === "task.moved" || action === "column.reordered") {
+    return ArrowRightLeft;
+  }
+  if (action === "sprint.closed") {
+    return CheckCircle2;
+  }
+  if (
+    action === "task.archived" ||
+    action === "column.archived" ||
+    action === "sprint.history.deleted"
+  ) {
+    return Archive;
+  }
+  if (action === "task.restored" || action === "column.restored") {
+    return Undo2;
+  }
+  if (action === "task.deleted.permanent" || action === "column.deleted") {
+    return Trash2;
+  }
+  if (action === "member.invited") {
+    return UserPlus;
+  }
+  if (action === "member.removed") {
+    return UserX;
+  }
+  if (action === "member.left") {
+    return LogOutIcon;
+  }
+  if (
+    action === "task.created" ||
+    action === "column.created" ||
+    action === "sprint.created"
+  ) {
+    return Plus;
+  }
+  if (
+    action === "task.updated" ||
+    action === "column.updated" ||
+    action === "board.updated" ||
+    action === "sprint.updated" ||
+    action === "sprint.history.renamed" ||
+    action === "member.role.updated"
+  ) {
+    return Pencil;
+  }
+  if (action === "task.storypoints.voted") {
+    return Vote;
+  }
+
+  if (entry.action.startsWith("sprint.")) return Flag;
+  if (entry.action.startsWith("member.")) return UserRound;
+  if (entry.action.startsWith("column.")) return Columns3;
+  if (entry.action.startsWith("task.")) return ClipboardList;
+  if (entry.action.startsWith("board.")) return Settings2;
+
+  if (entry.entityType === "sprint") return Flag;
+  if (entry.entityType === "member") return UserRound;
+  if (entry.entityType === "column") return Columns3;
+  if (entry.entityType === "task") return ClipboardList;
+  return Settings2;
+}
+
+function activityActionLabel(action: string): string {
+  switch (action) {
+    case "task.moved":
+    case "column.reordered":
+      return "Movió";
+    case "sprint.closed":
+      return "Cerró";
+    case "task.archived":
+    case "column.archived":
+      return "Archivó";
+    case "task.restored":
+    case "column.restored":
+      return "Restauró";
+    case "task.deleted.permanent":
+    case "column.deleted":
+    case "sprint.history.deleted":
+      return "Eliminó";
+    case "member.invited":
+      return "Invitó";
+    case "member.removed":
+      return "Expulsó";
+    case "member.left":
+      return "Abandonó";
+    case "task.created":
+    case "column.created":
+    case "sprint.created":
+      return "Creó";
+    case "task.updated":
+    case "column.updated":
+    case "board.updated":
+    case "sprint.updated":
+    case "sprint.history.renamed":
+    case "member.role.updated":
+      return "Editó";
+    case "task.storypoints.voted":
+      return "Votó";
+    case "sprint.cancelled":
+      return "Canceló";
+    default:
+      return action;
+  }
+}
+
+function activityEntityLabel(entityType: string): string {
+  switch (entityType) {
+    case "task":
+      return "Tarea";
+    case "column":
+      return "Columna";
+    case "sprint":
+      return "Sprint";
+    case "member":
+      return "Miembro";
+    case "board":
+      return "Tablero";
+    default:
+      return entityType;
+  }
+}
+
+function activityEntityIcon(entityType: string): LucideIcon {
+  if (entityType === "task") return ClipboardList;
+  if (entityType === "column") return Columns3;
+  if (entityType === "sprint") return Flag;
+  if (entityType === "member") return UserRound;
+  return Settings2;
+}
+
+function activityActionBadgeClass(action: string): string {
+  if (
+    action === "task.created" ||
+    action === "column.created" ||
+    action === "sprint.created" ||
+    action === "member.invited"
+  ) {
+    return "border-emerald-300/80 bg-emerald-100 text-emerald-900 dark:border-emerald-700/70 dark:bg-emerald-950/40 dark:text-emerald-200";
+  }
+  if (action === "task.moved" || action === "column.reordered") {
+    return "border-sky-300/80 bg-sky-100 text-sky-900 dark:border-sky-700/70 dark:bg-sky-950/40 dark:text-sky-200";
+  }
+  if (
+    action === "task.updated" ||
+    action === "column.updated" ||
+    action === "board.updated" ||
+    action === "sprint.updated" ||
+    action === "sprint.history.renamed" ||
+    action === "member.role.updated" ||
+    action === "task.storypoints.voted"
+  ) {
+    return "border-violet-300/80 bg-violet-100 text-violet-900 dark:border-violet-700/70 dark:bg-violet-950/40 dark:text-violet-200";
+  }
+  if (action === "sprint.closed") {
+    return "border-lime-300/80 bg-lime-100 text-lime-900 dark:border-lime-700/70 dark:bg-lime-950/40 dark:text-lime-200";
+  }
+  if (action === "task.archived" || action === "column.archived") {
+    return "border-amber-300/80 bg-amber-100 text-amber-900 dark:border-amber-700/70 dark:bg-amber-950/40 dark:text-amber-200";
+  }
+  if (
+    action === "task.deleted.permanent" ||
+    action === "column.deleted" ||
+    action === "sprint.history.deleted" ||
+    action === "member.removed"
+  ) {
+    return "border-rose-300/80 bg-rose-100 text-rose-900 dark:border-rose-700/70 dark:bg-rose-950/40 dark:text-rose-200";
+  }
+  if (action === "member.left" || action === "sprint.cancelled") {
+    return "border-slate-300/80 bg-slate-100 text-slate-900 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200";
+  }
+  if (action === "task.restored" || action === "column.restored") {
+    return "border-cyan-300/80 bg-cyan-100 text-cyan-900 dark:border-cyan-700/70 dark:bg-cyan-950/40 dark:text-cyan-200";
+  }
+  return "border-surface-300/80 bg-surface-50 text-surface-800 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-200";
 }
 
 function userInitials(username: string): string {
@@ -236,6 +433,8 @@ export function BoardSettingsSheet({
   const inviteMember = useActiveBoardStore(selectInviteMember);
   const removeBoardMember = useActiveBoardStore(selectRemoveBoardMember);
   const fetchBoard = useActiveBoardStore((state) => state.fetchBoard);
+  const boardActivityLogs = useActiveBoardStore((state) => state.boardActivityLogs);
+  const loadBoardActivity = useActiveBoardStore((state) => state.loadBoardActivity);
   const archivedTasks = useActiveBoardStore((state) => state.archivedTasks);
   const loadArchivedTasks = useActiveBoardStore((state) => state.loadArchivedTasks);
   const restoreArchivedTask = useActiveBoardStore(
@@ -275,6 +474,8 @@ export function BoardSettingsSheet({
   const [sheetDangerError, setSheetDangerError] = useState('');
 
   const [membersLoading, setMembersLoading] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [members, setMembers] = useState<BoardMemberSummary[]>([]);
   const [roleDraft, setRoleDraft] = useState<Record<string, BoardInviteRole>>(
@@ -329,6 +530,7 @@ export function BoardSettingsSheet({
     if (!open) {
       setPanel("menu");
       setListError(null);
+      setActivityError(null);
       setExpelTarget(null);
       setSheetDangerError('');
       setSprintsPanelError(null);
@@ -574,6 +776,22 @@ export function BoardSettingsSheet({
 
   function handleOpenMembersPanel() {
     setPanel("members");
+  }
+
+  async function handleOpenActivityPanel() {
+    setActivityError(null);
+    setPanel("activity");
+    if (!boardDocId) {
+      return;
+    }
+    setActivityLoading(true);
+    try {
+      await loadBoardActivity(boardDocId, 80);
+    } catch (errorUnknown) {
+      setActivityError(apiErr(errorUnknown));
+    } finally {
+      setActivityLoading(false);
+    }
   }
 
   function handleOpenShortcutsPanel() {
@@ -844,6 +1062,7 @@ export function BoardSettingsSheet({
                 {panel === "menu" && "Configuración del tablero"}
                 {panel === "edit" && "Editar tablero"}
                 {panel === "members" && "Participantes"}
+                {panel === "activity" && "Actividad"}
                 {panel === "shortcuts" && "Atajos de teclado"}
                 {panel === "sprints" && "Sprints"}
                 {panel === "archivedTasks" && "Tareas archivadas"}
@@ -911,6 +1130,15 @@ export function BoardSettingsSheet({
               >
                 <Users className="size-4 shrink-0 opacity-80" />
                 <span className="text-left">Lista de participantes</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 py-3"
+                onClick={() => void handleOpenActivityPanel()}
+              >
+                <History className="size-4 shrink-0 opacity-80" />
+                <span className="text-left">Actividad del tablero</span>
               </Button>
               <Button
                 type="button"
@@ -1053,6 +1281,92 @@ export function BoardSettingsSheet({
                       );
                     });
                   })()}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {panel === "activity" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="shrink-0 border-b border-surface-200 p-4 text-sm text-muted-foreground dark:border-surface-800">
+                Registro cronológico de cambios (más recientes primero).
+              </div>
+              {activityError ? (
+                <p className="mx-4 mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {activityError}
+                </p>
+              ) : null}
+              {activityLoading ? (
+                <div className="flex flex-1 items-center justify-center p-8">
+                  <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                  {boardActivityLogs.length === 0 ? (
+                    <li className="rounded-lg border border-surface-200 bg-surface-100/70 px-4 py-6 text-center text-sm text-muted-foreground dark:border-surface-700 dark:bg-surface-950/40">
+                      Aún no hay actividad registrada en este tablero.
+                    </li>
+                  ) : (
+                    boardActivityLogs.map((entry) => {
+                      const date = new Date(entry.createdAt);
+                      const createdLabel = Number.isNaN(date.getTime())
+                        ? entry.createdAt
+                        : date.toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                      const Icon = activityIconForEntry(entry);
+                      const actionLabel = activityActionLabel(entry.action);
+                      const actionBadgeClass = activityActionBadgeClass(entry.action);
+                      const entityLabel = activityEntityLabel(entry.entityType);
+                      const EntityIcon = activityEntityIcon(entry.entityType);
+                      const actorName = entry.actorUsername ?? entry.actorEmail;
+                      return (
+                        <li
+                          key={entry._id}
+                          className="rounded-lg border border-surface-200 bg-surface-100/80 p-3 dark:border-surface-700 dark:bg-surface-950/40"
+                        >
+                          <div className="flex items-start gap-3">
+                            <Avatar size="sm" className="mt-0.5 shrink-0">
+                              {entry.actorAvatarUrl ? (
+                                <AvatarImage
+                                  src={entry.actorAvatarUrl}
+                                  alt={actorName}
+                                  className="object-cover"
+                                />
+                              ) : null}
+                              <AvatarFallback>
+                                {userInitials(actorName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 ${actionBadgeClass}`}
+                                >
+                                  <Icon className="size-3.5" aria-hidden />
+                                  <span className="tracking-wide">{actionLabel}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-full border border-surface-300/80 bg-surface-50 px-1.5 py-0.5 text-surface-700 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-200">
+                                  <EntityIcon className="size-3.5" aria-hidden />
+                                  {entityLabel}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium break-words text-surface-900 dark:text-surface-50">
+                                {entry.message}
+                              </p>
+                              <p className="mt-1 text-xs break-all text-muted-foreground">
+                                {actorName} · {createdLabel}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })
+                  )}
                 </ul>
               )}
             </div>

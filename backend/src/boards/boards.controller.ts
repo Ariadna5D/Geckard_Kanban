@@ -9,6 +9,7 @@ import {
   Request,
   Param,
   HttpCode,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -436,6 +437,31 @@ export class BoardsController {
     return this.boardsService.findOneBySlug(
       slug,
       authenticatedRequest.user.sub,
+    );
+  }
+
+  @Get(':id/activity')
+  @UseGuards(BoardPolicyGuard)
+  @BoardIdFrom(BoardIdSource.ParamId)
+  @CheckBoardPolicies(canReadBoard)
+  @ApiOperation({ summary: 'Listar actividad reciente del tablero' })
+  getBoardActivity(
+    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Query('limit') limitRaw: string | undefined,
+    @Request() authenticatedRequest: ValidatedRequest,
+  ) {
+    let limit = 60;
+    if (limitRaw !== undefined) {
+      const parsed = Number.parseInt(limitRaw, 10);
+      if (!Number.isNaN(parsed)) {
+        limit = parsed;
+      }
+    }
+    return this.boardsService.listBoardActivity(
+      id.toString(),
+      authenticatedRequest.user.sub,
+      authenticatedRequest.user.role === 'admin',
+      limit,
     );
   }
 }

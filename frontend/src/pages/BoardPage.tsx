@@ -507,8 +507,8 @@ export const BoardPage = () => {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-9 w-9 border-surface-200 bg-surface-50 px-0 dark:border-surface-700 dark:bg-surface-900"
+                size="icon-sm"
+                className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
                 onClick={() => void handleRefreshBoard()}
                 disabled={refreshBusy}
                 aria-label="Actualizar tablero desde el servidor"

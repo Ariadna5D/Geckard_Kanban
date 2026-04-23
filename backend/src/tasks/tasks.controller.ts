@@ -61,6 +61,7 @@ export class TasksController {
     return this.tasksService.create(
       createTaskDto,
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -123,6 +124,7 @@ export class TasksController {
       id.toString(),
       updateTaskDto,
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -146,6 +148,7 @@ export class TasksController {
       positionDto.newColumnId,
       positionDto.newOrder,
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -167,6 +170,7 @@ export class TasksController {
     return this.tasksService.remove(
       id.toString(),
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -187,6 +191,7 @@ export class TasksController {
     return this.tasksService.restore(
       id.toString(),
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -208,6 +213,7 @@ export class TasksController {
     return this.tasksService.purge(
       id.toString(),
       req.user.sub,
+      req.user.email,
       req.user.role === 'admin',
     );
   }
@@ -245,6 +251,7 @@ export class TasksController {
     await this.tasksService.voteStoryPoints(
       id.toString(),
       req.user.sub,
+      req.user.email,
       body.value,
       req.user.role === 'admin',
     );

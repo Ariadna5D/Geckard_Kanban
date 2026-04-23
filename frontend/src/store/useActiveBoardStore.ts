@@ -7,6 +7,7 @@ import {
   Task,
   InviteBoardMemberPayload,
   BoardMemberSummary,
+  BoardActivityEntry,
   getBoardDocumentId,
 } from '../types/board.types';
 import {
@@ -20,6 +21,7 @@ import {
   inviteBoardMemberRequest,
   removeBoardMemberRequest,
   getBoardMembersRequest,
+  getBoardActivityRequest,
   createSprintRequest,
   closeSprintRequest,
   updateActiveSprintRequest,
@@ -117,6 +119,7 @@ function mergeServerColumnsWithLocalTasks(
 export interface ActiveBoardState {
   board: Board | null;
   boardMembers: BoardMemberSummary[];
+  boardActivityLogs: BoardActivityEntry[];
   archivedTasks: Task[];
   isLoading: boolean;
   error: string | null;
@@ -132,6 +135,7 @@ export interface ActiveBoardState {
     boardId: string,
     memberUserId: string,
   ) => Promise<void>;
+  loadBoardActivity: (boardId: string, limit?: number) => Promise<void>;
   moveTaskOptimistic: (
     taskId: string,
     oldColumnId: string,
@@ -200,6 +204,7 @@ export interface ActiveBoardState {
 export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   board: null,
   boardMembers: [],
+  boardActivityLogs: [],
   archivedTasks: [],
   isLoading: false,
   error: null,
@@ -208,7 +213,13 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   fetchBoard: async (slug: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
     if (!silent) {
-      set({ isLoading: true, error: null, boardMembers: [], archivedTasks: [] });
+      set({
+        isLoading: true,
+        error: null,
+        boardMembers: [],
+        boardActivityLogs: [],
+        archivedTasks: [],
+      });
     }
     try {
       const board = await getBoardBySlugRequest(slug);
@@ -256,6 +267,7 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
           isLoading: false,
           board: null,
           boardMembers: [],
+          boardActivityLogs: [],
           archivedTasks: [],
         });
       } else {
@@ -272,6 +284,17 @@ export const useActiveBoardStore = create<ActiveBoardState>((set, get) => ({
   removeBoardMember: async (slug, boardId, memberUserId) => {
     await removeBoardMemberRequest(boardId, memberUserId);
     await get().fetchBoard(slug, { silent: true });
+  },
+
+  loadBoardActivity: async (boardId, limit = 60) => {
+    try {
+      const boardActivityLogs = await getBoardActivityRequest(boardId, limit);
+      set({ boardActivityLogs });
+    } catch (error) {
+      console.error('Error al cargar actividad del tablero:', error);
+      set({ boardActivityLogs: [] });
+      throw error;
+    }
   },
 
   /**

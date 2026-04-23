@@ -5,6 +5,7 @@ import {
   UpdateBoardPayload,
   InviteBoardMemberPayload,
   BoardMemberSummary,
+  BoardActivityEntry,
 } from '../types/board.types';
 import api from './axios.instance';
 
@@ -213,6 +214,18 @@ export const getBoardMembersRequest = async (
 ): Promise<{ ownerId: string; members: BoardMemberSummary[] }> => {
   const response = await api.get<{ ownerId: string; members: BoardMemberSummary[] }>(
     `/boards/${boardId}/members`,
+  );
+  return response.data;
+};
+
+/** Historial de actividad del tablero (más reciente primero). */
+export const getBoardActivityRequest = async (
+  boardId: string,
+  limit = 60,
+): Promise<BoardActivityEntry[]> => {
+  const response = await api.get<BoardActivityEntry[]>(
+    `/boards/${boardId}/activity`,
+    { params: { limit } },
   );
   return response.data;
 };
