@@ -23,7 +23,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, Settings, UserPlus } from 'lucide-react';
+import { Loader2, MoreHorizontal, RefreshCw, Settings, UserPlus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useRefetchBoardWhenTabVisible } from '../hooks/useRefetchBoardWhenTabVisible';
 import { BOARD_SILENT_POLL_INTERVAL_MS } from '../constants/boardRefetch';
 import { calculateNewOrder } from '../utils/boardMath';
@@ -58,7 +64,8 @@ import {
 // DND-KIT
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -171,9 +178,18 @@ export const BoardPage = () => {
     pollIntervalMs: BOARD_SILENT_POLL_INTERVAL_MS,
   });
 
-  /** Sensor de puntero: evita iniciar drag por micro-movimientos involuntarios. */
+  /**
+   * Sensores de drag:
+   * - Mouse: mantiene experiencia actual en escritorio.
+   * - Touch: requiere pulsación breve para no chocar con el scroll en móvil.
+   */
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 160, tolerance: 8 },
+    }),
   );
 
   const columnIds = useMemo(() => {
@@ -485,14 +501,14 @@ export const BoardPage = () => {
             />
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+        <div className="flex shrink-0 items-center justify-start gap-2 sm:flex-wrap sm:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+                className="h-9 w-9 border-surface-200 bg-surface-50 px-0 dark:border-surface-700 dark:bg-surface-900"
                 onClick={() => void handleRefreshBoard()}
                 disabled={refreshBusy}
                 aria-label="Actualizar tablero desde el servidor"
@@ -509,7 +525,7 @@ export const BoardPage = () => {
             </TooltipContent>
           </Tooltip>
           {user && slug && (
-            <>
+            <div className="hidden sm:block">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -525,21 +541,10 @@ export const BoardPage = () => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Ajustes del tablero</TooltipContent>
               </Tooltip>
-              <BoardSettingsSheet
-                board={board}
-                slug={slug}
-                user={user}
-                open={settingsOpen}
-                onOpenChange={setSettingsOpen}
-                onViewClosedSprint={(sprintId) => {
-                  setSprintView(`closed:${sprintId}` as SprintViewValue);
-                  setSettingsOpen(false);
-                }}
-              />
-            </>
+            </div>
           )}
           {user && canInviteToBoard(board, user) && slug && (
-            <>
+            <div className="hidden sm:block">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -555,22 +560,80 @@ export const BoardPage = () => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Invitar al tablero</TooltipContent>
               </Tooltip>
-              <BoardShareDialog
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-                slug={slug}
-                boardId={board._id}
-              />
-            </>
+            </div>
           )}
-          <BoardViewToolbar
-            taskFilter={taskFilter}
-            onTaskFilterChange={setTaskFilter}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSortChange={handleBoardSortChange}
-            boardLabelOptions={boardLabelOptions}
-          />
+          <div className="hidden sm:block">
+            <BoardViewToolbar
+              taskFilter={taskFilter}
+              onTaskFilterChange={setTaskFilter}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSortChange={handleBoardSortChange}
+              boardLabelOptions={boardLabelOptions}
+              compactMobile={false}
+            />
+          </div>
+          <div className="sm:hidden">
+            <BoardViewToolbar
+              taskFilter={taskFilter}
+              onTaskFilterChange={setTaskFilter}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSortChange={handleBoardSortChange}
+              boardLabelOptions={boardLabelOptions}
+              compactMobile
+            />
+          </div>
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 border-surface-200 bg-surface-50 px-0 dark:border-surface-700 dark:bg-surface-900"
+                  aria-label="Más acciones del tablero"
+                >
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[90] w-52">
+                {user && slug ? (
+                  <DropdownMenuItem onClick={handleOpenSettings}>
+                    <Settings className="size-4 opacity-80" aria-hidden />
+                    Ajustes del tablero
+                  </DropdownMenuItem>
+                ) : null}
+                {user && canInviteToBoard(board, user) && slug ? (
+                  <DropdownMenuItem onClick={handleOpenShare}>
+                    <UserPlus className="size-4 opacity-80" aria-hidden />
+                    Compartir tablero
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {user && slug ? (
+            <BoardSettingsSheet
+              board={board}
+              slug={slug}
+              user={user}
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              onViewClosedSprint={(sprintId) => {
+                setSprintView(`closed:${sprintId}` as SprintViewValue);
+                setSettingsOpen(false);
+              }}
+            />
+          ) : null}
+          {user && canInviteToBoard(board, user) && slug ? (
+            <BoardShareDialog
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+              slug={slug}
+              boardId={board._id}
+            />
+          ) : null}
         </div>
       </header>
 

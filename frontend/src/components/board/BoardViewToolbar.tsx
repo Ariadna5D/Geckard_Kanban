@@ -149,6 +149,7 @@ type BoardViewToolbarProps = {
   sortDirection: BoardSortDirection;
   onSortChange: (key: BoardTaskSortKey, dir: BoardSortDirection) => void;
   boardLabelOptions: { name: string; color: TaskLabelColor }[];
+  compactMobile?: boolean;
 };
 
 function tagNameSelected(filter: BoardTaskFilter, name: string): boolean {
@@ -263,13 +264,19 @@ export function BoardViewToolbar({
   sortDirection,
   onSortChange,
   boardLabelOptions,
+  compactMobile = true,
 }: BoardViewToolbarProps) {
   const filterActive = isBoardFilterActive(taskFilter);
   const sortActive = isBoardSortActive(sortKey);
   const dragLocked = shouldLockTaskDrag(taskFilter, sortKey);
+  const showCompactMobile = compactMobile === true;
 
   function handleTitleInputChange(event: ChangeEvent<HTMLInputElement>) {
     onTaskFilterChange({ kind: 'title', query: event.target.value });
+  }
+
+  function clearTitleFilter() {
+    onTaskFilterChange({ kind: 'all' });
   }
 
   function handleTagChecked(name: string, checked: boolean) {
@@ -301,6 +308,24 @@ export function BoardViewToolbar({
     }
   }
 
+  const filterButtonClass = showCompactMobile
+    ? cn(
+        'h-9 w-9 rounded-lg border px-0',
+        filterActive
+          ? 'border-primary-500/50 bg-primary-500/[0.14] text-primary-900 dark:border-primary-400/45 dark:bg-primary-500/20 dark:text-primary-100'
+          : 'border-surface-200 bg-surface-50 text-surface-700 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-300',
+      )
+    : undefined;
+
+  const sortButtonClass = showCompactMobile
+    ? cn(
+        'h-9 w-9 rounded-lg border px-0',
+        sortActive
+          ? 'border-primary-500/50 bg-primary-500/[0.14] text-primary-900 dark:border-primary-400/45 dark:bg-primary-500/20 dark:text-primary-100'
+          : 'border-surface-200 bg-surface-50 text-surface-700 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-300',
+      )
+    : undefined;
+
   const filterMenu = (
     <DropdownMenu>
       <Tooltip>
@@ -312,15 +337,18 @@ export function BoardViewToolbar({
                 variant={filterActive ? 'ghost' : 'outline'}
                 size="sm"
                 className={cn(
-                  'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
+                  showCompactMobile
+                    ? filterButtonClass
+                    : 'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
                   filterActive &&
+                    !showCompactMobile &&
                     'bg-transparent hover:bg-primary-500/15 dark:hover:bg-primary-500/25',
                 )}
                 aria-label="Filtrar tareas del tablero"
                 aria-pressed={filterActive}
               >
                 <ListFilter className="size-4 shrink-0" aria-hidden />
-                <span className="hidden sm:inline">Filtro</span>
+                {!showCompactMobile ? <span>Filtro</span> : null}
               </Button>
             </DropdownMenuTrigger>
           </span>
@@ -331,7 +359,7 @@ export function BoardViewToolbar({
             : 'Prioridad, etiquetas, fechas, asignación o texto en el título.'}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="z-[90] w-56">
         <DropdownMenuItem onClick={() => onTaskFilterChange({ kind: 'all' })}>
           <List className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           Todas las tareas
@@ -428,15 +456,41 @@ export function BoardViewToolbar({
           Ya vencidas
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => onTaskFilterChange({ kind: 'title', query: '' })}
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Buscar por título
+        </DropdownMenuLabel>
+        <div
+          className="px-1 pb-1"
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         >
-          <Search
-            className="size-4 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          Buscar por título…
-        </DropdownMenuItem>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={taskFilter.kind === 'title' ? taskFilter.query : ''}
+              onChange={handleTitleInputChange}
+              placeholder="Texto…"
+              aria-label="Texto a buscar en el título de las tareas"
+              className="h-8 border-surface-200 bg-surface-50 pl-8 pr-8 text-sm dark:border-surface-700 dark:bg-surface-900"
+            />
+            {taskFilter.kind === 'title' && taskFilter.query.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="absolute top-1/2 right-0.5 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={clearTitleFilter}
+                aria-label="Cerrar búsqueda por título"
+              >
+                <X className="size-3.5" aria-hidden />
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -452,15 +506,18 @@ export function BoardViewToolbar({
                 variant={sortActive ? 'ghost' : 'outline'}
                 size="sm"
                 className={cn(
-                  'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
+                  showCompactMobile
+                    ? sortButtonClass
+                    : 'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
                   sortActive &&
+                    !showCompactMobile &&
                     'bg-transparent hover:bg-primary-500/15 dark:hover:bg-primary-500/25',
                 )}
                 aria-label="Ordenar tareas en las columnas"
                 aria-pressed={sortActive}
               >
                 <ArrowUpDown className="size-4 shrink-0" aria-hidden />
-                <span className="hidden sm:inline">Ordenar</span>
+                {!showCompactMobile ? <span>Ordenar</span> : null}
               </Button>
             </DropdownMenuTrigger>
           </span>
@@ -471,7 +528,7 @@ export function BoardViewToolbar({
             : 'Orden manual por defecto; puedes ordenar por título, prioridad o fecha límite.'}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-64 p-1.5">
+      <DropdownMenuContent align="end" className="z-[90] w-64 p-1.5">
         <DropdownMenuItem onClick={() => onSortChange('manual', 'asc')}>
           <GripVertical
             className="size-4 shrink-0 text-muted-foreground"
@@ -517,7 +574,7 @@ export function BoardViewToolbar({
     </DropdownMenu>
   );
 
-  return (
+  const desktopToolbar = (
     <div className="flex max-w-full flex-col gap-1 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <ToolbarFilterGroup
@@ -573,5 +630,30 @@ export function BoardViewToolbar({
         </p>
       )}
     </div>
+  );
+
+  if (!showCompactMobile) {
+    return desktopToolbar;
+  }
+
+  const mobileToolbar = (
+    <div className="flex items-center gap-2">
+      {filterMenu}
+      {sortMenu}
+      {dragLocked ? (
+        <span className="sr-only">
+          Arrastrar tareas desactivado: hay filtro activo u orden distinto al
+          del tablero.
+        </span>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="sm:hidden">{mobileToolbar}</div>
+
+      <div className="hidden sm:block">{desktopToolbar}</div>
+    </>
   );
 }

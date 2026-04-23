@@ -267,7 +267,7 @@ export const BoardSprintHeaderControls = forwardRef<
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 max-w-[min(100vw-8rem,22rem)] shrink gap-1.5 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+            className="h-9 w-full shrink gap-1.5 border-surface-200 bg-surface-50 px-2 dark:border-surface-700 dark:bg-surface-900 sm:h-8 sm:w-auto sm:max-w-[min(100vw-8rem,22rem)]"
           >
             {triggerIcon()}
             <span className="min-w-0 flex-1 truncate text-left">{triggerLabel()}</span>
@@ -317,7 +317,7 @@ export const BoardSprintHeaderControls = forwardRef<
             <ChevronDown className="ml-0.5 size-4 shrink-0 opacity-70" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72">
+        <DropdownMenuContent align="start" className="z-[90] w-72">
           {canEdit && !hasActiveSprint ? (
             <>
               <DropdownMenuLabel className="flex items-center justify-between gap-2 pr-1 text-xs font-normal text-muted-foreground">

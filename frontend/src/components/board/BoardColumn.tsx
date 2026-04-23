@@ -205,7 +205,7 @@ export const BoardColumn = ({
           isDragging
             ? 'border-dashed border-surface-400 bg-surface-200/60 opacity-60 dark:border-surface-600 dark:bg-surface-800/40'
             : 'border-surface-200 bg-surface-50 hover:border-primary-500/45 dark:border-surface-800 dark:bg-surface-900 dark:hover:border-primary-400/40'
-        }`}
+        } snap-start`}
       >
         <div 
           {...(columnDragAllowed ? attributes : {})} 
@@ -313,7 +313,7 @@ export const BoardColumn = ({
           </div>
         </div>
 
-        <div className="mx-2 mb-1 flex min-h-kanban-col-body flex-1 flex-col gap-3 overflow-y-auto rounded-lg bg-surface-100/90 p-2 pt-2 dark:bg-surface-950/50">
+        <div className="mx-2 mb-1 flex min-h-kanban-col-body flex-1 flex-col gap-3 overflow-y-auto rounded-lg bg-surface-100/90 p-2 pt-2 [touch-action:pan-y] dark:bg-surface-950/50">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {visibleTasks.map((task) => (
               <TaskCard

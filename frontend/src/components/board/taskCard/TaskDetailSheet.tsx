@@ -1,4 +1,4 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -21,6 +21,7 @@ export type { TaskDetailSheetProps } from "./taskDetailSheet/taskDetailSheet.typ
 
 export function TaskDetailSheet(props: TaskDetailSheetProps) {
   const formBaseId = useId();
+  const [isMobileView, setIsMobileView] = useState(false);
   const {
     sheetTitle = 'Detalle de la tarea',
     readOnlyContextSlot,
@@ -103,6 +104,16 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, readOnly, onSave]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => {
+      setIsMobileView(mediaQuery.matches);
+    };
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
+
   return (
     <>
       <TaskDetailUnsavedDialog
@@ -112,8 +123,16 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
         onConfirmUnsavedSave={onConfirmUnsavedSave}
       />
 
-      <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
-        <SheetContent className="z-60 flex w-[90vw] flex-col gap-0 border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900">
+      <Sheet open={open} onOpenChange={onOpenChange} modal={isMobileView}>
+        <SheetContent
+          showCloseButton={false}
+          side={isMobileView ? 'bottom' : 'right'}
+          className={
+            isMobileView
+              ? 'z-60 flex min-h-0 h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 bg-surface-50 p-0 data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh] dark:bg-surface-900'
+              : 'z-60 flex min-h-0 w-[90vw] flex-col gap-0 overflow-hidden border-l border-surface-200 bg-surface-50 p-0 sm:max-w-lg dark:border-surface-800 dark:bg-surface-900'
+          }
+        >
           <SheetHeader className="border-b border-surface-200 p-6 dark:border-surface-800">
             <div className="flex items-start gap-2">
               <SheetTitle className="flex-1 text-left text-xl text-surface-900 dark:text-surface-50">
@@ -136,7 +155,7 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
             </div>
           ) : null}
 
-          <div className="flex flex-1 flex-col gap-3 overflow-y-auto bg-surface-100 p-6 dark:bg-surface-950">
+          <div className="min-h-0 flex flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-surface-100 p-6 [touch-action:pan-y] [-webkit-overflow-scrolling:touch] dark:bg-surface-950">
             <TaskDetailGeneralSection
               readOnly={readOnly}
               editTitle={editTitle}
