@@ -266,8 +266,8 @@ export const BoardSprintHeaderControls = forwardRef<
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="w-full shrink gap-1.5 border-surface-200 bg-surface-50 px-2 dark:border-surface-700 dark:bg-surface-900 sm:w-auto sm:max-w-[min(100vw-8rem,22rem)]"
+            size="default"
+            className="w-full shrink gap-1.5 border-surface-200 bg-surface-50 px-3 dark:border-surface-700 dark:bg-surface-900 sm:w-auto sm:max-w-[min(100vw-8rem,24rem)]"
           >
             {triggerIcon()}
             <span className="min-w-0 flex-1 truncate text-left">{triggerLabel()}</span>

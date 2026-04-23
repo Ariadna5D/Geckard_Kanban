@@ -82,7 +82,7 @@ function ToolbarFilterGroup({
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 shrink-0 rounded-none border-l border-primary-500/40 px-2.5',
+              'h-9 shrink-0 rounded-none border-l border-primary-500/40 px-2.5',
               'text-primary-900 hover:bg-primary-500/25 dark:border-primary-400/35 dark:text-primary-50 dark:hover:bg-primary-500/30',
             )}
             onClick={onClear}
@@ -127,7 +127,7 @@ function ToolbarSortGroup({
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 shrink-0 rounded-none border-l border-primary-500/40 px-2.5',
+              'h-9 shrink-0 rounded-none border-l border-primary-500/40 px-2.5',
               'text-primary-900 hover:bg-primary-500/25 dark:border-primary-400/35 dark:text-primary-50 dark:hover:bg-primary-500/30',
             )}
             onClick={onClear}
@@ -339,7 +339,7 @@ export function BoardViewToolbar({
                 className={cn(
                   showCompactMobile
                     ? filterButtonClass
-                    : 'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
+                    : 'h-9 gap-1.5 border-surface-200 bg-surface-50 px-3 sm:px-3.5 dark:border-surface-700 dark:bg-surface-900',
                   filterActive &&
                     !showCompactMobile &&
                     'bg-transparent hover:bg-primary-500/15 dark:hover:bg-primary-500/25',
@@ -508,7 +508,7 @@ export function BoardViewToolbar({
                 className={cn(
                   showCompactMobile
                     ? sortButtonClass
-                    : 'h-8 gap-1.5 border-surface-200 bg-surface-50 px-2.5 sm:px-3 dark:border-surface-700 dark:bg-surface-900',
+                    : 'h-9 gap-1.5 border-surface-200 bg-surface-50 px-3 sm:px-3.5 dark:border-surface-700 dark:bg-surface-900',
                   sortActive &&
                     !showCompactMobile &&
                     'bg-transparent hover:bg-primary-500/15 dark:hover:bg-primary-500/25',
@@ -596,7 +596,7 @@ export function BoardViewToolbar({
               onChange={handleTitleInputChange}
               placeholder="Texto en el título…"
               aria-label="Texto a buscar en el título de las tareas"
-              className="h-8 w-40 border-surface-200 bg-surface-50 pl-8 pr-9 text-sm sm:w-48 dark:border-surface-700 dark:bg-surface-900"
+              className="h-9 w-40 border-surface-200 bg-surface-50 pl-8 pr-9 text-sm sm:w-48 dark:border-surface-700 dark:bg-surface-900"
             />
             <Tooltip>
               <TooltipTrigger asChild>

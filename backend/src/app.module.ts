@@ -10,6 +10,7 @@ import { CaslModule } from './casl/casl.module';
 import { BoardsModule } from './boards/boards.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BillingModule } from './billing/billing.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 // Opciones de conexión a Mongo (usuario, contraseña y host desde variables de entorno).
 function createMongooseOptions(configService: ConfigService) {
@@ -86,6 +87,7 @@ function createMongooseOptions(configService: ConfigService) {
     CaslModule,
     BoardsModule,
     BillingModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

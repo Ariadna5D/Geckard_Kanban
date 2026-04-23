@@ -31,6 +31,7 @@ import { UpdateActiveSprintDto } from './dto/update-active-sprint.dto';
 import { UpdateClosedSprintDto } from './dto/update-closed-sprint.dto';
 import { UsersService } from '../users/users.service';
 import { BoardActivityService } from './board-activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /// Convierte un valor desconocido en un array, o devuelve null si no es un array. PARA LINTER
 function asUnknownArray(raw: unknown): unknown[] | null {
@@ -88,6 +89,7 @@ export class BoardsService {
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     private readonly usersService: UsersService,
     private readonly boardActivityService: BoardActivityService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private async resolveActorEmail(userId: string): Promise<string> {
@@ -1663,12 +1665,17 @@ export class BoardsService {
       board.members[existingMemberIndex].role = dto.role;
     } else {
       await this.assertNewMemberAllowedByOwnerPlan(board);
-      board.members.push({
-        user: new Types.ObjectId(dto.userId),
+      await this.notificationsService.createBoardInvite({
+        recipientUserId: dto.userId,
+        actorUserId,
+        actorEmail: await this.resolveActorEmail(actorUserId),
+        boardId,
+        boardTitle: board.title,
+        boardSlug: board.slug,
         role: dto.role,
       });
     }
-    const saved = await board.save();
+    const saved = existingMemberIndex >= 0 ? await board.save() : board;
     const actorEmail = await this.resolveActorEmail(actorUserId);
     await this.boardActivityService.record({
       boardId,
@@ -1679,7 +1686,7 @@ export class BoardsService {
       message:
         existingMemberIndex >= 0
           ? `Actualizó el rol de «${target.email}» a «${dto.role}».`
-          : `Invitó a «${target.email}» como «${dto.role}».`,
+          : `Envió invitación a «${target.email}» como «${dto.role}».`,
       entityId: dto.userId,
     });
     return saved;

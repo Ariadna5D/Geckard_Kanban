@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '@/store/useAuthStore';
 import { BrandMark } from '@/components/comons/BrandMark';
 import { Button } from '@/components/ui/button';
+import { NotificationsBell } from '@/components/comons/NotificationsBell';
 
 export const Navbar = () => {
   const { user, logout } = useAuthStore();
@@ -59,7 +60,7 @@ export const Navbar = () => {
         <Button
           variant="default"
           onClick={handleGoToPlans}
-          className="hidden h-11 min-h-11 shrink-0 gap-2 rounded-xl px-4 text-sm font-semibold shadow-md sm:inline-flex sm:h-12 sm:min-h-12 sm:px-5"
+          className="hidden h-11 min-h-11 shrink-0 gap-2 rounded-xl px-4 text-sm font-semibold shadow-md sm:inline-flex sm:h-11 sm:min-h-11 sm:px-5"
         >
           <Sparkles className="size-5 shrink-0 sm:size-[1.35rem]" aria-hidden />
           <span className="max-w-[9.5rem] leading-tight sm:max-w-none">
@@ -67,9 +68,11 @@ export const Navbar = () => {
           </span>
         </Button>
 
+        <NotificationsBell />
+
         <DropdownMenu>
           <DropdownMenuTrigger className="outline-none">
-            <Avatar className="size-10 cursor-pointer border-2 border-transparent shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:ring-2 hover:ring-primary-500/25 dark:hover:border-primary-400/45 dark:hover:ring-primary-400/20">
+            <Avatar className="size-11 cursor-pointer border-2 border-transparent shadow-sm transition-[border-color,box-shadow] hover:border-primary-500/50 hover:ring-2 hover:ring-primary-500/25 dark:hover:border-primary-400/45 dark:hover:ring-primary-400/20">
               <AvatarImage
                 src={user?.avatarUrl || ''}
                 alt="Avatar"

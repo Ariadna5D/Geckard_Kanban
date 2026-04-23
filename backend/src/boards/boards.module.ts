@@ -12,6 +12,7 @@ import { CaslModule } from '../casl/casl.module';
 import { Task, TaskSchema } from '../tasks/schemas/task.schema';
 import { UsersModule } from '../users/users.module';
 import { BoardActivityService } from './board-activity.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BoardActivityService } from './board-activity.service';
     ]),
     CaslModule,
     UsersModule,
+    NotificationsModule,
   ],
   controllers: [BoardsController],
   providers: [BoardsService, BoardPolicyGuard, BoardActivityService],

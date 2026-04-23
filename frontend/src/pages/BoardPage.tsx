@@ -481,7 +481,7 @@ export const BoardPage = () => {
       <header className="relative z-10 flex shrink-0 flex-col gap-3 border-b border-surface-200 bg-surface-50 px-4 py-3 sm:px-6 sm:py-4 lg:px-8 dark:border-surface-800 dark:bg-surface-900 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="min-w-0 truncate text-xl font-bold text-surface-900 dark:text-surface-50">
+            <h1 className="min-w-0 truncate text-2xl font-bold text-surface-900 dark:text-surface-50">
               {board.title}
             </h1>
             {!canEdit && (
@@ -507,7 +507,7 @@ export const BoardPage = () => {
               <Button
                 type="button"
                 variant="outline"
-                size="icon-sm"
+                size="icon-lg"
                 className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
                 onClick={() => void handleRefreshBoard()}
                 disabled={refreshBusy}
@@ -531,7 +531,7 @@ export const BoardPage = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     className="border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
                     onClick={handleOpenSettings}
                     aria-label="Configuración del tablero"
@@ -550,7 +550,7 @@ export const BoardPage = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     className="shrink-0 border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
                     onClick={handleOpenShare}
                   >
