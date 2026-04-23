@@ -128,6 +128,15 @@ export function buildReadOnlyClosedSprintTaskSheetProps(options: {
     onSelectPriority: noop as (p: Task['priority']) => void,
     editDueDate,
     onEditDueDateChange: noop as (e: ChangeEvent<HTMLInputElement>) => void,
+    currentColumnId: task?.columnId ?? '',
+    columnOptions: [
+      {
+        id: task?.columnId ?? '',
+        title: snapshot.columnTitleAtClose,
+        isDoneColumn: snapshot.wasCompleted,
+      },
+    ],
+    onMoveToColumn: noop,
     panelConsensus,
     panelVoteCount: teamVoteCount,
     storyPointState: null,

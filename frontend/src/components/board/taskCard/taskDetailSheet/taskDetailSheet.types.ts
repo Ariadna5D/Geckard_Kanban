@@ -8,6 +8,12 @@ import type {
 } from '@/types/board.types';
 import type { ChecklistEditRow } from '../taskCardHelpers';
 
+export interface TaskDetailColumnOption {
+  id: string;
+  title: string;
+  isDoneColumn: boolean;
+}
+
 export interface TaskDetailSheetProps {
   /** Reemplaza el título del encabezado del panel (p. ej. vista sprint archivado). */
   sheetTitle?: string;
@@ -34,6 +40,9 @@ export interface TaskDetailSheetProps {
   onSelectPriority: (p: Task['priority']) => void;
   editDueDate: string;
   onEditDueDateChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  currentColumnId: string;
+  columnOptions: TaskDetailColumnOption[];
+  onMoveToColumn: (columnId: string) => void | Promise<void>;
   panelConsensus: number | null;
   panelVoteCount: number;
   storyPointState: StoryPointVotingState | null;

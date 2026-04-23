@@ -35,6 +35,7 @@ import {
 } from './taskCardHelpers';
 import { PRIORITY_ACCENT_BORDER } from './taskCardConstants';
 import type { TaskDetailSheetProps } from './TaskDetailSheet';
+import { calculateNewOrder } from '@/utils/boardMath';
 
 async function fetchStoryPointVotingForTask(
   taskId: string,
@@ -51,7 +52,14 @@ export function useTaskCardViewModel(
   readOnly: boolean,
   disableDrag = false,
 ) {
-  const { board, boardMembers, archiveTask, updateTask, fetchBoard } =
+  const {
+    board,
+    boardMembers,
+    archiveTask,
+    updateTask,
+    fetchBoard,
+    moveTaskOptimistic,
+  } =
     useActiveBoardStore();
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
 
@@ -127,6 +135,18 @@ export function useTaskCardViewModel(
     }
     return 'Sprint activo';
   }, [board?.activeSprintId, board?.sprints]);
+
+  const columnOptions = useMemo(() => {
+    if (!board?.columns?.length) {
+      return [];
+    }
+    return board.columns.map((column) => ({
+      id: column._id,
+      title: column.title,
+      isDoneColumn:
+        column.columnKind === 'done' || column.columnKind === 'archived',
+    }));
+  }, [board?.columns]);
 
   const assigneePickCandidates = useMemo(() => {
     const assigneeQueryLower = assigneeSearchQuery.trim().toLowerCase();
@@ -384,6 +404,41 @@ export function useTaskCardViewModel(
     updateTask,
   ]);
 
+  const moveTaskToColumn = useCallback(
+    async (newColumnId: string) => {
+      if (!board || readOnly) {
+        return;
+      }
+      if (newColumnId === task.columnId) {
+        return;
+      }
+
+      const targetColumn = board.columns.find(
+        (column) => column._id === newColumnId,
+      );
+      if (!targetColumn) {
+        return;
+      }
+
+      const targetTasks = targetColumn.tasks ?? [];
+      const lastTask = targetTasks.length
+        ? targetTasks[targetTasks.length - 1]
+        : null;
+      const newOrder = calculateNewOrder(lastTask?.order ?? null, null);
+
+      await moveTaskOptimistic(
+        task._id,
+        task.columnId,
+        newColumnId,
+        newOrder,
+        { newColumnId, newOrder },
+      );
+      closePanelCleanup();
+      setIsPanelOpen(false);
+    },
+    [board, closePanelCleanup, moveTaskOptimistic, readOnly, task._id, task.columnId],
+  );
+
   const confirmUnsavedSave = useCallback(async () => {
     setUnsavedDialogOpen(false);
     await handleSaveChanges();
@@ -626,6 +681,9 @@ export function useTaskCardViewModel(
     editDueDate,
     onEditDueDateChange: (e: ChangeEvent<HTMLInputElement>) =>
       setEditDueDate(e.target.value),
+    currentColumnId: task.columnId,
+    columnOptions,
+    onMoveToColumn: moveTaskToColumn,
     panelConsensus,
     panelVoteCount,
     storyPointState,

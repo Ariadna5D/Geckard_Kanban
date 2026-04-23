@@ -45,6 +45,9 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
     onSelectPriority,
     editDueDate,
     onEditDueDateChange,
+    currentColumnId,
+    columnOptions,
+    onMoveToColumn,
     panelConsensus,
     panelVoteCount,
     storyPointState,
@@ -144,6 +147,9 @@ export function TaskDetailSheet(props: TaskDetailSheetProps) {
               onStartDescriptionEdit={onStartDescriptionEdit}
               onSaveDescriptionSection={onSaveDescriptionSection}
               onCancelDescriptionEdit={onCancelDescriptionEdit}
+              currentColumnId={currentColumnId}
+              columnOptions={columnOptions}
+              onMoveToColumn={onMoveToColumn}
             />
             <TaskDetailLabelsSection
               readOnly={readOnly}
