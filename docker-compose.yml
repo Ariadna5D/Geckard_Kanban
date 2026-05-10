@@ -1,0 +1,62 @@
+services:
+  mongodb:
+    image: mongo:latest
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - kanban_network
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      MONGO_HOST: ${MONGO_HOST:-mongodb}
+      MONGO_USERNAME: ${MONGO_USERNAME}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_DATABASE: ${MONGO_DATABASE:-kanban_db}
+      JWT_SECRET: ${JWT_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    depends_on:
+      - mongodb
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/api',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - kanban_network
+
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - kanban_network
+
+networks:
+  kanban_network:
+    driver: bridge
+
+volumes:
+  mongo_data:

@@ -1,0 +1,49 @@
+name: Despliegue con Docker TFG
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-docker-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: 1. Descargar código
+        uses: actions/checkout@v5
+
+      - name: 2. Generar .env desde secretos
+        run: |
+          cd "${{ github.workspace }}"
+          # En docker compose el servicio de bd se llama mongodb
+          # Si mongo host no existe o queda vacio el backend usa localhost y falla
+          MONGO_HOST="${{ secrets.MONGO_HOST }}"
+          if [ -z "$MONGO_HOST" ]; then MONGO_HOST=mongodb; fi
+          {
+            echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}"
+            echo "MONGO_HOST=$MONGO_HOST"
+            echo "MONGO_USERNAME=${{ secrets.MONGO_USERNAME }}"
+            echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}"
+            echo "MONGO_DATABASE=${{ secrets.MONGO_DATABASE }}"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+            echo "CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}"
+            echo "CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}"
+            echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}"
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
+            echo "STRIPE_PRICE_PRO=${{ secrets.STRIPE_PRICE_PRO }}"
+            echo "STRIPE_PRICE_TEAM=${{ secrets.STRIPE_PRICE_TEAM }}"
+            echo "STRIPE_SUCCESS_URL=${{ secrets.STRIPE_SUCCESS_URL }}"
+            echo "STRIPE_CANCEL_URL=${{ secrets.STRIPE_CANCEL_URL }}"
+            echo "STRIPE_PORTAL_RETURN_URL=${{ secrets.STRIPE_PORTAL_RETURN_URL }}"
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+          } > .env
+
+      - name: 3. Levantar Docker
+        run: |
+          cd "${{ github.workspace }}"
+          docker compose down
+          docker compose up -d --build --remove-orphans
